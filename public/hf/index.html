@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<title>Hyperframes — Can a 9 year old GPU beat today's latest?</title>
+<script src="../gsap.min.js"></script>
+<style>
+  :root{
+    --paper:#f4f1ea; --ink:#12100e; --muted:#6b6459; --line:#d9d3c6;
+    --red:#e63946; --blue:#118ab2; --green:#06d6a0; --amber:#ffd166; --purple:#7b2ff7;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:var(--paper);}
+  body{font-family:"Inter","Helvetica Neue",Arial,sans-serif;color:var(--ink);
+       -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
+  #stage{position:relative;width:1920px;height:1080px;overflow:hidden;}
+  .scene{position:absolute;inset:0;padding:96px 128px;display:flex;flex-direction:column;
+         visibility:hidden;opacity:0;}
+  .kicker{display:inline-flex;align-items:center;gap:18px;font-size:24px;font-weight:800;
+          letter-spacing:.34em;text-transform:uppercase;margin-bottom:20px;}
+  .kicker::before{content:"";width:56px;height:4px;background:currentColor;display:inline-block;}
+  .title{font-size:78px;font-weight:900;line-height:1.04;letter-spacing:-.02em;max-width:82%;}
+  .body{flex:1;display:flex;align-items:center;width:100%;}
+  .punch{font-size:36px;font-style:italic;font-weight:600;line-height:1.35;max-width:80%;}
+  /* bars */
+  .bars{width:100%;}
+  .bars .cap{font-size:26px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+             color:var(--muted);margin-bottom:34px;}
+  .bar{margin-bottom:32px;}
+  .bar .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+  .bar .lab{font-size:26px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);}
+  .bar .val{font-size:46px;font-weight:900;}
+  .bar .track{height:24px;border-radius:12px;background:#e6e0d3;overflow:hidden;}
+  .bar .fill{height:100%;width:0;border-radius:12px;}
+  /* cards */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:26px;width:100%;}
+  .card{background:#fff;border:2px solid var(--line);border-radius:18px;padding:30px 32px;
+        box-shadow:6px 6px 0 rgba(18,16,14,.08);}
+  .card .ct{font-size:23px;font-weight:800;letter-spacing:.08em;margin-bottom:14px;}
+  .card .cb{font-size:31px;font-weight:600;white-space:pre-line;line-height:1.4;}
+  /* timeline */
+  .tl{width:100%;}
+  .tl .row{display:flex;align-items:center;gap:26px;margin-bottom:30px;}
+  .tl .when{font-size:25px;font-weight:900;letter-spacing:.05em;color:#fff;border-radius:10px;
+            padding:11px 18px;min-width:196px;text-align:center;}
+  .tl .dot{width:24px;height:24px;border-radius:12px;flex-shrink:0;}
+  .tl .what{font-size:33px;font-weight:600;}
+  /* chrome */
+  #ticker{position:absolute;top:44px;right:128px;font-size:20px;font-weight:700;
+          letter-spacing:.18em;color:var(--muted);z-index:5;}
+  #ticker span{margin-left:16px;}
+  #ticker span.on{color:var(--red);}
+  #prog{position:absolute;left:0;bottom:0;height:9px;width:0;z-index:5;
+        background:linear-gradient(90deg,var(--red),var(--amber));}
+  #paper{position:absolute;inset:0;pointer-events:none;z-index:1;
+        background-image:radial-gradient(rgba(18,16,14,.05) 1.4px,transparent 1.4px);
+        background-size:26px 26px;}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="paper"></div>
+  <div id="ticker"></div>
+  <div id="prog"></div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * Scene data (mirrors src/timeline.ts — kept in sync manually)        *
+ * ------------------------------------------------------------------ */
+const T = {good:'--green', bad:'--red', accent:'--blue', neutral:'--muted', gold:'--amber'};
+const tc = t => 'var(' + (T[t] || '--amber') + ')';
+
+const SCENES = [
+ {id:'intro',start:0,end:35,kicker:'LOCAL AI',color:'var(--blue)',
+  title:'The dream, and the price tag',
+  spec:{kind:'cards',items:[['DGX SPARK','$6,950','--red'],['RTX 5090','$2,000+','--red'],
+        ['8-CARD BLACKWELL RACK','$120,000','--red'],['WHAT YOU WANT','run one model','--blue']]},
+  punch:'“I just want to run a model, I\'m not trying to land on the moon.”'},
+
+ {id:'rabbit',start:35,end:85,kicker:'THREE WEEKS AGO',color:'var(--purple)',
+  title:'A claim that deserved a double take',
+  spec:{kind:'bars',cap:'The claim',max:2.5,bars:[
+    ['4× V100 (2017)','2.5× faster',2.5,'--green'],
+    ['DGX SPARK (2025)','1× baseline',1,'--red']]},
+  punch:'“Clickbait… or what if it isn\'t?”'},
+
+ {id:'setup',start:85,end:167,kicker:'THE SETUP',color:'var(--green)',
+  title:'Four datacenter bricks vs. two shiny boxes',
+  spec:{kind:'cards',items:[['4× V100 SXM2','$695 each · 128 GB via NVLink\n≈ $3,500 total','--green'],
+        ['2× DGX SPARK','$6,950 each · GB10 Blackwell\n= $13,900 total','--red'],
+        ['SAME MODEL','Qwen 3.8 Flash Next · vLLM','--blue']]},
+  punch:null},
+
+ {id:'bench',start:167,end:255,kicker:'THE BENCHMARK',color:'var(--red)',
+  title:'155 vs 60 — and the skepticism',
+  spec:{kind:'bars',cap:'Writing speed (tokens/sec)',max:160,bars:[
+    ['4× V100 (2017)','155',155,'--green'],
+    ['2× DGX SPARK (2025)','60',60,'--red']]},
+  punch:'“Volta only speaks 16-bit. The 2025 chip should win by a mile.”'},
+
+ {id:'jobs',start:255,end:376,kicker:'WHY IT WORKS',color:'var(--blue)',
+  title:'Two jobs: reading and writing',
+  spec:{kind:'cards',items:[['JOB 1 · PREFILL','Read the prompt\nparallel · compute bound','--blue'],
+        ['JOB 2 · GENERATION','Write one token at a time\nsequential · memory bound','--red'],
+        ['THE TEXTBOOK RULE','reread every weight for\nEACH single word','--amber']]},
+  punch:null},
+
+ {id:'bw',start:376,end:450,kicker:'MEMORY BANDWIDTH',color:'var(--green)',
+  title:'900 GB/s vs 273 GB/s',
+  spec:{kind:'bars',cap:'Memory bandwidth (GB/s)',max:960,bars:[
+    ['4× V100 · HBM2','900 GB/s',900,'--green'],
+    ['DGX SPARK · unified','273 GB/s',273,'--red']]},
+  punch:'“Ancient silicon, 3× the bandwidth of a brand-new $7,000 chip.”'},
+
+ {id:'score',start:450,end:494,kicker:'llama.cpp BENCHMARK',color:'var(--amber)',
+  title:'The scoreboard splits perfectly',
+  spec:{kind:'bars',cap:'Real benchmark · llama.cpp',max:3100,bars:[
+    ['WRITING · V100','129 tok/s',129,'--green'],
+    ['WRITING · SPARK','57 tok/s',57,'--red'],
+    ['READING · V100','3,043',3043,'--blue'],
+    ['READING · SPARK','3,062 · TIE',3062,'--blue']]},
+  punch:null},
+
+ {id:'ic',start:494,end:590,kicker:'THE INTERCONNECT TRAP',color:'var(--red)',
+  title:'More hardware, slower results',
+  spec:{kind:'bars',cap:'Writing speed · same model',max:160,bars:[
+    ['4× V100 · NVLink','155',155,'--green'],
+    ['8× RTX PRO 6000 · PCIe','126',126,'--red'],
+    ['SAME 8-CARD BOX','37 (was 58 on 4 cards)',37,'--red']]},
+  punch:'“PCIe wasn\'t fast enough for all-to-all. NVLink was.”'},
+
+ {id:'ti',start:590,end:675,kicker:'COUNTER-EXAMPLE',color:'var(--purple)',
+  title:'The 1080 Ti: bandwidth without software',
+  spec:{kind:'bars',cap:'Spec sheet vs. reality',max:500,bars:[
+    ['1080 Ti · spec','484 GB/s',484,'--blue'],
+    ['RTX 5060 · spec','448 GB/s',448,'--muted'],
+    ['1080 Ti · actual','62 tok/s',62,'--red'],
+    ['RTX 5060 · actual','97 tok/s',97,'--green']]},
+  punch:'“The 1080 Ti has a fan club. The V100 has developers.”'},
+
+ {id:'sw',start:675,end:763,kicker:'THE SECRET WEAPON',color:'var(--green)',
+  title:'One release: 49 → 201 tok/s',
+  spec:{kind:'bars',cap:'Same hardware · same model',max:210,bars:[
+    ['v1.5.0 · SEPT','49',49,'--muted'],
+    ['v1.5.1 · OCT 3','201',201,'--green']]},
+  punch:'“Nothing about the silicon changed — the software just stopped wasting it.”'},
+
+ {id:'par',start:763,end:845,kicker:'V100-SKINNY',color:'var(--blue)',
+  title:'$400 of eBay cards match a $6,000 5090',
+  spec:{kind:'bars',cap:'Qwen 3.8 27B · writing',max:230,bars:[
+    ['4× V100 16GB (<$400)','219 · 5/5 ✓',219,'--green'],
+    ['RTX 5090 ($6,000)','214.7 · 5/5 ✓',214.7,'--blue']]},
+  punch:'“Missing less silicon than it is missing software.”'},
+
+ {id:'eol',start:845,end:930,kicker:'THE UNCOMFORTABLE PART',color:'var(--red)',
+  title:'The calendar is the real competitor',
+  spec:{kind:'timeline',items:[
+    ['AUG 2025','CUDA 13 · Volta removed','--red'],
+    ['SEP 4 2025','PyTorch 2.14 · last wheel','--red'],
+    ['MID 2028','Driver 580 · end of support','--red'],
+    ['TODAY','Community forks · 0 from Nvidia','--green']]},
+  punch:'“Four community projects keep this card alive. Zero are from Nvidia.”'},
+
+ {id:'math',start:930,end:1000,kicker:'THE REAL MATH',color:'var(--amber)',
+  title:'Break-even lands on end-of-support',
+  spec:{kind:'bars',cap:'Cost per million tokens',max:500,bars:[
+    ['HOSTED · Alibaba','$0.47',47,'--blue'],
+    ['V100 RIG · power only','$0.23',23,'--green']]},
+  punch:'“24/7 = 3 years to break even. Support ends mid-2028. Same season.”'},
+
+ {id:'end',start:1000,end:1044.79,kicker:'VERDICT',color:'var(--ink)',
+  title:'It beats the GPU. It can\'t beat the calendar.',
+  spec:{kind:'cards',items:[['SOLAR + LOVE THE BUILD','DO IT','--green'],
+        ['JUST WANT THE MODEL','RENT IT','--blue']]},
+  punch:'“I found 4 V100s on eBay. I\'m not closing the tab.”'},
+];
+
+/* ------------------------------------------------------------------ *
+ * Build DOM                                                            *
+ * ------------------------------------------------------------------ */
+const stage = document.getElementById('stage');
+const els = [];
+SCENES.forEach((s, si) => {
+  const sc = document.createElement('section');
+  sc.className = 'scene';
+  sc.style.visibility = 'hidden';
+
+  let bodyHtml = '';
+  if (s.spec.kind === 'bars') {
+    const max = s.spec.max;
+    bodyHtml = `<div class="bars"><div class="cap">${s.spec.cap}</div>` +
+      s.spec.bars.map(b => {
+        const pct = Math.max(2, (b[2] / max) * 100);
+        return `<div class="bar"><div class="top"><span class="lab">${b[0]}</span>` +
+               `<span class="val" style="color:${b[3]}">${b[1]}</span></div>` +
+               `<div class="track"><div class="fill" data-w="${pct}" style="background:${b[3]}"></div></div></div>`;
+      }).join('') + `</div>`;
+  } else if (s.spec.kind === 'cards') {
+    bodyHtml = `<div class="cards">` + s.spec.items.map(c =>
+      `<div class="card" style="border-color:${c[2]}"><div class="ct" style="color:${c[2]}">${c[0]}</div>` +
+      `<div class="cb">${c[1]}</div></div>`).join('') + `</div>`;
+  } else if (s.spec.kind === 'timeline') {
+    bodyHtml = `<div class="tl">` + s.spec.items.map(r =>
+      `<div class="row"><div class="when" style="background:${r[2]}">${r[0]}</div>` +
+      `<div class="dot" style="background:${r[2]}"></div>` +
+      `<div class="what">${r[1]}</div></div>`).join('') + `</div>`;
+  }
+
+  sc.innerHTML =
+    `<div class="kicker" style="color:${s.color}">${s.kicker}</div>` +
+    `<h1 class="title">${s.title}</h1>` +
+    `<div class="body">${bodyHtml}</div>` +
+    (s.punch ? `<div class="punch" style="color:${s.color}">${s.punch}</div>` : '');
+  stage.appendChild(sc);
+  els.push(sc);
+});
+
+/* ticker */
+const ticker = document.getElementById('ticker');
+ticker.innerHTML = SCENES.map((_, i) =>
+  `<span data-i="${i}">${String(i + 1).padStart(2, '0')}</span>`).join('');
+
+/* ------------------------------------------------------------------ *
+ * Single paused GSAP master timeline (seek-safe, deterministic)        *
+ * ------------------------------------------------------------------ */
+const DUR = 1044.79;
+const tl = gsap.timeline({paused: true, defaults: {ease: 'power3.out'}});
+
+SCENES.forEach((s, i) => {
+  const sc = els[i];
+  const inn = s.start, out = s.end;
+  const bars = sc.querySelectorAll('.fill');
+  const cards = sc.querySelectorAll('.card, .bar, .row');
+
+  tl.set(sc, {visibility: 'visible', opacity: 1}, inn);
+  tl.fromTo(sc.querySelector('.kicker'),
+    {x: -40, opacity: 0}, {x: 0, opacity: 1, duration: .5}, inn + .05);
+  tl.fromTo(sc.querySelector('.title'),
+    {y: 40, opacity: 0}, {y: 0, opacity: 1, duration: .7}, inn + .15);
+  tl.fromTo(cards, {y: 34, opacity: 0}, {y: 0, opacity: 1, duration: .6, stagger: .09}, inn + .45);
+  bars.forEach((b, k) => {
+    tl.fromTo(b, {width: '0%'}, {width: b.dataset.w + '%', duration: 1.1, ease: 'power2.out'},
+      inn + .6 + k * .12);
+  });
+  if (s.punch) {
+    tl.fromTo(sc.querySelector('.punch'), {y: 20, opacity: 0},
+      {y: 0, opacity: 1, duration: .6}, Math.max(inn + 1.2, out - 3));
+  }
+  tl.set(sc, {opacity: 0, visibility: 'hidden'}, out - .02);
+});
+
+/* progress bar */
+tl.fromTo('#prog', {width: '0%'}, {width: '100%', duration: DUR, ease: 'none'}, 0);
+
+/* ticker highlight — seek-safe color sets (no className plugin) */
+const spans = Array.from(ticker.querySelectorAll('span'));
+SCENES.forEach((s, i) => {
+  tl.set(spans, {color: 'var(--muted)'}, s.start);
+  tl.set(spans[i], {color: 'var(--red)', fontWeight: 900}, s.start);
+});
+
+/* total duration */
+tl.to({}, {duration: DUR}, DUR);
+
+/* expose seek API for the Remotion renderer */
+window.DURATION = DUR;
+window.seekTo = (sec) => { tl.seek(Math.max(0, Math.min(DUR, sec))); return true; };
+window.__hfReady = true;
+</script>
+</body>
+</html>
