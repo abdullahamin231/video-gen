@@ -7,6 +7,7 @@ import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {reconcile} from '../lib/timing.mjs';
+import {useBundle} from '../lib/library.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const run = (command, job) => spawnSync(process.execPath, [path.join(ROOT,'scripts/video.mjs'),command,'--job',job], {encoding:'utf8'});
 async function fixture(t) {
@@ -54,4 +55,14 @@ test('modified audio cannot silently reuse old word timings', async t=>{
   const result=run('compile',job);
   assert.equal(result.status,1);
   assert.match(result.stderr,/Narration changed/);
+});
+test('pipeline audit checks installed library files against frozen hashes', async t=>{
+  const {job}=await fixture(t);
+  const result = await useBundle(path.join(ROOT, 'library'), 'motion-primitives@1.0.0', job);
+  assert.equal(run('assemble',job).status,0);
+  assert.equal(run('audit',job).status,0);
+  await writeFile(path.join(job,result.path,'motion.js'),'changed helper');
+  const audit = run('audit',job);
+  assert.equal(audit.status,1);
+  assert.match(audit.stdout,/frozen file changed/);
 });

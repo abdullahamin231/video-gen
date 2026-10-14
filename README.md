@@ -79,5 +79,9 @@ overridden by a documented creative decision. Source inputs and the entire
 `jobs/` directory are ignored by Git; job artifacts stay local. Freeze extra media
 locally and record its origin for reproducibility.
 
-The old `public/hf/index.html` is retained as a legacy reference. Production now
-uses per-job HyperFrames projects rather than the previous Remotion layout.
+Production uses isolated per-job HyperFrames projects.
+
+Reusable animation mechanisms and media live in the tracked [shared library](library/README.md).
+Agents search metadata, freeze explicit versions into each job, and contribute
+useful new components and short sequences after production review. Job audits
+check installed files against their recorded hashes.

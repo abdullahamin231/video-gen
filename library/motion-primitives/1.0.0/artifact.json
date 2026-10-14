@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "motion-primitives",
+  "version": "1.0.0",
+  "kind": "primitive",
+  "title": "Cue-driven stroke drawing, reveal and packet flow",
+  "description": "Existing seek-safe GSAP helpers for drawing geometry, revealing a subject and transporting an element between coordinates.",
+  "tags": ["draw", "stroke", "reveal", "packet", "transport", "flow", "gsap"],
+  "entry": "motion.js",
+  "files": ["motion.js"],
+  "parameters": {"duration": "seconds", "length": "stroke length", "fromX/toX/fromY/toY": "flow coordinates"},
+  "cueSlots": ["at"],
+  "usage": "The pipeline already loads window.VideoMotion from assets/motion.js; this bundle preserves the original helpers. API: VideoMotion.draw(tl, target, cue.localAt, {duration, length}); VideoMotion.flow(tl, target, cue.localAt, {duration, fromX, toX, fromY, toY}); VideoMotion.reveal(tl, target, cue.localAt, {duration, x, y, scale}). Supply a paused GSAP timeline and instance-specific selectors. These are primitives, not complete explanatory sequences. No additional script tag is needed in current pipeline jobs.",
+  "origin": {"source": "lib/motion.js", "license": "project-owned"},
+  "review": {"status": "draft", "evidence": []}
+}

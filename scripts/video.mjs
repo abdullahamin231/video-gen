@@ -5,9 +5,11 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues} from '../lib/timing.mjs';
+import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies} from '../lib/library.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
+const LIBRARY = path.join(ROOT, 'library');
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
 const save = (file, data) => writeFile(file, JSON.stringify(data, null, 2) + '\n');
 const exists = async file => {try {await access(file); return true;} catch {return false;}};
@@ -151,6 +153,7 @@ ${hosts}
 }
 async function audit(job) {
   const {manifest, timing} = await compile(job), errors = [], warnings = [...timing.warnings];
+  errors.push(...await verifyLibraryCopies(job));
   const files = new Map();
   for (const scene of timing.scenes) {
     const source = await readFile(path.join(job, scene.file), 'utf8').catch(() => '');
@@ -218,6 +221,10 @@ transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
 compile | assemble | audit | check | preview | render | verify [--job jobs/<slug>]
 render [--quality delivery]          audit + runtime check + render + verify
 preview [--port 3002]                persistent HyperFrames Studio
+library-search [--query "packet flow" --limit 8]  search shared artifact metadata
+library-info --item <id@version>     inspect one bundle, usage and provenance
+library-add --source <bundle-dir>   publish a new immutable artifact version
+library-use --item <id@version> --job jobs/<slug>  freeze files and record hashes
 
 The latest prepared job is used when --job is omitted.
 Creative design is performed by the agent; see AGENTS.md and docs/agent-workflow.md.
@@ -226,6 +233,16 @@ try {
   const [command = 'help', ...args] = process.argv.slice(2), opts = options(args);
   if (command === 'help') console.log(HELP);
   else if (command === 'prepare') await prepare(opts);
+  else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
+  else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
+  else if (command === 'library-add') {
+    if (!opts.source) throw new Error('library-add requires --source bundle-directory.');
+    console.log(JSON.stringify(await publishBundle(LIBRARY, path.resolve(ROOT, opts.source)), null, 2));
+  }
+  else if (command === 'library-use') {
+    if (!opts.job) throw new Error('library-use requires an explicit --job.');
+    console.log(JSON.stringify(await useBundle(LIBRARY, opts.item, await jobPath(opts)), null, 2));
+  }
   else {
     const job = await jobPath(opts);
     if (command === 'transcribe') {

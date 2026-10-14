@@ -92,6 +92,13 @@ persistent when that makes the relationship clearer; simplify when clutter
 grows. Registry primitives and atomic rule recipes supply implementation, not
 the explanation. Search the registry before inventing a named effect.
 
+First search the shared local library by visible action using `npm run video --
+library-search --query "<action>"`. Inspect promising entries with `library-info`;
+freeze selected explicit versions with `library-use --item <id@version> --job
+jobs/<slug>`. Follow [the library contract](../library/README.md) for integration.
+Search metadata rather than browsing previous jobs. Reuse mechanisms when they
+fit; preserve the film's original visual direction.
+
 Holds are optional objects with `start`/`end` cue objects and a concrete `reason`.
 Use them for deliberate reading pauses, never to conceal a front-loaded scene.
 The audit warns on uncovered action gaps over 4s; it doesn't require constant
@@ -158,3 +165,10 @@ validation, alignment accuracy limitations, any deliberate holds, and revisions.
 For a longer film, repeat the same contract scene by scene. Retain one global
 audio clock, resolve phrases to stable word IDs, and rebuild timing/assembly
 after timing corrections. Do not regenerate unchanged scene designs.
+
+After creative review, save useful new components, short action sequences, and
+assets as candidate bundles in `jobs/<slug>/library-candidates/`. Generalize
+content and timing, preserve provenance, include preview/review evidence, and
+publish new immutable versions with `library-add --source <bundle-dir>`. Record
+contributions in `review/REPORT.md`. The collection grows from actual production;
+no fixed reuse quota or preset film structure is required.

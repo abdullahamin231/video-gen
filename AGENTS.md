@@ -62,6 +62,77 @@ combinations according to the story. The quality requirement is dynamic visual
 storytelling. Choose and create the assets needed to achieve it; do not reduce
 the idea to text and simple rectangles because they are easier to author.
 
+## Creative latitude, density, and engagement
+
+The agent is the film's creative director, accountable for how it plays, not
+just whether it passes checks. Work in three passes: invent, then structure,
+then build.
+
+### Invent
+
+- For the film as a whole and for each scene, generate several distinct visual
+  approaches before choosing. Write the alternatives down, judge them against
+  the narration, and pick the most inventive one the house style can carry.
+  Record why it won.
+- Ask what the idea looks like, not what it is about. A system has parts that
+  interact; a comparison has a gap that widens; a process has an input, a
+  machine, and an output; a choice has a door that closes. Build those.
+- Give the film a through-line: one recurring object, coordinate frame, or
+  visual metaphor that the viewer can follow across scenes. State it in the
+  storyboard and make it evolve.
+
+### Structure
+
+- **Continuous motion.** In any three-second window of an active passage,
+  several elements should be doing something: drawing, moving, morphing,
+  counting, flowing, rotating, or reacting. A window with one or two moving
+  things is under-built. Do not let a subject go still the moment it is built.
+- **Anticipation.** Build toward each spoken beat. Let the frame set up the next
+  element before the cue arrives, so the cue triggers a payoff rather than a
+  cold start.
+- **Secondary action.** Add supporting elements that serve the idea: parts that
+  assemble and connect, traces that draw between nodes, flows and packets along
+  paths, annotations that write on, scale and perspective changes, depth layers
+  with parallax, sub-systems that open up, indicators that respond to events,
+  and transitions that reshape one object into the next. Each must answer
+  "what does this show?" If it cannot, cut it.
+- **One focus at a time.** Dense motion needs a hierarchy. Give one element the
+  primary action, subdue the rest in scale or opacity, and move the focus
+  deliberately. Use a brief rest after a payoff, not before it.
+- **No repetition.** Each scene should introduce a new way of showing an idea:
+  a different scale, camera position, geometry, or interaction. A scene that
+  reuses the last scene's arrangement with new content is a missed beat.
+
+### Build
+
+- **Vary the vocabulary.** Do not build every subject from the same primitives
+  (rounded rectangles, icon cards, bar charts, text labels). Mix line drawings,
+  schematic cutaways, 3D or perspective objects, data-driven traces, simulations,
+  and typography, chosen per idea. Search the hyperframes registry and the
+  motion helpers for effects that fit, and build custom geometry when they do not.
+- **Prefer transformations.** An object becomes another object, a quantity
+  becomes a shape, a diagram unfolds into a larger one. Prefer these over
+  sequential appearances of separate panels.
+- **Layer the timing.** Stagger overlapping actions so the frame reads as one
+  orchestrated movement, not a stack of separate tweens. Small secondary motions
+  can anticipate or resolve after the primary one.
+- **Restraint applies to palette and clarity, not to activity.** The house
+  palette, stroke rules, and easing stay fixed. Within them, the film should
+  feel busy with purposeful action.
+
+### Review
+
+- **Watch it muted.** A good film reads without sound. Check that each idea
+  lands through the action alone.
+- **Watch it at speed.** The viewer experiences the film at full rate. If a
+  passage feels slow or empty, tighten it; do not wait for a reported error.
+- **Count the moving elements.** In any three-second window of an active
+  passage, if fewer than three elements are visibly developing, the shot is
+  under-built. Add the missing action before delivery.
+- **Check the eye.** Identify where attention should be in each beat and
+  confirm that the brightest, fastest, or largest element sits there. If the
+  eye is drawn elsewhere, fix the hierarchy.
+
 ## House visual style: clean, precise, professional
 
 Unless the user asks for another look, the default register is the precise
@@ -74,6 +145,8 @@ or a corporate infographic.
   colors, muted and saturated only sparingly, each with one consistent meaning
   across the film. No gradients on objects, no glossy highlights, no drop shadows,
   no sticker outlines, no bubbly rounded shapes, no emoji or cartoon mascots.
+  Restraint applies to surface treatment, not to the number of subjects or the
+  amount of motion.
 - **Line-based vector construction.** Prefer thin, crisp strokes (roughly 2–4px
   at 1080p), filled areas at low opacity, and geometry that reads as engineered:
   axes, grids, arrows, nodes, vectors, traces, cross-sections, and
@@ -147,8 +220,10 @@ without requiring the user to drive them:
    from the recording/script when warranted, retain measured intervals, and
    record corrections. Use word IDs for uncertain phrase matches. Never invent
    timings from word counts or stretch the narration to fit the animation.
-3. **Direct the film.** Choose a distinctive visual concept that fits the house
-   style above. Plan evolving actions and shot handoffs in `STORYBOARD.md`, with
+3. **Direct the film.** Follow the invent–structure–build method in "Creative
+   latitude, density, and engagement." Generate several concepts, pick the most
+   inventive one the house style can carry, and give the film a through-line.
+   Plan evolving actions and shot handoffs in `STORYBOARD.md`, with
    a design direction in `frame.md` (palette, type, stroke, easing, camera rules)
    and spoken anchors in `beats.json`. For each beat identify the
    actual visible action and its follow-through. Avoid a list of text summaries
@@ -191,6 +266,9 @@ The agent must evaluate all of these, not only lint success:
   mostly fading in and holding?
 - Do transitions connect ideas rather than fade between completed layouts?
 - Is the viewer's attention guided despite the density of micro-animation?
+- Does the film build toward its payoff: does each scene introduce a new scale,
+  camera position, geometry, or interaction rather than reusing the previous
+  arrangement, and does the final sequence resolve the thread the opening set up?
 - Would this feel at home in a produced YouTube explainer, rather than a slide
   presentation or an animated infographic export?
 
@@ -198,10 +276,46 @@ If the result fails, it is unfinished. Revise the visual construction and
 choreography; do not add cosmetic motion to declare it complete. Technical checks
 are required, but they are not evidence of cinematic or creative quality.
 
+## Failure modes the pipeline must prevent
+
+These rules apply to every film. Treat each one as a gate, not a suggestion.
+
+**Continuity across cuts**
+- Name the recurring subjects in `STORYBOARD.md`. A subject that leaves a scene must either exit with a stated reason or transform into another object.
+- Every hard cut needs a written handoff: the object that carries over, or the reason no object does. Verify it on the contact sheet.
+
+**Displayed values**
+- Every number on screen must come from the narration, the source material, or a label that explains it. An unexplained figure is a defect.
+- Unknown, pending, or unavailable values use a neutral placeholder, never zero. Counters start from that placeholder.
+- Running totals and count-ups sit beside the thing they measure, not floating in empty space.
+
+**Timing in scene code**
+- Scene scripts reference cues only. Literal numeric times in timeline calls are not allowed; derive every time from a cue's `localAt` plus an offset or duration.
+- Exits, fades, and removals are cues too. A removal starts only after the reveal it would cut off has finished (typed text completes, counters settle, draws end).
+- Scan scene HTML for literal times before assembly and treat any hit as an error.
+
+**Legibility**
+- At 1920×1080, labels are at least 28 px and values at least 40 px. Secondary text stays at 0.8 opacity or higher unless it is purely decorative.
+- Check the rendered frame at phone scale (for example 480 px wide). If a label cannot be read there, enlarge it or remove it.
+
+**Collisions**
+- No stroke, path, or moving graphic may cross text unless the crossing is the message. Check text bounding boxes against lines and shapes, and move one of them.
+
+**Stillness**
+- Within an active scene, no more than about 2.5 s may pass without a developing element. A longer hold needs a stated narrative reason in `beats.json` and should be used only before a payoff.
+- A cursor, spinner, blinking indicator, or idle drift is not a developing element.
+
+**Review evidence**
+- Build a contact sheet of the final render at 1 fps or denser. Check it against the storyboard handoffs, displayed values, collisions, and stillness rules above.
+- A checker warning may be dismissed only when `review/REPORT.md` records the evidence that it is a false positive and how that was verified.
+
+**Sound**
+- For a published render, consider a sound layer for mechanical actions such as typing, counting, assembly, and moving parts. It must never obscure the narration.
+
 ## Technical invariants and reproducibility
 
 - Every video lives in a new isolated `jobs/<slug>/`. Never overwrite another
-  job, source inputs, or the legacy `public/hf/index.html`. All jobs are ignored
+  job or source inputs. All jobs are ignored
   by Git; retain the reusable pipeline and instructions in the repository.
 - Record inputs, measured alignment, creative decisions, frozen assets, and
   resolved cues. Reproducibility concerns execution, not identical creative output.
