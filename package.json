@@ -4,9 +4,11 @@
   "private": true,
   "description": "Narration-synchronized motion design with HyperFrames",
   "scripts": {
-    "dev": "npm --prefix videos/local-ai run dev",
-    "check": "npm --prefix videos/local-ai run check",
-    "render": "npm --prefix videos/local-ai run render -- --quality delivery --output ../../outputs/local-ai-motion.mp4"
+    "video": "node scripts/video.mjs",
+    "dev": "node scripts/video.mjs preview",
+    "check": "node scripts/video.mjs check",
+    "render": "node scripts/video.mjs render",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "hyperframes": "0.8.156"

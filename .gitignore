@@ -8,4 +8,7 @@ out
 .env.local
 inputs/
 .venv
+__pycache__/
 outputs/
+.video/
+jobs/
