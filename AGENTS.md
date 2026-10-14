@@ -19,9 +19,15 @@ standardize the creative result.
 ## What quality means here
 
 **Make a motion-designed film, not a presentation with animated entrances.**
-The rejected sample had correct timing and clean layout but was still a sequence
-of static diagrams with large headlines. Passing audits did not make it good.
-Do not reuse that sample's composition, layout, art direction, or shot structure.
+Correct timing, clean layout, and passing audits do not establish creative
+quality. A sequence of static diagrams with large headlines remains a
+presentation even when its entrances are animated.
+
+Outline assembly, particles travelling along paths, rotating parts, scrolling
+content, and camera zooms are useful supporting primitives. A film built mainly
+from those operations is too simple. Require inventive choreography in which
+subjects interact, mechanisms develop, and the narration's meaning becomes
+visible through action.
 
 The visuals must *perform* the narration. Show objects operating, mechanisms
 changing, cause and effect unfolding, environments developing, comparisons
@@ -61,6 +67,70 @@ generated imagery, detailed illustration, simulation, kinetic type, or
 combinations according to the story. The quality requirement is dynamic visual
 storytelling. Choose and create the assets needed to achieve it; do not reduce
 the idea to text and simple rectangles because they are easier to author.
+
+## Animation must explain through an inventive mechanism
+
+**Complexity means interacting behavior and evolving meaning, not more tweens.**
+For each important narrated idea, invent an animated mechanism with a setup,
+an operation, a consequence, and a visual payoff. The viewer should see why the
+result happens. Drawing the subject, sending a few particles through it, and
+moving the camera closer does not complete the explanation.
+
+- **Make the action specific to the narration.** Identify the exact verb,
+  relationship, tension, or surprise in the spoken passage. Design an action
+  that could not be reused unchanged for an unrelated topic. A generic marker,
+  network, or conveyor must not stand in for every idea.
+- **Develop internal behavior.** Subjects should have parts with distinct jobs,
+  constraints, and reactions. Show loading, processing, accumulation, contention,
+  rejection, redistribution, or failure when the story calls for it. Inputs
+  should change the mechanism; its operation should visibly change the output.
+  Components merely seating into an outline are an introduction to the subject,
+  not its whole performance.
+- **Use consequential choreography.** One action should cause the next:
+  an arriving load fills memory, a constrained route backs up, an alternative
+  path opens, and the output changes. Coordinate these reactions spatially and
+  temporally. Independent loops running together do not create a mechanism.
+- **Transform the actual subject.** Preserve meaningful parts as geometry,
+  organization, scale, or function changes. A crossfade between two drawings,
+  or shrinking one group while another fades in, must not be described as a
+  rich morph. Make the intermediate states intelligible and useful.
+- **Choreograph comparisons.** Let alternatives operate under the same visible
+  conditions so their difference emerges through behavior. Use quantities from
+  the source; label qualitative illustrations clearly. Do not replace the
+  comparison with two labels and a count-up.
+- **Use the camera to reveal new information.** A move can expose hidden layers,
+  follow a consequential event, reveal a constraint, or connect scales. A zoom
+  on an otherwise unchanged diagram adds no explanatory depth.
+- **Build visual surprise with a reason.** A familiar object can unfold into an
+  unexpected mechanism, an apparently winning system can encounter a constraint,
+  or a large structure can resolve into a small requirement. Set up the visual
+  expectation, then make the spoken turn produce a clear change.
+- **Choose the medium the idea needs.** Use custom SVG geometry, articulated
+  illustration, deterministic simulation, perspective or 3D construction,
+  masks, shape interpolation, real media, or generated assets when they improve
+  the explanation. Do not limit the film to whichever CSS/GSAP primitives are
+  quickest to implement. Complexity must remain readable and purposeful.
+
+For a GPU explainer, possible actions include a cutaway that exposes data being
+loaded and processed, repeated weight retrieval that visibly constrains token
+generation, or interacting routes whose congestion changes when hardware is
+added. For a cost passage, the cost can alter access, scale, or the feasibility
+of the desired setup instead of appearing as a price beside a machine. These
+are examples of causal thinking, not mandatory layouts. Only show mechanisms
+supported by the actual narrated passage; do not introduce later explanations
+or invent technical claims to justify an animation.
+
+### Write a choreography contract for each major passage
+
+In `STORYBOARD.md`, record the narrated idea, the chosen mechanism, its successive
+visible states, the interactions that connect those states, the camera's purpose,
+and the payoff. State what makes it more inventive than a basic draw/reveal/flow
+version. Compare genuinely different approaches; changes of color, placement,
+or entrance direction do not count as creative alternatives.
+
+Give workers this narrative and quality contract with creative freedom. Do not
+preselect a repeated visual or effect template. Review the returned animation
+against the mechanism and payoff, not its reported element or tween count.
 
 ## Creative latitude, density, and engagement
 
@@ -128,7 +198,17 @@ then build.
   passage feels slow or empty, tighten it; do not wait for a reported error.
 - **Count the moving elements.** In any three-second window of an active
   passage, if fewer than three elements are visibly developing, the shot is
-  under-built. Add the missing action before delivery.
+  under-built. This is a minimum activity check, not a creative quality score.
+  Many moving pins, traces, fans, or packets can still form a simplistic shot.
+  Fix the missing narrative behavior rather than padding the element count.
+- **Audit the mechanism.** Describe what changes and why in each passage without
+  naming animation primitives. If the description is only "it draws, packets
+  move, and the camera zooms," redesign the passage. Require an observable
+  interaction, consequence, and payoff that match the narration.
+- **Test for interchangeability.** If swapping the labels would let the same
+  animation explain a different topic, its construction is too generic. Replace
+  it with subject-specific behavior. Repeated supporting primitives are fine;
+  repeated primary explanations are not.
 - **Check the eye.** Identify where attention should be in each beat and
   confirm that the brightest, fastest, or largest element sits there. If the
   eye is drawn elsewhere, fix the hierarchy.
@@ -151,6 +231,9 @@ or a corporate infographic.
   at 1080p), filled areas at low opacity, and geometry that reads as engineered:
   axes, grids, arrows, nodes, vectors, traces, cross-sections, and
   diagrams drawn as the viewer watches. Flat fills are fine when they clarify.
+  This is a surface language, not a complexity ceiling: detailed cutaways,
+  articulated mechanisms, layered geometry, and simulations should still feel
+  clean and precise. Minimal styling must not become minimal storytelling.
 - **Typography as a precise instrument.** Use a clean sans for labels and a
   refined serif or LaTeX-style face for equations and symbols. Labels are small,
   placed next to the thing they describe, and fade in with their subject. Avoid
@@ -235,12 +318,18 @@ without requiring the user to drive them:
    seek-safe deterministic timelines and complete visual subjects. Subdivide
    shots as needed; a single sub-composition is not a reason to keep one framing.
 5. **Prove the motion language early.** Build and inspect a short animated
-   passage (about 10–15s, covering at least one cue-driven transformation and one
-   camera move) before extending the film. It must show ongoing subject action
+   passage (about 10–15s) from a demanding, representative part of the story
+   before extending the film. Do not choose an easy opening assembly merely
+   because it can pass quickly. Include a cue-driven transformation, a motivated
+   camera move, and interacting subject behavior that produces a visible
+   consequence and payoff. It must show ongoing subject action
    and a convincing transition/handoff, not a static board with a headline. It
    must also match the house style: clean strokes, restrained palette, smooth
    easing, no cartoon treatment. If it looks like slides or clip art, redesign it
-   immediately. No user approval is needed for this internal quality check.
+   immediately. If it is clean but consists mainly of outline assembly, packet
+   travel, fades, and zooms, it also fails: invent and build a richer mechanism
+   before scaling that motion language across the film. No user approval is
+   needed for this internal quality check.
 6. **Review and revise the complete piece.** Run technical audits, but also
    inspect the moving preview/draft and dense frame sequences across active
    passages. Check narration alignment and what the viewer sees between cues.
@@ -258,6 +347,12 @@ The agent must evaluate all of these, not only lint success:
   development toward the final payoff?
 - Do the animation and camera have a coherent relationship to the narration?
 - Is each visual treatment richer than a headline, an icon, and a price panel?
+- Does each major passage have an inventive, narration-specific mechanism with
+  interacting parts, a visible consequence, and a payoff?
+- Does the animation explain more than drawing a diagram, routing generic
+  particles, rotating parts, scrolling content, and changing camera scale?
+- Are transformations meaningful through their intermediate states, and do
+  comparisons reveal differences through operation rather than labels alone?
 - Does it look like a precise, professionally produced explainer (clean vector
   geometry, restrained palette, deliberate easing, readable labels) rather than
   cartoon illustration, clip art, or a generic motion template?
