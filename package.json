@@ -2,23 +2,13 @@
   "name": "video-gen",
   "version": "1.0.0",
   "private": true,
-  "description": "AI-powered video generation from audio + script using Remotion, Hyperframes, and Manim",
+  "description": "Narration-synchronized motion design with HyperFrames",
   "scripts": {
-    "dev": "remotion studio",
-    "render": "remotion render",
-    "still": "remotion still",
-    "upgrade": "remotion upgrade"
+    "dev": "npm --prefix videos/local-ai run dev",
+    "check": "npm --prefix videos/local-ai run check",
+    "render": "npm --prefix videos/local-ai run render -- --quality delivery --output ../../outputs/local-ai-motion.mp4"
   },
   "dependencies": {
-    "@remotion/cli": "^4.0.0",
-    "@remotion/google-fonts": "^4.0.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "remotion": "^4.0.0"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.1",
-    "@types/react-dom": "^18.3.1",
-    "typescript": "^5.5.0"
+    "hyperframes": "0.8.156"
   }
 }
