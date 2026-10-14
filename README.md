@@ -27,7 +27,7 @@ For an excerpt, add: “Use just the first 30 seconds.”
 
 The user only needs to say: **Create a video given the audio `<audio path>` and
 script `<script path>`.** The agent handles creative direction, assets, animated
-shots, timing, review, revisions, and final rendering. It must meet the dynamic
+shots, timing, independent sub-agent review, repairs, and final delivery. It must meet the dynamic
 YouTube-film quality gate in [AGENTS.md](AGENTS.md); technical validity alone is
 insufficient. The following commands are internal tools, not required user steps.
 
@@ -46,11 +46,23 @@ npm run video -- assemble --job jobs/my-video
 npm run check -- --job jobs/my-video
 npm run dev -- --job jobs/my-video
 npm run render -- --job jobs/my-video
+npm run video -- review-pack --job jobs/my-video --stage final
+# Independently spawned reviewers inspect evidence and write separate reports.
+npm run video -- review-submit --job jobs/my-video --file /path/to/reviewer-report.json
+npm run video -- review-status --job jobs/my-video --stage final
+npm run video -- deliver --job jobs/my-video
 ```
 
 Root commands use the latest prepared job when `--job` is omitted. `render`
 audits the plan, runs HyperFrames checks, encodes, and verifies audio, dimensions,
-fps, and duration. It doesn't invent visuals: that work belongs to the agent.
+fps, and duration. It creates a draft. Before expanding the film, the agent
+renders and independently reviews a demanding 10–15-second prototype. Final
+review covers the whole film with three independent roles: visual mechanism,
+narration fidelity, and continuity/legibility. Failed reviews trigger autonomous
+repairs and fresh evidence. `deliver` marks completion only after current reports
+and technical checks pass. No user review or approval is needed. See the
+[independent review contract](docs/independent-review.md); report validation
+checks mechanics, not taste or whether a sub-agent actually executed.
 
 ## Job artifacts
 
@@ -69,8 +81,8 @@ jobs/<name>/
   assets/                 frozen media, generated cues, local helpers
   compositions/           agent-authored HyperFrames scenes
   index.html              assembled root with original narration
-  review/                 audit, visual review, output verification
-  renders/video.mp4       final video (local)
+  review/                 audit, frozen evidence, independent reports, verification
+  renders/video.mp4       rendered draft; qualified by deliver (local)
 ```
 
 ASR timings are estimates, not guaranteed forced alignment. Important reveals

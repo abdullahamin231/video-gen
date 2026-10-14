@@ -354,9 +354,11 @@ applicable workflow and domain skills before their related tasks:
 
 Skills support production. They do not override the user's creative authority.
 They must not require an interview, a preset, repeated layouts, or an additional
-approval step. If the user supplies audio, do not use TTS. A request for a
-completed video authorizes local generation, asset preparation, revision, and
-rendering.
+approval step. Make internal visual sketches and stage assets when useful even
+if an installed skill skips these in autonomous mode. If the user supplies audio,
+do not use TTS. Preserve the full recording unless an excerpt is requested. A
+request for a completed video authorizes local generation, asset preparation,
+revision, rendering, and the independent review loop below.
 
 ## Produce the video from the two inputs
 
@@ -425,7 +427,12 @@ Use clean strokes, restrained colors, and smooth easing. Do not use cartoon
 treatment. If the passage looks like slides or clip art, redesign it immediately.
 If outline assembly, packet travel, fades, and zooms form the main explanation,
 redesign the mechanism. Build a richer mechanism before you extend the film.
-This internal quality check does not require user approval.
+Render the passage and create a frozen prototype evidence pack with
+`review-pack --stage prototype --start <seconds> --end <seconds>`. Obtain
+independent reviews from all three roles in [docs/independent-review.md](docs/independent-review.md)
+before extending the film. This is an agent-enforced production gate, not user
+approval. Revise failures, render again, regenerate the pack, and obtain fresh
+reviews. A prototype pass does not qualify the full film for delivery.
 
 ### 6. Review and correct the full film
 
@@ -434,11 +441,23 @@ spaced frame samples throughout active passages. Check narration alignment.
 Check the action between cues. Correct dull or static sections. Do not record
 them as acceptable substitutes for a completed explanation.
 
+Create a final evidence pack from the exact rendered MP4. Spawn independent
+reviewers for visual mechanism, narration fidelity, and continuity/legibility.
+Follow [docs/independent-review.md](docs/independent-review.md): reviewers inspect
+media before production claims, return timestamped findings in separate files,
+and never modify the producer's composition. For longer videos, review every
+scene in manageable chunks; contact sheets supplement moving review. Repair
+failures autonomously, then re-render and repeat with a new pack and fresh
+reviews. Technical validation and creative review are separate requirements.
+
 ### 7. Deliver
 
-Render and verify the final MP4. Open a working Studio preview. Return a link
-to the video. Give a short factual verification note. State any actual limitation.
-Keep production details secondary to the deliverable.
+Rendering creates a draft. Submit the independent reports with `review-submit`,
+check `review-status --stage final`, and run `deliver` only when all three roles
+pass against current evidence and technical checks pass. Open a working Studio
+preview. Return the qualified MP4 link and preview URL with a short factual
+verification note and any actual limitation. Keep production details secondary
+to the deliverable. Never describe an unqualified draft as completed.
 
 ## Check quality before delivery
 
@@ -573,11 +592,19 @@ and moving parts. Sound effects must not obscure the narration.
 
 ## Delegation and commands
 
-Delegate only when the user explicitly requests delegation or the applicable
-workflow requires it. Give workers the exact input paths, duration, scope,
-creative authority, required skills, technical contracts, quality requirements,
-and deliverables. Do not prescribe a visual template. Assign separate jobs or
-files to prevent conflicting writes.
+Independent analysis by sub-agents is authorized for this workflow. Spawn each
+reviewer with `fork_turns: "none"` and the role-specific brief in
+[docs/independent-review.md](docs/independent-review.md). Reviewers must not assess
+work they produced. Keep their first visual inspection blind to the storyboard
+and producer's self-assessment. Give them frozen evidence paths, duration, scope,
+quality requirements, and separate output files. Record actual agent identities;
+preparation defaults `job.review.producerAgentIds` to `["/root"]`, which the
+producer must correct when necessary. Never manufacture independent reports.
+The validator checks evidence and report mechanics; it cannot assess taste or
+authenticate that a sub-agent executed. The producing agent remains responsible
+for genuine independent execution and repairs. Delegate production work only
+when separately authorized or required by an applicable workflow; give workers
+creative freedom and separate files to prevent conflicting writes.
 
 Use `npm run video -- help` to list pipeline commands. Use `npm test` to check
 timing and assembly. The `dev`, `check`, and `render` commands accept

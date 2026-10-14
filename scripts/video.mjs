@@ -6,6 +6,9 @@ import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues} from '../lib/timing.mjs';
 import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies} from '../lib/library.mjs';
+import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
+import {createReviewPack} from '../lib/review-pack.mjs';
+import {compareNarration} from '../lib/audio-verification.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
@@ -103,6 +106,7 @@ async function prepare(opts) {
     script: {path: 'inputs/source-script.md', source: path.relative(ROOT, script), sha256: await digest(script)},
     transcription: {language, model, engine, suppliedWords: !!opts.words},
     creativeMode: 'agent-discretion', workflow: 'faceless-explainer', status: 'awaiting-transcription',
+    review: {producerAgentIds: ['/root'], requiredRoles: ['visual-mechanism', 'narration-fidelity', 'continuity-legibility']},
     canvas: '#151915'};
   if (opts.resolution && !['landscape', '1080p'].includes(opts.resolution)) {
     const dimensions = {portrait: [1080,1920], square: [1080,1080]};
@@ -127,7 +131,7 @@ async function finishPreparation(job, manifest, narration) {
   await save(path.join(job, 'alignment.json'), alignment);
   await writeFile(path.join(job, 'SCRIPT.md'), `# Recorded excerpt\n\n${words.map(w => w.text).join(' ')}\n`);
   await save(path.join(job, 'beats.json'), {version: 1, scenes: []});
-  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: faceless-explainer\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult repository AGENTS.md and docs/agent-workflow.md. Preserve narration; skip TTS.\n`);
+  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: faceless-explainer\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult repository AGENTS.md, docs/agent-workflow.md and docs/independent-review.md.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nCommission three independent reviewer sub-agents for the demanding prototype and final render.\nRepair blocking findings autonomously; no interview, forced preset, or user approval checkpoint.\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
   await writeFile(path.join(job, 'STORYBOARD.md'), '# Storyboard\n\nAgent: design evolving visuals from the recorded excerpt and word cues.\n');
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
   manifest.status = 'prepared';
@@ -189,7 +193,7 @@ async function audit(job) {
   return report;
 }
 async function verify(job) {
-  const manifest = await json(path.join(job, 'job.json')), file = path.join(job, 'renders/video.mp4');
+  const manifest = await json(path.join(job, 'job.json')), file = await localFile(job, 'renders/video.mp4');
   const metadata = await probe(file), video = metadata.streams.find(s => s.codec_type === 'video');
   const audio = metadata.streams.find(s => s.codec_type === 'audio');
   if (!video || !audio || Number(metadata.format.size) < 1000) throw new Error('Output must contain video and audio streams.');
@@ -205,10 +209,11 @@ async function verify(job) {
   });
   const mean = Number(levels.match(/mean_volume:\s*([-\d.]+) dB/)?.[1]);
   if (!Number.isFinite(mean) || mean < -60) throw new Error('Rendered narration is silent or effectively inaudible.');
+  const narrationIntegrity = await compareNarration(file,await localFile(job,'assets/narration.wav'));
   const report = {ok: true, output: path.relative(ROOT, file), duration: Number(metadata.format.duration),
     width: video.width, height: video.height, fps: video.avg_frame_rate, audioCodec: audio.codec_name,
-    meanVolumeDb: mean, sha256: await digest(file)};
-  await save(path.join(job, 'review/render-verification.json'), report);
+    meanVolumeDb: mean, sha256: await fileHash(file), narrationIntegrity};
+  await writeReviewFile(job,'review/render-verification.json',JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify(report, null, 2));
 }
 
@@ -219,7 +224,11 @@ prepare --name <slug> --audio <file> --script <file> [--start 0 --duration 30]
         [--words measured-words.json --resolution landscape --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
 compile | assemble | audit | check | preview | render | verify [--job jobs/<slug>]
-render [--quality delivery]          audit + runtime check + render + verify
+render [--quality delivery]          draft: audit + runtime check + render + verify
+review-pack --stage prototype|final [--start N --end N]  freeze rendered evidence
+review-submit --file <report.json>   validate an independent sub-agent report
+review-status --stage prototype|final  check independent review qualification
+deliver                             qualify current reviews and mark complete
 preview [--port 3002]                persistent HyperFrames Studio
 library-search [--query "packet flow" --limit 8]  search shared artifact metadata
 library-info --item <id@version>     inspect one bundle, usage and provenance
@@ -257,14 +266,64 @@ try {
     else if (command === 'assemble') await assemble(job);
     else if (command === 'audit') await audit(job);
     else if (command === 'verify') await verify(job);
+    else if (command === 'review-pack') {
+      const pack = await createReviewPack(job, {stage:opts.stage || 'final',
+        start:numeric(opts.start,0,'start'), end:opts.end === undefined ? undefined : numeric(opts.end,0,'end')});
+      const packPath = path.join(job,pack.packPath), packSha256 = await fileHash(packPath), briefs = [];
+      const directions = {
+        'visual-mechanism': 'First inspect only rendered images/clips, without narration, script, storyboard or producer explanations. Save your plain-language first observations to visual-first.md in your incoming directory BEFORE reading narrative context. Then compare those observations with the recording, SCRIPT.md and STORYBOARD.md. Report missing interactions, consequences and payoffs; drawing, packet movement or camera motion alone is insufficient.',
+        'narration-fidelity': 'Inspect the supplied recording where supported, inputs/source-script.md, SCRIPT.md, alignment.json, timing.json and the rendered evidence. Check actual claims, displayed numbers including intermediate counter values, cue alignment and what the narration actually says at each passage. Signal-only audio inspection needs the frozen verification receipt and an explicit listening limitation.',
+        'continuity-legibility': 'Inspect the rendered evidence at full and phone scale, including dense cut/handoff samples and the entire ending. Then read STORYBOARD.md and frame.md to assess recurring subjects and intended focus. Check essential labels, collisions, inactive passages, intermediate transformations and continuity.'
+      };
+      for (const role of REVIEW_ROLES) {
+        const relative = `review/${pack.stage}/briefs/${role}.md`;
+        const incoming = path.join(job,`review/${pack.stage}/incoming`);
+        await writeReviewFile(job,relative,`# Independent ${role} review\n\nRead ${path.join(ROOT,'docs/independent-review.md')} for the required report schema and quality contract.\nYou must be a separately spawned reviewer, with no producer history, and must not have built this film.\nUse your actual assigned agent ID; never invent an identity or claim unavailable playback/listening.\n\nJob: ${job}\nEvidence pack: ${packPath}\nStage: ${pack.stage}\nAssigned interval: ${pack.interval.start}–${pack.interval.end} seconds; inspect all of it.\npackSha256: ${packSha256}\nsourceHash: ${pack.sourceHash}\nvideoSha256: ${pack.videoSha256}\n\n${directions[role]}\n\nWrite only your own report to ${path.join(incoming,role+'.json')} (create the directory if needed), plus visual-first.md for the visual role. Do not edit the composition, other reports, evidence or verdicts. Do not ask the user for approval. Return the report path and a concise list of blocking findings. The producer will submit it, repair defects and commission reinspection.\n`);
+        briefs.push({role,path:path.join(job,relative)});
+      }
+      console.log(JSON.stringify({stage:pack.stage,packPath,packSha256,sourceHash:pack.sourceHash,
+        videoSha256:pack.videoSha256,interval:pack.interval,evidenceCount:pack.evidence.length,briefs,
+        next:'Spawn a distinct reviewer with fork_turns: none for each brief; submit their own reports after inspection.'},null,2));
+    } else if (command === 'review-submit') {
+      if (!opts.file) throw new Error('review-submit requires --file from an independent reviewer.');
+      console.log(JSON.stringify(await submitReview(job,await json(path.resolve(ROOT,opts.file))),null,2));
+    } else if (command === 'review-status') {
+      const status = await reviewStatus(job,opts.stage || 'final');
+      console.log(JSON.stringify(status,null,2));
+      if (!status.ok) process.exitCode = 1;
+    } else if (command === 'deliver') {
+      const manifest = await json(path.join(job,'job.json'));
+      manifest.status = 'awaiting-review'; delete manifest.completedAt; delete manifest.delivery;
+      await save(path.join(job,'job.json'),manifest);
+      await audit(job);
+      await verify(job);
+      const qualification = await qualifyDelivery(job);
+      await writeReviewFile(job,'review/delivery.json',JSON.stringify(qualification,null,2)+'\n');
+      manifest.status = 'complete'; manifest.completedAt = new Date().toISOString();
+      manifest.delivery = {videoSha256:qualification.videoSha256, sourceHash:qualification.sourceHash,
+        packSha256:qualification.packSha256};
+      await save(path.join(job,'job.json'), manifest);
+      console.log(JSON.stringify({...qualification,output:path.relative(ROOT,path.join(job,'renders/video.mp4'))},null,2));
+    }
     else if (command === 'check') {await audit(job); await hf(['check', '--snapshots'], {cwd: job});}
     else if (command === 'preview') await hf(['preview', '--background', '--port', opts.port || '3002'], {cwd: job});
     else if (command === 'render') {
-      await audit(job); await hf(['check', '--snapshots'], {cwd: job});
       const manifest = await json(path.join(job,'job.json'));
       if (![24,30,60].includes(manifest.fps)) throw new Error('Job fps must be 24, 30, or 60.');
+      manifest.status = 'rendering'; delete manifest.completedAt; delete manifest.delivery;
+      await save(path.join(job,'job.json'), manifest);
+      await audit(job);
+      const sourceHash = await sourceFingerprint(job);
+      await hf(['check', '--snapshots'], {cwd: job});
+      if (sourceHash !== await sourceFingerprint(job)) throw new Error('Production sources changed during checks. Check and render again.');
       await hf(['render', '--quality', opts.quality || 'delivery', '--fps', String(manifest.fps), '--output', 'renders/video.mp4'], {cwd: job});
       await verify(job);
+      if (sourceHash !== await sourceFingerprint(job)) throw new Error('Production sources changed during rendering. Render again before review.');
+      await writeReviewFile(job,'review/render-source.json', JSON.stringify({version:1,sourceHash,
+        videoSha256:await fileHash(await localFile(job,'renders/video.mp4'))},null,2)+'\n');
+      manifest.status = 'draft-rendered';
+      await save(path.join(job,'job.json'),manifest);
+      console.log('Draft rendered. Commission independent reviews, repair findings, and run deliver to qualify completion.');
     } else throw new Error(`Unknown command: ${command}`);
   }
 } catch (error) {console.error(`video: ${error.message}`); process.exitCode = 1;}

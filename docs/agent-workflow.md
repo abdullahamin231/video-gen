@@ -43,9 +43,11 @@ record, not a user approval gate.
 ## 2. Plan an evolving explanation
 
 Write the job's `BRIEF.md`, `frame.md`, and `STORYBOARD.md` using the owning skill.
-Inputs already determine voice and duration; skip the TTS step. The sample task
-is autonomous and preserves the first 30 seconds exactly, even if the excerpt
-ends mid-thought. Do not rewrite narration to create a new ending.
+Inputs already determine voice and duration; skip TTS. Use the full recording
+unless the user requests an excerpt. A requested first-30-second sample preserves
+that interval even if it ends mid-thought. Do not rewrite the narration. Make
+internal sketches and stage useful assets even when an installed skill's
+autonomous defaults skip them; no interview, preset, or user approval is needed.
 
 Write `beats.json` using this shape (all referenced cues must exist in the audio):
 
@@ -141,30 +143,76 @@ developments, and records warnings for gaps/front-loading. It also checks that
 scene code references resolved cues. It cannot prove that code uses every cue
 correctly: runtime checks and visual/audio review remain necessary.
 
-## 4. Review and deliver
+## 4. Prototype, review, repair, and deliver
 
-Inspect snapshots at early, middle, and late developments per scene. Add motion
-assertions when useful, especially for late reveals. For the assembled project,
-put assertions in root `index.motion.json` with global selectors and absolute
-cue times; verify that HyperFrames reports motion checks as enabled (this CLI
-may skip sidecars that exist only beside a sub-composition). Listen/watch at the named
-cue moments. Do not suppress every layout finding at the root.
+Before expanding the film, render a demanding 10–15-second passage containing
+an interaction, meaningful transformation, consequence, payoff, camera move, and
+handoff. The prototype is an interval of the full rendered timeline. The agent
+must obtain passing independent prototype reviews before extending production;
+this creative expansion gate is enforced by the agent, not inferred from a
+successful render.
+
+Run motion assertions and HyperFrames checks, then render a draft:
 
 ```bash
 npm run dev -- --job jobs/example
 npm run render -- --job jobs/example
-npm run video -- verify --job jobs/example
+npm run video -- review-pack --job jobs/example --stage prototype --start 12 --end 25
 ```
 
-`render` runs pipeline audit and HyperFrames check before encoding. Final output
-is `jobs/example/renders/video.mp4`; `verify` requires a video stream, audible
-audio, expected dimensions, and duration within 0.12s of the plan. Leave Studio
-running and deliver its project URL, the MP4, and `review/REPORT.md`. Record actual
-validation, alignment accuracy limitations, any deliberate holds, and revisions.
+Choose the interval from the actual narration; the numbers above are only command
+examples. See [the independent review contract](independent-review.md) for pack
+contents, report format, reviewer instructions, and the repair loop. Use three
+separately spawned reviewers with `fork_turns: "none"`: `visual-mechanism`,
+`narration-fidelity`, and `continuity-legibility`. They inspect frozen media first,
+then consult the production records to check intent and narration fidelity.
+Reviewers may only write their own report files and must not review work they
+produced. Preparation records `job.review.producerAgentIds: ["/root"]`; update
+this list when other agents produce the work. Record actual reviewer identities.
 
-For a longer film, repeat the same contract scene by scene. Retain one global
-audio clock, resolve phrases to stable word IDs, and rebuild timing/assembly
-after timing corrections. Do not regenerate unchanged scene designs.
+```bash
+npm run video -- review-submit --job jobs/example --file /path/to/reviewer-report.json
+npm run video -- review-status --job jobs/example --stage prototype
+```
+
+Submit a separate report for each role. On failure, repair the composition,
+re-render, regenerate the evidence pack, and obtain fresh reviews. Never edit a
+reviewer's findings to manufacture a pass. Do not ask the user to adjudicate
+routine production decisions. A prototype pass permits expansion; it does not
+qualify the whole film.
+
+Inspect multiple samples within every scene, including late developments, and
+watch actual motion at normal speed with and without sound. Use phone-scale
+frames for legibility. For long films, review all scenes in manageable chunks;
+a contact sheet alone cannot establish motion quality. Put useful motion
+assertions in root `index.motion.json` with global selectors and absolute cue
+times, and verify that HyperFrames reports motion checks as enabled. Do not
+suppress every layout finding at the root.
+
+After completing and rendering the full film, repeat the independent review:
+
+```bash
+npm run video -- review-pack --job jobs/example --stage final
+npm run video -- review-submit --job jobs/example --file /path/to/reviewer-report.json
+npm run video -- review-status --job jobs/example --stage final
+npm run video -- deliver --job jobs/example
+```
+
+`render` runs audit and HyperFrames checks, encodes `renders/video.mp4`, and
+verifies the media. Rendering produces a draft, not a completed job. `verify`
+checks streams, audible audio, dimensions, frame rate, and duration; these facts
+do not prove creative quality. `deliver` requires passing reports from all three
+roles tied to current evidence hashes and passing technical validation before
+marking the job complete. Changes to reviewed inputs or the MP4 require fresh
+evidence and reviews. The validator checks report mechanics and provenance; it
+cannot judge taste or authenticate that independent agents actually executed.
+The producer must ensure genuine independent review.
+
+Leave Studio running and return the qualified MP4 and working preview URL.
+Record actual validation, alignment limitations, deliberate holds, findings,
+repairs, and review evidence in `review/REPORT.md`. Retain one global audio clock
+for longer films; rebuild timing and assembly after timing corrections without
+regenerating unchanged scene designs.
 
 After creative review, save useful new components, short action sequences, and
 assets as candidate bundles in `jobs/<slug>/library-candidates/`. Generalize
