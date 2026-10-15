@@ -12,3 +12,5 @@ __pycache__/
 outputs/
 .video/
 jobs/
+library/
+!library/README.md
