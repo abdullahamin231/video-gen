@@ -6,7 +6,7 @@ each stage does and where its rules are enforced, for people changing the pipeli
 | Stage | Command | Inputs → outputs | Enforced by |
 |---|---|---|---|
 | Prepare | `start` (wraps `prepare`) | audio + script → `jobs/<slug>/` with clipped WAV, ASR words, `alignment.json`, kit copy, `briefs/director.md` | `scripts/video.mjs` |
-| Plan | director sub-agent, `plan-check` | → `film.json` (with per-scene `owner`); generated `STORYBOARD.md`, `briefs/build-<scene>.md` for delegated scenes | `lib/spec.mjs validateFilm` |
+| Plan | director sub-agent, `plan-check`, `asset` | → `film.json` (design theme, per-scene `owner`), `assets/` + `assets/SOURCES.json`; generated `STORYBOARD.md`, `briefs/build-<scene>.md` for delegated scenes | `lib/spec.mjs validateFilm` |
 | Build | director (owned scenes) and builder sub-agents, `build [--scene]` | `shots/*.json` (+ hooks, components, Manim) → `compositions/world.html`, `index.html`, `timing.json`, `assets/cues.js`, `review/motion.md`, `review/inspect.json`, `review/build.json` | `lib/spec.mjs compileFilm`, `lib/inspect.mjs` |
 | Render | `render` | → `renders/video.mp4`, `review/render-verification.json`, `review/pixels.json`, `review/render-source.json` | HyperFrames lint/render, `lib/pixels.mjs`, `verify` |
 | Review | `review-pack`, reviewer sub-agents, `review-template`, `review-submit` | → frozen pack, briefs, reports | `lib/review.mjs` |
@@ -31,6 +31,10 @@ are rejected in specs, hooks and components.
 
 ## The world
 
+The film's `theme` (film.json) is merged over the kit's fallback tokens and applied to every object: background,
+named colours, default ink, fonts (bundled families in `lib/world.mjs FONT_FAMILIES`, or the theme's `fontFiles`),
+stroke, corner, fill opacity, shadow filter, label/text/value type, named eases and per-type defaults.
+
 All shot scenes compile into one composition (`compositions/world.html`, id `world`) driven by `lib/kit/kit.js`:
 one SVG world, one camera, one paused GSAP timeline built from tracked state (every tween is an explicit fromTo), so
 any seek order renders the same frame. Objects persist across scenes; the compiler adds fade-outs at handoffs for
@@ -40,11 +44,12 @@ the clip, then play inside the world.
 
 ## Checks
 
-- Spec (compile time): schema, ids, targets, cue phrases (with suggestions), durations inside the scene, banned eases,
-  font sizes, numbers not in the narration/script, overlong text, infographic ratio, entrance-only choreography,
-  determinism and literal-time lint for hooks/components.
+- Spec (compile time): schema, the film's design theme (required: name, description, bg, colours; bundled or shipped
+  fonts), ids, targets, cue phrases (with suggestions), durations inside the scene, asset files present under
+  `assets/`, colours and fonts outside the theme (warning), font sizes, numbers not in the narration/script, overlong
+  text, entrance-only choreography, determinism and literal-time lint for hooks/components.
 - Browser (`build`): legibility on screen (≥28 px labels, ≥40 px values), text collisions and cut-off text, frame use
-  (content box ≥20%), centring, subject stillness (>2.5 s without development outside a declared hold), diagnostic activity
+  (content box ≥20%), centring, subject stillness (>4 s without development outside a declared hold), diagnostic activity
   counts in world coordinates (camera movement excluded), overlapping tweens on the same property, and seek-order consistency.
 - Pixels (`render`): content box, frozen picture and blank frames measured on the encoded MP4.
 - Media (`verify`): streams, duration, size, fps, audible narration, gain-fitted waveform match with the source.

@@ -18,7 +18,7 @@ async function fixture(t, {owners={}}={}) {
   for(const dir of ['shots','inputs','review','assets']) await mkdir(path.join(job,dir));
   const words=['opening','comparison','ending'].map((text,i)=>({id:`w${i}`,text,start:i*6,end:i*6+1}));
   const alignment={matchRatio:1,words},manifest={duration:18,width:1920,height:1080,status:'prepared'};
-  const film={version:2,title:'Fixture',concept:'A comparison',alternatives:[{concept:'A',rejected:'B'},{concept:'C',rejected:'D'}],subjects:[{id:'subject',what:'Recurring subject'}],prototype:'comparison',
+  const film={version:2,title:'Fixture',concept:'A comparison',theme:{name:'Test look',description:'Chunky white outlines on a near-black stage,flat saturated fills,hard offset shadows and heavy display type for prices.',bg:'#101010',colors:{white:'#f0f0f0',grey:'#888888',dim:'#444444',faint:'#222222',blue:'#1488dd',yellow:'#ffd23f',red:'#e0342f',green:'#3fbf6f'},meanings:{yellow:'money'}},alternatives:[{concept:'A',rejected:'B'},{concept:'C',rejected:'D'}],subjects:[{id:'subject',what:'Recurring subject'}],prototype:'comparison',
     scenes:words.map((w,i)=>({id:w.text,start:i?{phrase:w.text}:{boundary:'start'},idea:'Idea',mechanism:'Operation',states:['initial','operation','consequence'],payoff:'Result',camera:'Static',handoff:'Same subject',why_not_basic:'Meaning',alternatives:['Other'],carry:i?['subject']:[],...(owners[w.text]?{owner:owners[w.text]}:{})}))};
   await put(job,'job.json',manifest);await put(job,'alignment.json',alignment);await put(job,'film.json',film);
   return {job,film,manifest,alignment};
@@ -107,15 +107,18 @@ test('repairs go to the owner: one director for its scenes, builders for delegat
   assert.match(await readFile(path.join(job,'briefs/repair-director.md'),'utf8'),/### comparison[\s\S]*Result missing/);
 });
 
-test('house style is advice: small text and bouncy eases warn, invented numbers still fail',async t=>{
+test('style is advice: small text and off-theme colours warn, invented numbers still fail',async t=>{
   const {job,film,alignment,manifest}=await fixture(t);
-  await put(job,'shots/opening.json',{scene:'opening',notes:'Tiny texture labels on purpose.',objects:[{id:'subject',type:'text',at:[960,540],text:'fine print',size:18}],
-    actions:[{do:'fadeIn',target:'subject',at:'start',ease:'bounce.out'}]});
+  await put(job,'shots/opening.json',{scene:'opening',notes:'Tiny texture labels on purpose.',objects:[{id:'subject',type:'text',at:[960,540],text:'fine print',size:18,color:'purple'}],
+    actions:[{do:'drop',target:'subject',at:'start',ease:'bounce.out'},{do:'strike',target:'subject',at:'@after',color:'#00ff00'}]});
   const {warnings,timing}=await compileFilm(job,film,alignment,manifest,{allowMissing:true});
-  assert.ok(warnings.some(w=>/text size 18/.test(w))&&warnings.some(w=>/bounce/.test(w)),warnings.join('\n'));
+  assert.ok(warnings.some(w=>/text size 18/.test(w))&&warnings.some(w=>/colour "purple" is outside the film's theme/.test(w))&&warnings.some(w=>/#00ff00/.test(w)),warnings.join('\n'));
+  assert.ok(!warnings.some(w=>/bounce/.test(w)),'eases are the theme\'s choice');
   assert.equal(timing.scenes[0].notes,'Tiny texture labels on purpose.');
   await put(job,'shots/opening.json',{scene:'opening',objects:[{id:'subject',type:'text',at:[960,540],text:'999 tokens'}],actions:[]});
   await assert.rejects(compileFilm(job,film,alignment,manifest,{allowMissing:true}),/displays 999/);
+  await put(job,'shots/opening.json',{scene:'opening',objects:[{id:'photo',type:'image',at:[960,540],size:[400,300],src:'assets/missing.png'}],actions:[]});
+  await assert.rejects(compileFilm(job,film,alignment,manifest,{allowMissing:true}),/assets\/missing.png does not exist/);
 });
 
 test('review templates leave inspection and coverage unclaimed; final review rejects missing scenes',async t=>{
@@ -143,7 +146,7 @@ test('real browser: a camera pan cannot disguise a static subject',async t=>{
     actions:[{do:'camera',center:[1040,540],zoom:1,t:0,dur:6,scene:'camera',order:0}],hooks:[],componentSrc:[],media:[]};
   await writeWorld(job,world,{...manifest,duration:6});
   const result=await inspectFilm(job,manifest,{scenes:[{id:'camera',start:0,end:6,holds:[]}]});
-  assert.ok(result.warnings.some(e=>/nothing develops/.test(e)),JSON.stringify(result));
+  assert.ok(result.warnings.some(e=>/nothing changes/.test(e)),JSON.stringify(result));
   assert.deepEqual(result.report.scenes.camera.windows,[0,0,0,0]);
 });
 
@@ -164,5 +167,41 @@ test('real browser: dash changes stay discrete and initial SVG attributes are se
       assert.ok(!values.dash||values.dash==='none'||values.dash==='0'||values.dash.split(/[ ,]+/).every(n=>Number(n)>=1),JSON.stringify({time,values}));
     }
     assert.equal(ins.consoleErrors.length,0);
+  } finally {await ins.close();}
+});
+
+test('real browser: theme tokens apply, character verbs are seek-safe, and create never flashes a finished drawing',async t=>{
+  try{await chromePath();}catch{return t.skip('Chrome unavailable');}
+  const {job,manifest}=await fixture(t);await installKit(job);
+  const theme={bg:'#0e1010',colors:{white:'#eff1f1',red:'#e0342f',yellow:'#fcd53a'},stroke:6,corner:12,fonts:{sans:'Archivo',mono:'JetBrains Mono'},
+    shadow:{dx:8,dy:8,blur:0,color:'#000000',opacity:1},defaults:{rect:{shadow:true,fill:'yellow',fillOpacity:1}},eases:{out:'back.out(1.4)'}};
+  const world={...manifest,duration:6,theme,scenes:[{id:'verbs',start:0,end:6,cues:{}}],
+    objects:[{id:'card',type:'rect',at:[600,500],size:[300,200],scene:'verbs'},
+      {id:'tag',type:'rect',at:[1200,400],size:[220,90],scene:'verbs'},
+      {id:'stamp',type:'text',at:[600,500],text:'SOLD OUT',size:60,weight:900,color:'red',scene:'verbs'},
+      {id:'search',type:'text',at:[960,200],text:'GPUs',size:40,font:'mono',scene:'verbs'},
+      {id:'box',type:'rect',at:[1300,800],size:[400,160],scene:'verbs'},
+      {id:'photo',type:'image',src:'assets/p.png',at:[300,850],size:[200,150],knockout:'white',frame:true,visible:true,scene:'verbs'}],
+    actions:[{do:'create',target:'box',t:0,dur:1,scene:'verbs',order:0},
+      {do:'drop',target:'card',t:0.2,dur:0.7,scene:'verbs',order:1},{do:'pop',target:'tag',t:0.5,dur:0.5,scene:'verbs',order:2},
+      {do:'swing',target:'tag',t:1.1,dur:1.6,scene:'verbs',order:3},{do:'strike',target:'card',t:1.4,dur:0.4,scene:'verbs',order:4},
+      {do:'stamp',target:'stamp',t:2,dur:0.35,scene:'verbs',order:5},{do:'type',target:'search',t:2.5,dur:1,cursor:true,scene:'verbs',order:6},
+      {do:'shake',target:'card',t:4,dur:0.5,scene:'verbs',order:7}],hooks:[],componentSrc:[],media:[]};
+  await writeFile(path.join(job,'assets/p.png'),Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==','base64'));
+  await writeWorld(job,world,{...manifest,duration:6});
+  const ins=await openInspector(job,{...manifest,duration:6});
+  try {
+    const photo=await ins.page.evaluate(()=>({key:!!document.querySelector('#vg-photo image').getAttribute('filter'),frame:document.querySelectorAll('#vg-photo rect').length,matrix:!!document.querySelector('filter[id^=vg-knockout] feColorMatrix')}));
+    assert.deepEqual(photo,{key:true,frame:1,matrix:true});
+    const look=await ins.page.evaluate(()=>{const r=document.querySelector('#vg-card rect');return {stroke:r.getAttribute('stroke'),width:r.getAttribute('stroke-width'),rx:r.getAttribute('rx'),fill:r.getAttribute('fill'),filter:document.querySelector('#vg-card .vg-rs').getAttribute('filter'),font:document.querySelector('#vg-search text').getAttribute('font-family')};});
+    assert.deepEqual({...look,filter:!!look.filter},{stroke:'#eff1f1',width:'6',rx:'12',fill:'#fcd53a',filter:true,font:"'JetBrains Mono', monospace"});
+    const early=(await ins.seek(0.05)).objects.find(o=>o.id==='box');
+    const first=await ins.page.evaluate(()=>+document.querySelector('#vg-box rect').getAttribute('fill-opacity'));
+    assert.ok(early.opacity>0.9&&first===0,'the outline starts drawing while the fill is still hidden');
+    const states=[];for(const time of [0.5,1.5,2.1,3,4.2,5.5]) states.push(JSON.stringify((await ins.seek(time)).objects.map(o=>[o.id,o.opacity,o.box,o.sig])));
+    for(const [k,time] of [5.5,4.2,0.5,3,2.1,1.5].entries()) assert.equal(JSON.stringify((await ins.seek(time)).objects.map(o=>[o.id,o.opacity,o.box,o.sig])),states[[0.5,1.5,2.1,3,4.2,5.5].indexOf(time)],`seek mismatch at ${time} (${k})`);
+    const typed=await ins.page.evaluate(()=>{window.__timelines.world.seek(2.8,false);return [...document.querySelectorAll('#vg-search .vg-ch')].map(c=>c.getAttribute('fill-opacity'));});
+    assert.deepEqual(typed.map(Number),[1,0,0,0]);
+    assert.deepEqual(await ins.conflicts(),[]);assert.equal(ins.consoleErrors.length,0,ins.consoleErrors.join('\n'));
   } finally {await ins.close();}
 });

@@ -44,6 +44,9 @@ When it prints `STATE: done`, give the user the MP4 path, the preview URL, and t
 - Never read `scripts/` or `lib/` to work out what to do; `next`, the briefs and `docs/SCENE_SPEC.md` are the interface.
 - Never edit `film.json`, `shots/`, reviewer reports, or evidence yourself. Repairs go through the briefs `next` writes.
 - Keep the supplied recording unchanged. Never use TTS for a supplied recording.
+- Keep every asset inside the repository. Images, fonts, downloads and extracted frames go into the job's `assets/`
+  through `npm run video -- asset`, and anything reusable across films goes into `library/`. Never leave them in `/tmp`
+  or a scratch directory, where no later film can find them.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.
 - If your harness truly cannot spawn sub-agents, you may follow director and builder briefs yourself in sequence,
   but reviews must come from sub-agents; without them the film cannot be delivered.
@@ -52,7 +55,7 @@ When it prints `STATE: done`, give the user the MP4 path, the preview URL, and t
 
 | Role | Brief | Writes | Checked by |
 |---|---|---|---|
-| Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` (concept, scenes, who builds each), then the scenes it owns: the prototype, its context, and any later scene it keeps | `plan-check`, `build --scene` |
+| Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` (the film's one design theme, concept, scenes, who builds each) and the assets it needs, then the scenes it owns: the prototype, its context, and any later scene it keeps | `plan-check`, `build --scene` |
 | Scene builder (one per delegated scene) | `briefs/build-<scene>.md` | `shots/<scene>.json` (+ hook, components, Manim file); full creative authority, departures recorded in `notes` | `build --scene` (spec errors, browser checks, motion transcript) |
 | Repair builder | `briefs/repair-<scene>.md` | fixes to a delegated scene | same |
 | Reviewers ×3 | `briefs/review-<stage>-<role>.md` | `review/<stage>/incoming/<role>.json` | `review-submit` |
@@ -61,9 +64,11 @@ The prototype scene (the most demanding 10–15 s) and its prerequisite introduc
 rendered and reviewed before later scenes are built. By default the director builds them itself, in the same context
 that planned them; it delegates later scenes with `"owner": "builder"` in film.json.
 
-Build errors mean the film is broken or untrue (invalid spec, unspoken cue words, conflicting or non-seek-safe motion,
-nondeterminism, unsourced numbers). House style (sizes, easing, frame use, stillness, overlaps) produces warnings:
-agents may break it on purpose, and reviewers judge whether that served the explanation. Missing scenes never qualify for final review or delivery.
+Build errors mean the film is broken or untrue (invalid spec, no declared design theme, missing assets, unspoken cue
+words, conflicting or non-seek-safe motion, nondeterminism, unsourced numbers). Every film has exactly one design theme,
+chosen by the director; no particular look is prescribed. Style guidance (sizes, colours or fonts outside the theme,
+frame use, stillness, overlaps) produces warnings: agents may break it on purpose, and reviewers judge whether that
+served the film. Missing scenes never qualify for final review or delivery.
 
 ## Models per role
 
@@ -82,7 +87,7 @@ To change a role's model, edit `model:` in its file. Leave `CLAUDE_CODE_SUBAGENT
 ## References
 
 - [docs/SCENE_SPEC.md](docs/SCENE_SPEC.md) — the scene language (objects, verbs, cues, camera, components, hooks, Manim).
-- [docs/quality.md](docs/quality.md) — the full creative and review standard (house style: 3Blue1Brown / Manim).
+- [docs/quality.md](docs/quality.md) — the full creative and review standard (one design theme per film, chosen by the director).
 - [docs/independent-review.md](docs/independent-review.md) — review roles, evidence and report schema.
 - [docs/agent-workflow.md](docs/agent-workflow.md) — what each pipeline stage does, for maintainers.
 - `npm run video -- help` — all commands. `npm test` — pipeline tests.

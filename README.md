@@ -27,11 +27,14 @@ Works in any harness that reads `AGENTS.md` (Codex, OpenCode) or `CLAUDE.md` (Cl
 job state from files and prints exactly one step: a command to run, or briefs to hand to fresh sub-agents (director,
 one builder per scene, three independent reviewers, repair builders).
 
-Scenes are written as JSON shot specs ([docs/SCENE_SPEC.md](docs/SCENE_SPEC.md)) in a 3Blue1Brown-style vocabulary:
-geometry, TeX with term-by-term transforms, graphs, planes with linear maps, particles, networks, a camera, custom
+Each film has one design theme chosen by the director agent (any look: sticker graphics, photo collage, blueprint,
+chalkboard, ...), declared in `film.json` and applied by the kit to every object. Scenes are written as JSON shot specs
+([docs/SCENE_SPEC.md](docs/SCENE_SPEC.md)): shapes, text, images and photo cut-outs, counters, TeX, graphs, planes,
+particles, networks, a camera, verbs with physical character (drop, pop, stamp, swing, strike, type), custom
 components, hooks, and Manim clips. They compile into one seek-safe world (`lib/kit/kit.js`). Every build runs the
-scene in Chrome and fails on concrete defects (tiny text, collisions, empty frame, stillness, low activity, overlapping
-tweens, seek inconsistency, unsourced numbers) and prints a motion transcript that reviewers can read without vision.
+scene in Chrome, fails on concrete defects (no design theme, missing assets, overlapping tweens, seek inconsistency,
+unsourced numbers), warns on style risks (tiny text, collisions, empty frame, stillness, colours or fonts outside the
+theme) and prints a motion transcript that reviewers can read without vision.
 
 Optional: `npm run video -- setup-manim` installs ManimCE 0.19 locally (conda-forge via micromamba; no sudo).
 

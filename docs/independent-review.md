@@ -111,7 +111,8 @@ violate a delivery requirement, such as a nonessential label that could be
 simplified or a sound effect that could make an already clear action more
 tactile. Do not downgrade a known requirement violation to obtain a pass.
 Do not reject stylistic differences solely because a reviewer prefers another
-palette or medium when the film meets the selected direction and house style.
+look: the design theme is the director's choice. Do reject a film that does not
+hold to its own declared theme (film.json `theme`, summarised in STORYBOARD.md).
 
 Review active passages in intervals of approximately 3 s. Check whether
 several elements develop around a single focus and whether causes connect to
@@ -288,7 +289,7 @@ inspection.
 Submit each review and inspect the gate status:
 
 ```bash
-npm run video -- review-submit --job jobs/example --file /tmp/reviewer-report.json
+npm run video -- review-submit --job jobs/example --file jobs/example/review/incoming/reviewer-report.json
 npm run video -- review-status --job jobs/example --stage prototype
 ```
 
