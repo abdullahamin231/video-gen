@@ -1,6 +1,6 @@
 ---
 name: video-builder
-description: Builds or repairs one scene (shots/<scene>.json) from a build-/repair- brief written by `npm run video -- next`. Grunt role: runs on the cheap model; automated checks catch its mistakes.
+description: Builds or repairs one delegated scene (shots/<scene>.json), with full creative authority over it, from a build-/repair- brief written by `npm run video -- next`. Runs on the cheap model; automated checks catch broken output.
 model: haiku
 ---
 

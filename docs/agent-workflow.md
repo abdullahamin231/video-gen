@@ -6,14 +6,16 @@ each stage does and where its rules are enforced, for people changing the pipeli
 | Stage | Command | Inputs → outputs | Enforced by |
 |---|---|---|---|
 | Prepare | `start` (wraps `prepare`) | audio + script → `jobs/<slug>/` with clipped WAV, ASR words, `alignment.json`, kit copy, `briefs/director.md` | `scripts/video.mjs` |
-| Plan | director sub-agent, `plan-check` | → `film.json`; generated `STORYBOARD.md`, `briefs/build-<scene>.md` | `lib/spec.mjs validateFilm` |
-| Build | builder sub-agents, `build [--scene]` | `shots/*.json` (+ hooks, components, Manim) → `compositions/world.html`, `index.html`, `timing.json`, `assets/cues.js`, `review/motion.md`, `review/inspect.json`, `review/build.json` | `lib/spec.mjs compileFilm`, `lib/inspect.mjs` |
+| Plan | director sub-agent, `plan-check` | → `film.json` (with per-scene `owner`); generated `STORYBOARD.md`, `briefs/build-<scene>.md` for delegated scenes | `lib/spec.mjs validateFilm` |
+| Build | director (owned scenes) and builder sub-agents, `build [--scene]` | `shots/*.json` (+ hooks, components, Manim) → `compositions/world.html`, `index.html`, `timing.json`, `assets/cues.js`, `review/motion.md`, `review/inspect.json`, `review/build.json` | `lib/spec.mjs compileFilm`, `lib/inspect.mjs` |
 | Render | `render` | → `renders/video.mp4`, `review/render-verification.json`, `review/pixels.json`, `review/render-source.json` | HyperFrames lint/render, `lib/pixels.mjs`, `verify` |
 | Review | `review-pack`, reviewer sub-agents, `review-template`, `review-submit` | → frozen pack, briefs, reports | `lib/review.mjs` |
 | Deliver | `deliver` | → `review/delivery.json`, `review/REPORT.md`, `job.status: complete` | `qualifyDelivery` + film audit + pixel checks |
 
 `next` (`lib/film.mjs nextStep`) derives the state from these files: missing/invalid plan → director; missing
-prerequisite context and prototype shots → builders in scene order; stale build → build; build or pixel errors → repair briefs per scene; stale render → render;
+prerequisite context and prototype shots → their owners in scene order (consecutive director-owned scenes share one
+`direct-<scene>.md` brief); stale build → build; build errors → repair briefs (one `repair-director.md` for director-owned
+scenes, one per delegated scene, in parallel); pixel and style findings are warnings for reviewers; stale render → render;
 no current pack → review-pack; missing reviews → reviewers; failed reviews → repair briefs from blocking findings
 (at most 4 distinct failed packs per stage, then `blocked`); plan defects or repeated visual failures → director revision;
 prototype accepted → build the remaining scenes; final pass → deliver. Querying the same failed pack does not consume another round.

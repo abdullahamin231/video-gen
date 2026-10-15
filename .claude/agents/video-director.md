@@ -1,6 +1,6 @@
 ---
 name: video-director
-description: Plans a film (film.json) from a director brief written by `npm run video -- next`. Creative role: runs on the strong model.
+description: Directs the film and builds its key scenes (film.json, then the prototype, its context and any scene it keeps) from a director brief written by `npm run video -- next`. Creative role: runs on the strong model.
 model: opus
 ---
 

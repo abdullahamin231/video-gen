@@ -1,5 +1,9 @@
 # Quality contract (director and reviewer reference)
 
+> Everything in this file except truthfulness (no unsupported numbers or claims), the fixed narration, and
+> deterministic rendering is house style: strong defaults that a director or builder may break when breaking them
+> explains the idea better. Reviewers block on what hurts understanding or truth, not on departures from this file.
+
 > The operational runbook is the root AGENTS.md. This file is the full creative and review standard; the briefs written by the pipeline summarise it for each role. Where this file names old mechanics (beats.json, STORYBOARD.md written by hand, fork_turns), the pipeline now handles them: film.json and shots/*.json replace beats.json, STORYBOARD.md is generated from film.json, and sub-agents are spawned however the host harness spawns them.
 
 The user gives a request in natural language:

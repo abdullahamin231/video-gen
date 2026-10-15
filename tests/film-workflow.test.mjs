@@ -12,25 +12,47 @@ import {installKit, writeWorld} from '../lib/world.mjs';
 import {inspectFilm, chromePath, openInspector} from '../lib/inspect.mjs';
 
 const put = (job, file, value) => writeFile(path.join(job,file),JSON.stringify(value));
-async function fixture(t) {
+async function fixture(t, {owners={}}={}) {
   const job=await mkdtemp(path.join(os.tmpdir(),'film-workflow-'));
   t.after(()=>rm(job,{recursive:true,force:true}));
   for(const dir of ['shots','inputs','review','assets']) await mkdir(path.join(job,dir));
   const words=['opening','comparison','ending'].map((text,i)=>({id:`w${i}`,text,start:i*6,end:i*6+1}));
   const alignment={matchRatio:1,words},manifest={duration:18,width:1920,height:1080,status:'prepared'};
   const film={version:2,title:'Fixture',concept:'A comparison',alternatives:[{concept:'A',rejected:'B'},{concept:'C',rejected:'D'}],subjects:[{id:'subject',what:'Recurring subject'}],prototype:'comparison',
-    scenes:words.map((w,i)=>({id:w.text,start:i?{phrase:w.text}:{boundary:'start'},idea:'Idea',mechanism:'Operation',states:['initial','operation','consequence'],payoff:'Result',camera:'Static',handoff:'Same subject',why_not_basic:'Meaning',alternatives:['Other'],carry:i?['subject']:[]}))};
+    scenes:words.map((w,i)=>({id:w.text,start:i?{phrase:w.text}:{boundary:'start'},idea:'Idea',mechanism:'Operation',states:['initial','operation','consequence'],payoff:'Result',camera:'Static',handoff:'Same subject',why_not_basic:'Meaning',alternatives:['Other'],carry:i?['subject']:[],...(owners[w.text]?{owner:owners[w.text]}:{})}))};
   await put(job,'job.json',manifest);await put(job,'alignment.json',alignment);await put(job,'film.json',film);
   return {job,film,manifest,alignment};
 }
 
-test('next builds prerequisite context before a dependent prototype and defers later scenes',async t=>{
+test('the director builds the prototype and its context in one brief; later scenes wait',async t=>{
   const {job}=await fixture(t);
   const first=await nextStep(job);
-  assert.equal(first.state,'build prototype');assert.match(first.text,/build-opening\.md/);assert.doesNotMatch(first.text,/build-ending\.md/);
+  assert.equal(first.state,'build prototype');assert.match(first.text,/video-director: "Read .*direct-opening\.md/);
+  assert.match(first.text,/"opening", "comparison"/);assert.doesNotMatch(first.text,/ending/);
+  const brief=await readFile(path.join(job,'briefs/direct-opening.md'),'utf8');
+  assert.match(brief,/### opening/);assert.match(brief,/### comparison/);assert.doesNotMatch(brief,/### ending/);
+});
+
+test('delegated scenes go to builders in order, before a dependent prototype',async t=>{
+  const {job}=await fixture(t,{owners:{opening:'builder',comparison:'builder'}});
+  const first=await nextStep(job);
+  assert.match(first.text,/video-builder: "Read .*build-opening\.md/);assert.doesNotMatch(first.text,/build-ending\.md/);
+  assert.match(await readFile(path.join(job,'briefs/build-opening.md'),'utf8'),/complete creative authority/);
   await put(job,'shots/opening.json',{scene:'opening',objects:[{id:'subject',type:'circle',at:[960,540],r:100}],actions:[]});
   const second=await nextStep(job);
   assert.match(second.text,/build-comparison\.md/);assert.doesNotMatch(second.text,/build-ending\.md/);
+});
+
+test('a passing build with builder notes stays fresh across next',async t=>{
+  const {job}=await fixture(t);
+  await put(job,'shots/opening.json',{scene:'opening',notes:'Kept a long hold on purpose.',objects:[{id:'subject',type:'circle',at:[960,540],r:100}],actions:[]});
+  await put(job,'shots/comparison.json',{scene:'comparison',objects:[],actions:[]});
+  await nextStep(job);
+  const built=await buildFilm(job,{inspect:false,print:false});
+  assert.ok(built.ok);
+  await nextStep(job);
+  assert.equal(JSON.parse(await readFile(path.join(job,'review/build.json'))).sourceHash,await sourceFingerprint(job));
+  assert.match(await readFile(path.join(job,'STORYBOARD.md'),'utf8'),/Kept a long hold on purpose/);
 });
 
 test('persisted complete status without current delivery evidence cannot report done',async t=>{
@@ -38,8 +60,8 @@ test('persisted complete status without current delivery evidence cannot report 
   assert.notEqual((await nextStep(job)).state,'done');
 });
 
-async function failedReviewFixture(t, {scope='scene',sceneIds}={}) {
-  const f=await fixture(t),{job}=f;
+async function failedReviewFixture(t, {scope='scene',sceneIds,owners}={}) {
+  const f=await fixture(t,{owners}),{job}=f;
   await put(job,'shots/opening.json',{scene:'opening',objects:[{id:'subject',type:'circle',at:[960,540],r:100}],actions:[]});
   await put(job,'shots/comparison.json',{scene:'comparison',objects:[],actions:[]});
   await buildFilm(job,{inspect:false,print:false});
@@ -73,8 +95,27 @@ test('concept failures return to the director; boundary findings can target the 
   const plan=await failedReviewFixture(t,{scope:'plan'});
   assert.equal((await nextStep(plan.job)).state,'revise plan');
   assert.equal((await nextStep(plan.job)).state,'revise plan');
-  const boundary=await failedReviewFixture(t,{sceneIds:['opening']});
-  assert.match((await nextStep(boundary.job)).text,/repair-opening\.md/);
+  const boundary=await failedReviewFixture(t,{sceneIds:['opening'],owners:{opening:'builder'}});
+  assert.match((await nextStep(boundary.job)).text,/video-builder: "Read .*repair-opening\.md/);
+});
+
+test('repairs go to the owner: one director for its scenes, builders for delegated ones, in parallel',async t=>{
+  const {job}=await failedReviewFixture(t,{sceneIds:['opening','comparison'],owners:{opening:'builder'}});
+  const step=await nextStep(job);
+  assert.equal(step.state,'repair');
+  assert.match(step.text,/video-director: "Read .*repair-director\.md/);assert.match(step.text,/video-builder: "Read .*repair-opening\.md/);
+  assert.match(await readFile(path.join(job,'briefs/repair-director.md'),'utf8'),/### comparison[\s\S]*Result missing/);
+});
+
+test('house style is advice: small text and bouncy eases warn, invented numbers still fail',async t=>{
+  const {job,film,alignment,manifest}=await fixture(t);
+  await put(job,'shots/opening.json',{scene:'opening',notes:'Tiny texture labels on purpose.',objects:[{id:'subject',type:'text',at:[960,540],text:'fine print',size:18}],
+    actions:[{do:'fadeIn',target:'subject',at:'start',ease:'bounce.out'}]});
+  const {warnings,timing}=await compileFilm(job,film,alignment,manifest,{allowMissing:true});
+  assert.ok(warnings.some(w=>/text size 18/.test(w))&&warnings.some(w=>/bounce/.test(w)),warnings.join('\n'));
+  assert.equal(timing.scenes[0].notes,'Tiny texture labels on purpose.');
+  await put(job,'shots/opening.json',{scene:'opening',objects:[{id:'subject',type:'text',at:[960,540],text:'999 tokens'}],actions:[]});
+  await assert.rejects(compileFilm(job,film,alignment,manifest,{allowMissing:true}),/displays 999/);
 });
 
 test('review templates leave inspection and coverage unclaimed; final review rejects missing scenes',async t=>{
@@ -102,7 +143,7 @@ test('real browser: a camera pan cannot disguise a static subject',async t=>{
     actions:[{do:'camera',center:[1040,540],zoom:1,t:0,dur:6,scene:'camera',order:0}],hooks:[],componentSrc:[],media:[]};
   await writeWorld(job,world,{...manifest,duration:6});
   const result=await inspectFilm(job,manifest,{scenes:[{id:'camera',start:0,end:6,holds:[]}]});
-  assert.ok(result.errors.some(e=>/nothing develops/.test(e)),JSON.stringify(result));
+  assert.ok(result.warnings.some(e=>/nothing develops/.test(e)),JSON.stringify(result));
   assert.deepEqual(result.report.scenes.camera.windows,[0,0,0,0]);
 });
 

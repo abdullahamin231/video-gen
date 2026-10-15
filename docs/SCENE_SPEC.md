@@ -18,9 +18,13 @@ plus a motion transcript of what is actually on screen. Iterate until it reports
   "objects": [ ... ],
   "actions": [ ... ],
   "holds": [{"from": "wait", "to": "wait+1.5", "reason": "let the empty queue register before the payoff"}],
-  "hook": "shots/bottleneck.hook.js"
+  "hook": "shots/bottleneck.hook.js",
+  "notes": "Replaced the planned pipe with a queue: waiting is easier to see as a line than as pressure."
 }
 ```
+
+- **notes** (optional): one or two sentences on deliberate departures from the director's plan or the house style.
+  They appear in STORYBOARD.md so reviewers judge your choice instead of the old plan.
 
 - **cues**: names for moments in the narration. `phrase` = words copied from the word table in your brief (case and
   punctuation ignored). Searched only inside your scene; if repeated, the first is used unless `occurrence` is set.
@@ -38,8 +42,14 @@ Positions are `[x, y]`. Objects are hidden until an action shows them (`"visible
 Lines, arrows, paths and polygons use world coordinates directly. Everything else is placed by `at` (its centre).
 Objects with `"of": "<axes-or-plane-id>"` use **data coordinates** of that axes and move with it.
 
-Keep the subject large: the build fails when content fills less than ~20% of the frame. Text must be ≥28 px on screen
-(values ≥40 px); zooming the camera out shrinks text.
+Keep the subject large: the build warns when content fills less than ~20% of the frame. Essential text should be
+≥28 px on screen (values ≥40 px); zooming the camera out shrinks text.
+
+**Errors vs warnings.** The build fails only when the film is broken or untrue: invalid JSON or fields, unknown
+targets, cue words not spoken in the scene, two actions animating the same property at once, motion that is not
+seek-safe, randomness or clocks, or numbers the narration does not support (unless the object says why with
+`numbers`). Everything else (text size, easing, frame use, stillness, text overlap) is a house-style warning: fix it,
+or keep it on purpose and say why in `notes`.
 
 ## Objects
 

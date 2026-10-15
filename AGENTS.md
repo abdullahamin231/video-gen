@@ -52,13 +52,18 @@ When it prints `STATE: done`, give the user the MP4 path, the preview URL, and t
 
 | Role | Brief | Writes | Checked by |
 |---|---|---|---|
-| Director | `briefs/director.md` | `film.json`: concept, alternatives, recurring subjects, scenes with mechanism, states, payoff, camera purpose, handoff | `plan-check` |
-| Scene builder (one per scene) | `briefs/build-<scene>.md` | `shots/<scene>.json` (+ optional hook, components, Manim file) | `build --scene` (spec errors, browser checks, motion transcript) |
-| Repair builder | `briefs/repair-<scene>.md` | fixes to that scene | same |
+| Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` (concept, scenes, who builds each), then the scenes it owns: the prototype, its context, and any later scene it keeps | `plan-check`, `build --scene` |
+| Scene builder (one per delegated scene) | `briefs/build-<scene>.md` | `shots/<scene>.json` (+ hook, components, Manim file); full creative authority, departures recorded in `notes` | `build --scene` (spec errors, browser checks, motion transcript) |
+| Repair builder | `briefs/repair-<scene>.md` | fixes to a delegated scene | same |
 | Reviewers ×3 | `briefs/review-<stage>-<role>.md` | `review/<stage>/incoming/<role>.json` | `review-submit` |
 
 The prototype scene (the most demanding 10–15 s) and its prerequisite introduction/context are built in order,
-rendered and reviewed before later scenes are built. Missing scenes never qualify for final review or delivery.
+rendered and reviewed before later scenes are built. By default the director builds them itself, in the same context
+that planned them; it delegates later scenes with `"owner": "builder"` in film.json.
+
+Build errors mean the film is broken or untrue (invalid spec, unspoken cue words, conflicting or non-seek-safe motion,
+nondeterminism, unsourced numbers). House style (sizes, easing, frame use, stillness, overlaps) produces warnings:
+agents may break it on purpose, and reviewers judge whether that served the explanation. Missing scenes never qualify for final review or delivery.
 
 ## Models per role
 
@@ -68,8 +73,8 @@ agent types in `.claude/agents/` pin this:
 | Agent type | Model | Why |
 |---|---|---|
 | orchestrator (main session) | any, e.g. `claude --model haiku` | `next` decides every step |
-| `video-director` | `opus` | the concept and scene plan |
-| `video-builder` | `haiku` | follows the plan; `build --scene` checks catch mistakes |
+| `video-director` | `opus` | the concept, the plan, and the scenes whose look is hardest to put into words |
+| `video-builder` | `haiku` | delegated scenes; `build --scene` checks catch broken output |
 | `video-reviewer` | `opus` | a weak reviewer passes weak films |
 
 To change a role's model, edit `model:` in its file. Leave `CLAUDE_CODE_SUBAGENT_MODEL` unset; it overrides these.
