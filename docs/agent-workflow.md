@@ -18,7 +18,7 @@ prerequisite context and prototype shots → their owners in scene order (consec
 scenes, one per delegated scene, in parallel); pixel and style findings are warnings for reviewers; stale render → render;
 no current pack → review-pack; missing reviews → reviewers; failed reviews → repair briefs from blocking findings
 (at most 4 distinct failed packs per stage, then `blocked`); plan defects or repeated visual failures → director revision;
-prototype accepted → build the remaining scenes; final pass → deliver. Querying the same failed pack does not consume another round.
+unsaved assets (before any review pack) → save-all; prototype accepted → build the remaining scenes; final pass → deliver. Querying the same failed pack does not consume another round.
 Review counters are excluded from render fingerprints. Persisted completion is requalified before `next` reports done.
 
 ## Timing
@@ -62,7 +62,11 @@ Final review and delivery reject any missing scenes. Objects marked visible star
 ## Library
 
 `library/` stores reusable versioned bundles (`library-search`, `library-info`, `library-use`, `library-add`).
-Components written for a film (`components/<type>.js`) are the natural candidates to publish.
+Every film adds to it: `asset` saves what it imports, `save` saves a file an agent made (drawing, component, Manim
+scene) with title and tags, and before any review pack `next` requires that every non-pipeline file in `assets/`,
+`components/` and `manim/` is in the library (`save-all` saves leftovers with metadata derived from
+`assets/SOURCES.json`, a file's first comment and the film title). Saving is content-addressed: identical files are
+saved once, changed files become a new patch version (`lib/library.mjs saveToLibrary`).
 
 ## Legacy jobs
 

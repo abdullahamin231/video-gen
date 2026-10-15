@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, symlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {inspectBundle, itemPath, publishBundle, searchLibrary, useBundle, verifyLibraryCopies} from '../lib/library.mjs';
+import {inspectBundle, itemPath, publishBundle, searchLibrary, useBundle, verifyLibraryCopies, unsavedFiles, saveToLibrary, saveAll} from '../lib/library.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'video-library-'));
@@ -79,4 +79,33 @@ test('reviewed status requires frozen local evidence', async t => {
   f.manifest.files.push('review.md'); await f.save();
   await writeFile(path.join(f.source, 'review.md'), 'Motion inspected; cue-driven routing works.');
   assert.equal((await inspectBundle(f.source)).manifest.review.status, 'reviewed');
+});
+
+test('everything a film brings in or makes is saved once, searchable, and reusable', async t => {
+  const {library, job} = await fixture(t);
+  for (const dir of ['assets/kit', 'assets/fonts', 'components', 'manim']) await mkdir(path.join(job, dir), {recursive: true});
+  await writeFile(path.join(job, 'assets/kit/kit.js'), 'pipeline file');
+  await writeFile(path.join(job, 'assets/cues.js'), 'pipeline file');
+  await writeFile(path.join(job, 'assets/gpu.png'), 'png bytes');
+  await writeFile(path.join(job, 'assets/fonts/display.woff2'), 'font bytes');
+  await writeFile(path.join(job, 'assets/SOURCES.json'), JSON.stringify([{name: 'gpu.png', src: 'https://example.com/gpu.png', note: 'a graphics card seen from the front', tags: ['gpu', 'hardware']}]));
+  await writeFile(path.join(job, 'components/shelf.js'), "// A store shelf with price-tag slots\nVG.component('shelf', {build() { return {}; }});");
+  await writeFile(path.join(job, 'film.json'), JSON.stringify({title: 'GPU prices'}));
+  assert.deepEqual((await unsavedFiles(library, job)).sort(), ['assets/fonts/display.woff2', 'assets/gpu.png', 'components/shelf.js']);
+  const saved = await saveAll(library, job);
+  assert.equal(saved.length, 3);
+  assert.deepEqual(await unsavedFiles(library, job), []);
+  const gpu = (await searchLibrary(library, 'graphics card')).matches[0];
+  assert.equal(gpu.item, 'gpu@1.0.0'); assert.deepEqual(gpu.tags, ['gpu', 'hardware']);
+  const shelf = await inspectBundle(itemPath(library, 'shelf@1.0.0'));
+  assert.match(shelf.manifest.description, /store shelf/); assert.equal(shelf.manifest.kind, 'component');
+  // identical content is not saved twice; changed content becomes a new version
+  assert.deepEqual(await saveToLibrary(library, job, {file: 'components/shelf.js', title: 'Shelf', tags: 'shelf'}), {item: 'shelf@1.0.0', saved: false});
+  await writeFile(path.join(job, 'components/shelf.js'), "// A store shelf, now with two levels\nVG.component('shelf', {build() { return {}; }});");
+  assert.deepEqual(await unsavedFiles(library, job), ['components/shelf.js']);
+  assert.deepEqual(await saveToLibrary(library, job, {file: 'components/shelf.js', title: 'Shelf', tags: 'shelf'}), {item: 'shelf@1.0.1', saved: true});
+  // a library copy installed into a job does not count as new work
+  await useBundle(library, 'gpu@1.0.0', job);
+  assert.deepEqual(await unsavedFiles(library, job), []);
+  await assert.rejects(saveToLibrary(library, job, {file: '../outside.js', title: 'x', tags: 'x'}), /inside the job/);
 });

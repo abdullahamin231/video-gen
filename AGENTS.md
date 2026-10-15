@@ -44,9 +44,9 @@ When it prints `STATE: done`, give the user the MP4 path, the preview URL, and t
 - Never read `scripts/` or `lib/` to work out what to do; `next`, the briefs and `docs/SCENE_SPEC.md` are the interface.
 - Never edit `film.json`, `shots/`, reviewer reports, or evidence yourself. Repairs go through the briefs `next` writes.
 - Keep the supplied recording unchanged. Never use TTS for a supplied recording.
-- Keep every asset inside the repository. Images, fonts, downloads and extracted frames go into the job's `assets/`
-  through `npm run video -- asset`, and anything reusable across films goes into `library/`. Never leave them in `/tmp`
-  or a scratch directory, where no later film can find them.
+- Keep every asset inside the repository, never in `/tmp` or a scratch directory. Agents bring images and fonts in with
+  `npm run video -- asset` (saved to the job's `assets/` and to `library/`) and save what they make with
+  `npm run video -- save`. When `next` prints `save-all`, run it: it saves anything still missing from `library/`.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.
 - If your harness truly cannot spawn sub-agents, you may follow director and builder briefs yourself in sequence,
   but reviews must come from sub-agents; without them the film cannot be delivered.

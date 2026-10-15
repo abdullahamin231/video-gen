@@ -76,6 +76,23 @@ timeline, caller-supplied targets, and cue-derived times. Avoid wall clocks,
 unseeded randomness, global timeline clearing, and remote assets. Installation
 does not yet resolve dependency graphs or remap DOM IDs.
 
+## Every film saves its assets
+
+Nothing a film brings in or makes is lost. Search first, then save:
+
+```bash
+npm run video -- library-search --query "gpu card"                      # before sourcing or drawing anything
+npm run video -- asset --job jobs/example --src <url|file> --name gpu.png --note "RTX card, front view" --tags "gpu,nvidia"
+npm run video -- save --job jobs/example --file components/shelf.js --title "Store shelf with tag slots" --tags "shelf,store,price"
+npm run video -- save-all --job jobs/example                            # leftovers; next runs this before every review
+```
+
+`asset` imports a file into the job and saves it here in one step. `save` publishes a file an agent made (an SVG or PNG
+drawing in `assets/`, a component in `components/`, a Manim scene in `manim/`) as a one-file bundle with its usage
+instructions. Saving is content-addressed: an identical file is saved once, a changed file becomes a new patch version
+of the same id. Auto-saved bundles are `draft`; their origin records the job and source URL. Pipeline files (the kit,
+cues, narration, rendered Manim clips) and copies installed with `library-use` are never saved again.
+
 ## Production rule
 
 Search by what should happen, not just the topic. Reuse suitable entries; invent

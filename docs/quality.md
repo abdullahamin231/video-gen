@@ -69,9 +69,11 @@ These are the qualities that separate a produced explainer from an animated slid
   it so the viewer recognises it in under a second without reading a label: a cut-out photo, a logo, or an
   illustration with its true silhouette and details. An anonymous rectangle with a label is a last resort.
 - Bring real images in with `npm run video -- asset --src <url|file> --name <name>.png` (the source is recorded in
-  `assets/SOURCES.json`). Every asset must end up inside the repository: never download or keep it in `/tmp` or a
-  scratch directory. An asset worth reusing across films belongs in `library/` (see `library/README.md`), so the next
-  film can find it. Prefer images that already have no background: press-kit PNGs and product renders. A plain
+  `assets/SOURCES.json`). Search the library first (`library-search`, then `library-use`): earlier films may already
+  hold the image, drawing or component you need. Every asset must end up inside the repository, never in `/tmp` or a
+  scratch directory, and every asset is saved to `library/` so the next film can find it: `asset` saves what it
+  imports, `save` saves what an agent draws or builds (a drawing, a component, a Manim scene) with a title and search
+  tags, and `next` saves anything left over before review. Prefer images that already have no background: press-kit PNGs and product renders. A plain
   white or black studio background can be keyed out at render time (`"knockout": "white"` on the image; parts of the
   subject as light as the background vanish too, so check the result). Otherwise present the photo deliberately as a
   framed print or card (`"frame": true`). Whichever you choose, use it the same way throughout the film.

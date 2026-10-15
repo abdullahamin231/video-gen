@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues} from '../lib/timing.mjs';
-import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies} from '../lib/library.mjs';
+import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies, saveToLibrary, saveAll} from '../lib/library.mjs';
 import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
@@ -19,7 +19,7 @@ import {readdir} from 'node:fs/promises';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
-const LIBRARY = path.join(ROOT, 'library');
+const LIBRARY = process.env.VG_LIBRARY || path.join(ROOT, 'library');
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
 const save = (file, data) => writeFile(file, JSON.stringify(data, null, 2) + '\n');
 const exists = async file => {try {await access(file); return true;} catch {return false;}};
@@ -258,7 +258,9 @@ next [--job jobs/<slug>]             print the single next step (state machine)
 plan-check                          validate film.json (director output)
 build [--scene <id>]                 compile shots, assemble, inspect, print motion transcript
 snapshot [--scene <id>] [--at 1.2,3] write PNG frames of the world (for agents that can view images)
-asset --src <url|file> --name <x.png> [--note "..."]  bring a real image/logo/font into assets/ (recorded in assets/SOURCES.json)
+asset --src <url|file> --name <x.png> --note "what it shows" [--title ".." --tags "a,b"]  bring an image/logo/font into assets/ and save it to library/
+save --file <job file> --title ".." --tags "a,b" [--note ".." --id slug]  save something you made (drawing, component, Manim file) to library/
+save-all                             save every job asset/component the library does not hold yet
 review-template --stage S --role R   write a pre-filled reviewer report
 alignment-approve --note "..."       record review of a low script match
 setup-manim                          install ManimCE locally for "manim" objects
@@ -322,8 +324,20 @@ try {
     } else if (command === 'snapshot') await snapshot(job, {scene: opts.scene, at: opts.at});
     else if (command === 'review-template') await reviewTemplate(job, {stage: opts.stage || 'final', role: opts.role});
     else if (command === 'asset') {
-      const a = await importAsset(job, ROOT, {src: opts.src, name: opts.name, note: opts.note || ''});
-      console.log(`Saved ${a.path}. Use it as {"type": "image", "src": "${a.path}", ...}${a.name.startsWith('fonts/') ? ' or in theme.fontFiles' : ''}. Look at it before using it.`);
+      if (!opts.note?.trim()) throw new Error('asset needs --note "<what it shows>" so later films can find it in the library');
+      const a = await importAsset(job, ROOT, {src: opts.src, name: opts.name, note: opts.note, title: opts.title || '', tags: opts.tags || ''});
+      const lib = await saveToLibrary(LIBRARY, job, {file: a.path, title: opts.title || a.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '), tags: opts.tags || '', note: opts.note, origin: a.src});
+      console.log(`Saved ${a.path} (library: ${lib.item}). Use it as {"type": "image", "src": "${a.path}", ...}${a.name.startsWith('fonts/') ? ' or in theme.fontFiles' : ''}. Look at it before using it.`);
+    }
+    else if (command === 'save') {
+      if (!opts.file || !opts.title?.trim() || !opts.tags?.trim()) throw new Error('save needs --file <job file> --title "<what it is>" --tags "<words someone would search for>"');
+      const r = await saveToLibrary(LIBRARY, job, {file: opts.file, title: opts.title, tags: opts.tags, note: opts.note || '', id: opts.id});
+      console.log(r.saved ? `Saved ${opts.file} to the library as ${r.item}.` : `Already in the library as ${r.item}.`);
+    }
+    else if (command === 'save-all') {
+      const saved = await saveAll(LIBRARY, job);
+      console.log(saved.length ? saved.map(s => `${s.file} → ${s.item}${s.saved ? '' : ' (already saved)'}`).join('\n') : 'Nothing new to save.');
+      console.log(`Next: npm run video -- next --job ${path.relative(ROOT, job)}`);
     }
     else if (command === 'kit-update') { await installKit(job); console.log('Kit refreshed. Run build.'); }
     else if (command === 'alignment-approve') {
