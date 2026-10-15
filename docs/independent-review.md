@@ -176,10 +176,15 @@ npm run video -- review-pack --job jobs/example --stage prototype --start 8 --en
 ```
 
 `review-pack` creates `review/<stage>/pack.json` and a frozen evidence run
-directory. It also writes `review/<stage>/briefs/<role>.md` for each reviewer
+directory. It also writes `briefs/review-<stage>-<role>.md` for each reviewer
 and prints their absolute paths and the pack hash. Spawn a separate reviewer
-with `fork_turns: "none"` for each brief, passing the brief path as its initial
-task. Reviewers write separate incoming JSON reports; the host submits them.
+as a fresh sub-agent with no conversation history (however the host harness spawns one) for each brief, passing the brief path as its initial
+task. Each reviewer runs `review-template` (pre-filled hashes), fills `review/<stage>/incoming/<role>.json`,
+and submits it with `review-submit`. Packs also contain the motion transcript (`motion.md`, kind `motion`) and the
+automated check results (`inspect.json`, `pixels.json`, kind `checks`) as supporting diagnostics.
+They cannot replace image/video inspection. Without visual input a reviewer records `inspection.visual: "unavailable"`
+and verdict `incomplete`. The blind visual role reads diagnostics only after saving its observations of the images.
+`next` dispatches reviewers and repairs automatically.
 The command prepares dispatch material; the host's agent tools execute the
 reviews. Use `--stage final` for the whole film after its final draft render.
 The prototype is normally 10–15 s; a shorter film can use its whole duration.
@@ -213,6 +218,8 @@ SHA-256 values; timestamps must match the pack's real interval.
   "videoSha256": "<video SHA-256 from pack>",
   "inspection": {
     "mode": "frame-sequence",
+    "visual": "viewed",
+    "evidence": ["<actual frozen frame or clip path from the pack>"],
     "limitations": ["Ordered frames inspected; normal-speed playback was not reviewed."]
   },
   "coverage": [{"start": 8, "end": 20}],
@@ -227,7 +234,13 @@ Allowed `role` values are `visual-mechanism`, `narration-fidelity`, and
 `playback`, and `mixed`. The visual role requires a nonempty
 `initialObservation` recorded before receiving narrative material; other roles
 may omit it. The CLI can require the field, but cannot establish when it was
-written. Save first-pass observations before providing the second-pass packet.
+written. Save first-pass observations in a file named for the current pack before providing the second-pass packet;
+preserve earlier observations. Every passing role must declare `inspection.visual: "viewed"` and list the frozen
+visual files it inspected in `inspection.evidence`. Templates leave capability claims and coverage unset.
+
+Blocking findings may include `scope: "scene" | "plan" | "evidence"` and `sceneIds` naming responsible scenes,
+including an earlier scene that causes a boundary defect. Plan defects return to the director; repeated visual failures
+also trigger a director revision. A failed pack is counted once, regardless of how often `next` is queried.
 
 The narration role additionally requires `inspection.audio` with one of
 `listened`, `signal-verified`, or `unavailable`. `listened` means the reviewer
@@ -237,7 +250,7 @@ rendered audio and supplied root narration, and the report explicitly states
 that listening was unavailable. This is a heuristic consistency check, not
 proof of exact sample preservation, unchanged words, or listening. The comparison
 decodes both tracks to 8 kHz mono float32, examines the entire decoded tracks
-without time-shift or gain correction, and requires correlation of at least
+without time-shift correction, fits one global gain (strictly between 0.25 and 4), and requires correlation of at least
 0.995, normalized RMS error of at most 0.10, and duration difference of at most
 0.05 s. Silence, decoding errors, and failed comparisons do not qualify this
 fallback. These thresholds allow ordinary lossy encoding; they are not a

@@ -20,49 +20,20 @@ npm run video -- help
 
 ## Give the agent a job
 
-> Create a video given the audio `inputs/audio/source.mp3` and script
-> `inputs/scripts/<your-script>.md`.
+> Create a video given the audio `inputs/audio/source.mp3` and script `inputs/scripts/<your-script>.md`.
 
-For an excerpt, add: “Use just the first 30 seconds.”
+Works in any harness that reads `AGENTS.md` (Codex, OpenCode) or `CLAUDE.md` (Claude Code). The agent runs
+`npm run video -- start ...` and then repeats `npm run video -- next` until it prints `STATE: done`. `next` derives the
+job state from files and prints exactly one step: a command to run, or briefs to hand to fresh sub-agents (director,
+one builder per scene, three independent reviewers, repair builders).
 
-The user only needs to say: **Create a video given the audio `<audio path>` and
-script `<script path>`.** The agent handles creative direction, assets, animated
-shots, timing, independent sub-agent review, repairs, and final delivery. It must meet the dynamic
-YouTube-film quality gate in [AGENTS.md](AGENTS.md); technical validity alone is
-insufficient. The following commands are internal tools, not required user steps.
+Scenes are written as JSON shot specs ([docs/SCENE_SPEC.md](docs/SCENE_SPEC.md)) in a 3Blue1Brown-style vocabulary:
+geometry, TeX with term-by-term transforms, graphs, planes with linear maps, particles, networks, a camera, custom
+components, hooks, and Manim clips. They compile into one seek-safe world (`lib/kit/kit.js`). Every build runs the
+scene in Chrome and fails on concrete defects (tiny text, collisions, empty frame, stillness, low activity, overlapping
+tweens, seek inconsistency, unsourced numbers) and prints a motion transcript that reviewers can read without vision.
 
-The agent follows [the production workflow](docs/agent-workflow.md). Preparation:
-
-```bash
-npm run video -- prepare --name my-video --audio inputs/audio/source.mp3 \
-  --script 'inputs/scripts/your-script.md' --start 0 --duration 30
-```
-
-After creative planning and scene authoring:
-
-```bash
-npm run video -- compile --job jobs/my-video
-npm run video -- assemble --job jobs/my-video
-npm run check -- --job jobs/my-video
-npm run dev -- --job jobs/my-video
-npm run render -- --job jobs/my-video
-npm run video -- review-pack --job jobs/my-video --stage final
-# Independently spawned reviewers inspect evidence and write separate reports.
-npm run video -- review-submit --job jobs/my-video --file /path/to/reviewer-report.json
-npm run video -- review-status --job jobs/my-video --stage final
-npm run video -- deliver --job jobs/my-video
-```
-
-Root commands use the latest prepared job when `--job` is omitted. `render`
-audits the plan, runs HyperFrames checks, encodes, and verifies audio, dimensions,
-fps, and duration. It creates a draft. Before expanding the film, the agent
-renders and independently reviews a demanding 10–15-second prototype. Final
-review covers the whole film with three independent roles: visual mechanism,
-narration fidelity, and continuity/legibility. Failed reviews trigger autonomous
-repairs and fresh evidence. `deliver` marks completion only after current reports
-and technical checks pass. No user review or approval is needed. See the
-[independent review contract](docs/independent-review.md); report validation
-checks mechanics, not taste or whether a sub-agent actually executed.
+Optional: `npm run video -- setup-manim` installs ManimCE 0.19 locally (conda-forge via micromamba; no sudo).
 
 ## Job artifacts
 
@@ -74,12 +45,13 @@ jobs/<name>/
   alignment.json          script reconciliation and discrepancies
   SCRIPT.md               actual recorded excerpt
   BRIEF.md                scope and creative authority
-  frame.md                agent's visual direction
-  STORYBOARD.md           agent's evolving scene plan
-  beats.json              spoken cues and planned visual actions
+  film.json               director's plan (concept, subjects, scenes, mechanisms)
+  STORYBOARD.md           generated from film.json
+  shots/<scene>.json      builders' scene specs (+ hooks, components/, manim/)
+  briefs/                 role briefs written by the pipeline
   timing.json             resolved absolute and scene-local times
   assets/                 frozen media, generated cues, local helpers
-  compositions/           agent-authored HyperFrames scenes
+  compositions/world.html compiled world composition
   index.html              assembled root with original narration
   review/                 audit, frozen evidence, independent reports, verification
   renders/video.mp4       rendered draft; qualified by deliver (local)

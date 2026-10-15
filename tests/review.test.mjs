@@ -43,7 +43,7 @@ function review(context,role=REVIEW_ROLES[0]) {
   const {pack,packSha256}=context;
   return {version:1,stage:pack.stage,role,reviewer:{agentId:`/root/reviewer-${role}`,independent:true},
     sourceHash:pack.sourceHash,videoSha256:pack.videoSha256,packSha256,
-    inspection:{mode:'frame-sequence',limitations:['Frames inspected; normal-speed playback and listening were unavailable.'],
+    inspection:{mode:'frame-sequence',visual:'viewed',evidence:pack.evidence.filter(e=>e.kind==='frames').map(e=>e.path),limitations:['Frames inspected; normal-speed playback and listening were unavailable.'],
       ...(role==='narration-fidelity'?{audio:'signal-verified'}:{})},
     coverage:[pack.interval],initialObservation:'A constrained part changes the visible output.',findings:[],verdict:'pass'};
 }
@@ -56,7 +56,7 @@ test('source digest includes media, scene and storyboard edits but excludes rend
   await writeFile(path.join(job,'renders/video.mp4'),'new render');
   await writeFile(path.join(job,'review/REPORT.md'),'new review notes');
   const m=JSON.parse(await readFile(path.join(job,'job.json')));
-  m.status='complete';m.completedAt='now';m.delivery={sha:'receipt'};
+  m.status='complete';m.completedAt='now';m.delivery={sha:'receipt'};m.reviewRounds={prototype:3};m.reviewRoundPacks={prototype:'pack-hash'};
   await put(job,'job.json',m);
   assert.equal(await sourceFingerprint(job),initial);
   await writeFile(path.join(job,'compositions/scene.html'),'changed operation');
@@ -102,6 +102,12 @@ test('self review, reused agent identities, gaps and dishonest passes cannot qua
   assert.throws(()=>validateReview(blind,context),/before reading/);
   const method=review(context);method.inspection.limitations=[];
   assert.throws(()=>validateReview(method,context),/playback limitation/);
+  const textOnly=review(context);textOnly.inspection.visual='unavailable';
+  assert.throws(()=>validateReview(textOnly,context),/viewed images/);
+  const noEvidence=review(context);noEvidence.inspection.evidence=[];
+  assert.throws(()=>validateReview(noEvidence,context),/inspected evidence/);
+  const wrongEvidence=review(context);wrongEvidence.inspection.evidence=['assets/narration.wav'];
+  assert.throws(()=>validateReview(wrongEvidence,context),/inspected evidence/);
   const stale=review(context);stale.packSha256='0'.repeat(64);
   assert.throws(()=>validateReview(stale,context),/different source/);
   for(const role of REVIEW_ROLES) {const r=review(context,role);r.reviewer.agentId='/root/same-agent';await submitReview(job,r);}

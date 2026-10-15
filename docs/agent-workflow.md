@@ -1,222 +1,63 @@
-# Narration-driven production
+# Pipeline stages (maintainer reference)
 
-The user supplies audio and script paths; the agent returns a finished video.
-The agent has full creative discretion and operates every technical step below
-autonomously. These commands and JSON artifacts are internal production tools.
-Scripts perform ingestion, reconciliation, cue resolution, assembly, and timing
-validation. Follow AGENTS.md's dynamic-film quality gate: a technically valid
-slideshow is unfinished. No fixed scene counts, art style, or template choices
-are imposed. Pacing findings are advisory; visual storytelling remains mandatory.
-Inputs may be plain narration or the existing Markdown transcript with
-blockquote narration and separate visual notes.
+Agents follow the root [AGENTS.md](../AGENTS.md) loop (`start`, then `next` until done). This file explains what
+each stage does and where its rules are enforced, for people changing the pipeline.
 
-## 1. Prepare the actual recording
+| Stage | Command | Inputs → outputs | Enforced by |
+|---|---|---|---|
+| Prepare | `start` (wraps `prepare`) | audio + script → `jobs/<slug>/` with clipped WAV, ASR words, `alignment.json`, kit copy, `briefs/director.md` | `scripts/video.mjs` |
+| Plan | director sub-agent, `plan-check` | → `film.json`; generated `STORYBOARD.md`, `briefs/build-<scene>.md` | `lib/spec.mjs validateFilm` |
+| Build | builder sub-agents, `build [--scene]` | `shots/*.json` (+ hooks, components, Manim) → `compositions/world.html`, `index.html`, `timing.json`, `assets/cues.js`, `review/motion.md`, `review/inspect.json`, `review/build.json` | `lib/spec.mjs compileFilm`, `lib/inspect.mjs` |
+| Render | `render` | → `renders/video.mp4`, `review/render-verification.json`, `review/pixels.json`, `review/render-source.json` | HyperFrames lint/render, `lib/pixels.mjs`, `verify` |
+| Review | `review-pack`, reviewer sub-agents, `review-template`, `review-submit` | → frozen pack, briefs, reports | `lib/review.mjs` |
+| Deliver | `deliver` | → `review/delivery.json`, `review/REPORT.md`, `job.status: complete` | `qualifyDelivery` + film audit + pixel checks |
 
-```bash
-npm ci
-npm run video -- prepare --name example --audio inputs/audio/source.mp3 \
-  --script 'inputs/scripts/your-script.md' --start 0 --duration 30
-```
+`next` (`lib/film.mjs nextStep`) derives the state from these files: missing/invalid plan → director; missing
+prerequisite context and prototype shots → builders in scene order; stale build → build; build or pixel errors → repair briefs per scene; stale render → render;
+no current pack → review-pack; missing reviews → reviewers; failed reviews → repair briefs from blocking findings
+(at most 4 distinct failed packs per stage, then `blocked`); plan defects or repeated visual failures → director revision;
+prototype accepted → build the remaining scenes; final pass → deliver. Querying the same failed pack does not consume another round.
+Review counters are excluded from render fingerprints. Persisted completion is requalified before `next` reports done.
 
-Requires Node 22+, FFmpeg/FFprobe and uv. The default pinned faster-whisper
-script downloads its local dependencies/model on first use; `--engine hyperframes`
-uses HyperFrames transcription when whisper.cpp is installed. English defaults to `small.en`; pass
-`--language` and `--model small` for another language. Preparation may take a few
-minutes. For existing measurements use `--words /path/to/words.json`; timestamps
-must be relative to the clipped audio, in seconds, as a flat array of
-`{text,start,end}`. Never use estimated words as measured input.
+## Timing
 
-Preparation scaffolds a HyperFrames job, clips audio accurately to WAV, saves
-the original script and extracted narration, transcribes, and reconciles the
-spoken excerpt against the script. `alignment.json` preserves the observed text,
-matched script indices, estimated ASR word intervals, and discrepancies. This
-is ASR reconciliation, **not forced alignment** or guaranteed precise phoneme
-timing. Listen at important cues and correct measurements if needed. No timing
-is synthesized for omitted script words. Existing jobs are never overwritten.
+ASR word times (faster-whisper, or supplied `--words`) are reconciled with the script (`lib/timing.mjs reconcile`);
+this is not forced alignment. Below 85% exact matches, `alignment-approve --note` records the review. Scene starts in
+film.json and cues in shots are phrases resolved against the measured words, searched inside the scene's interval
+(`lib/spec.mjs resolveSceneCue`). Shots can only reference cues (`at: "cue+0.3"`, `@prev`, `@after`); literal times
+are rejected in specs, hooks and components.
 
-Read `alignment.json` and the actual clip before planning. When the spoken text
-differs, follow the recording and record the discrepancy. Reconciliation below
-85% exact word matches needs explicit review in `alignment.review` with
-`approved: true` and a useful `note` before compilation. This is an agent review
-record, not a user approval gate.
+## The world
 
-## 2. Plan an evolving explanation
+All shot scenes compile into one composition (`compositions/world.html`, id `world`) driven by `lib/kit/kit.js`:
+one SVG world, one camera, one paused GSAP timeline built from tracked state (every tween is an explicit fromTo), so
+any seek order renders the same frame. Objects persist across scenes; the compiler adds fade-outs at handoffs for
+objects that are not carried, and a camera move to each scene's `region`. HTML scenes (`kind: html`) are layered above
+the world on their own tracks. Manim objects render to transparent WebM (`lib/manim.mjs`) with cue times relative to
+the clip, then play inside the world.
 
-Write the job's `BRIEF.md`, `frame.md`, and `STORYBOARD.md` using the owning skill.
-Inputs already determine voice and duration; skip TTS. Use the full recording
-unless the user requests an excerpt. A requested first-30-second sample preserves
-that interval even if it ends mid-thought. Do not rewrite the narration. Make
-internal sketches and stage useful assets even when an installed skill's
-autonomous defaults skip them; no interview, preset, or user approval is needed.
+## Checks
 
-Write `beats.json` using this shape (all referenced cues must exist in the audio):
+- Spec (compile time): schema, ids, targets, cue phrases (with suggestions), durations inside the scene, banned eases,
+  font sizes, numbers not in the narration/script, overlong text, infographic ratio, entrance-only choreography,
+  determinism and literal-time lint for hooks/components.
+- Browser (`build`): legibility on screen (≥28 px labels, ≥40 px values), text collisions and cut-off text, frame use
+  (content box ≥20%), centring, subject stillness (>2.5 s without development outside a declared hold), diagnostic activity
+  counts in world coordinates (camera movement excluded), overlapping tweens on the same property, and seek-order consistency.
+- Pixels (`render`): content box, frozen picture and blank frames measured on the encoded MP4.
+- Media (`verify`): streams, duration, size, fps, audible narration, gain-fitted waveform match with the source.
 
-```json
-{
-  "version": 1,
-  "scenes": [
-    {
-      "id": "opening",
-      "start": {"boundary": "start"},
-      "end": {"boundary": "end"},
-      "file": "compositions/opening.html",
-      "purpose": "Show the escalating cost of local hardware",
-      "beats": [
-        {
-          "id": "local-machine",
-          "cue": {"phrase": "run AI locally", "edge": "start"},
-          "duration": 0.8,
-          "purpose": "Turn the local-AI idea into a recognizable machine",
-          "visual": "Assemble a desktop tower; connect its GPU to the model",
-          "targets": ["#opening-tower"],
-          "action": "assemble"
-        }
-      ],
-      "holds": []
-    }
-  ]
-}
-```
+Checks prove absence of known defects, not creative quality; independent review remains mandatory.
+Every passing reviewer must declare actual image/video inspection and list inspected frozen visual evidence.
+The blind visual pass sees pictures before action logs. Missing visual capability is incomplete, never a transcript-only pass.
+Final review and delivery reject any missing scenes. Objects marked visible start in their owning scene rather than leaking into earlier scenes.
 
-This example illustrates one beat, not a complete production plan. Cue matching
-is punctuation/case insensitive and accepts observed text or reconciled script
-text. Repeated phrases require `occurrence` (1-based) or explicit `wordId`.
-Use `edge: "end"` to resolve against the last word's end, and optional `offset`
-to start anticipation before/after speech. An offset over 0.5s is an audit warning.
-Scene boundaries accept the same cue objects, or `boundary: start|end`.
-Suggested action tags: `assemble`, `reveal`, `connect`, `flow`, `compare`,
-`transform`, `emphasize`, `remove`, `camera`, `draw`. Custom action tags are valid;
-the audit asks for review when it cannot recognize semantic development.
+## Library
 
-Choose scene boundaries from ideas, not a fixed duration. A 30-second scene can
-contain many spoken developments and several internal framings. Keep subjects
-persistent when that makes the relationship clearer; simplify when clutter
-grows. Registry primitives and atomic rule recipes supply implementation, not
-the explanation. Search the registry before inventing a named effect.
+`library/` stores reusable versioned bundles (`library-search`, `library-info`, `library-use`, `library-add`).
+Components written for a film (`components/<type>.js`) are the natural candidates to publish.
 
-First search the shared local library by visible action using `npm run video --
-library-search --query "<action>"`. Inspect promising entries with `library-info`;
-freeze selected explicit versions with `library-use --item <id@version> --job
-jobs/<slug>`. Follow [the library contract](../library/README.md) for integration.
-Search metadata rather than browsing previous jobs. Reuse mechanisms when they
-fit; preserve the film's original visual direction.
+## Legacy jobs
 
-Holds are optional objects with `start`/`end` cue objects and a concrete `reason`.
-Use them for deliberate reading pauses, never to conceal a front-loaded scene.
-The audit warns on uncovered action gaps over 4s; it doesn't require constant
-movement. Brief entrances aren't evidence of useful visualization.
-
-## 3. Compile and build
-
-```bash
-npm run video -- compile --job jobs/example
-```
-
-This creates `timing.json` and `assets/cues.js`. Each resolved beat contains
-absolute `at`, scene-relative `localAt`, duration, targets, and purpose. The
-browser API is `window.VideoCues.scenes['opening'].beats['local-machine']`.
-Use `localAt` on the scene's timeline. Keep this file as the only timing source.
-Load `assets/cues.js` at the root **before** sub-composition scripts execute.
-
-Set `job.json`'s optional `canvas` hex color to the creative palette's canvas
-color; the assembler uses it as the base ground. All scene styling remains yours.
-Preparation defaults to landscape and 30fps; `--resolution portrait|square` and
-`--fps 24|60` select other supported delivery formats.
-
-Write one HTML sub-composition per scene. IDs must match the plan and the
-`window.__timelines` registry. Root-relative stylesheet/script paths and global
-variables in scripts must work after assembly; use IIFEs for scene scripts.
-Add `data-beat-id="local-machine"` to a semantic target and use the same selector
-as `targets`. Shared `assets/motion.js` has deterministic entrance/draw/flow
-helpers; use only helpers that suit the selected animation recipes.
-
-```bash
-npm run video -- assemble --job jobs/example
-npm run video -- audit --job jobs/example
-npm run check -- --job jobs/example
-```
-
-Assembly writes the root composition with local GSAP, cues, motion helpers,
-scene hosts, and the supplied audio. It does not overwrite scene HTML.
-Audit validates timing, complete scene coverage, IDs/files/targets, meaningful
-developments, and records warnings for gaps/front-loading. It also checks that
-scene code references resolved cues. It cannot prove that code uses every cue
-correctly: runtime checks and visual/audio review remain necessary.
-
-## 4. Prototype, review, repair, and deliver
-
-Before expanding the film, render a demanding 10–15-second passage containing
-an interaction, meaningful transformation, consequence, payoff, camera move, and
-handoff. The prototype is an interval of the full rendered timeline. The agent
-must obtain passing independent prototype reviews before extending production;
-this creative expansion gate is enforced by the agent, not inferred from a
-successful render.
-
-Run motion assertions and HyperFrames checks, then render a draft:
-
-```bash
-npm run dev -- --job jobs/example
-npm run render -- --job jobs/example
-npm run video -- review-pack --job jobs/example --stage prototype --start 12 --end 25
-```
-
-Choose the interval from the actual narration; the numbers above are only command
-examples. See [the independent review contract](independent-review.md) for pack
-contents, report format, reviewer instructions, and the repair loop. Use three
-separately spawned reviewers with `fork_turns: "none"`: `visual-mechanism`,
-`narration-fidelity`, and `continuity-legibility`. They inspect frozen media first,
-then consult the production records to check intent and narration fidelity.
-Reviewers may only write their own report files and must not review work they
-produced. Preparation records `job.review.producerAgentIds: ["/root"]`; update
-this list when other agents produce the work. Record actual reviewer identities.
-
-```bash
-npm run video -- review-submit --job jobs/example --file /path/to/reviewer-report.json
-npm run video -- review-status --job jobs/example --stage prototype
-```
-
-Submit a separate report for each role. On failure, repair the composition,
-re-render, regenerate the evidence pack, and obtain fresh reviews. Never edit a
-reviewer's findings to manufacture a pass. Do not ask the user to adjudicate
-routine production decisions. A prototype pass permits expansion; it does not
-qualify the whole film.
-
-Inspect multiple samples within every scene, including late developments, and
-watch actual motion at normal speed with and without sound. Use phone-scale
-frames for legibility. For long films, review all scenes in manageable chunks;
-a contact sheet alone cannot establish motion quality. Put useful motion
-assertions in root `index.motion.json` with global selectors and absolute cue
-times, and verify that HyperFrames reports motion checks as enabled. Do not
-suppress every layout finding at the root.
-
-After completing and rendering the full film, repeat the independent review:
-
-```bash
-npm run video -- review-pack --job jobs/example --stage final
-npm run video -- review-submit --job jobs/example --file /path/to/reviewer-report.json
-npm run video -- review-status --job jobs/example --stage final
-npm run video -- deliver --job jobs/example
-```
-
-`render` runs audit and HyperFrames checks, encodes `renders/video.mp4`, and
-verifies the media. Rendering produces a draft, not a completed job. `verify`
-checks streams, audible audio, dimensions, frame rate, and duration; these facts
-do not prove creative quality. `deliver` requires passing reports from all three
-roles tied to current evidence hashes and passing technical validation before
-marking the job complete. Changes to reviewed inputs or the MP4 require fresh
-evidence and reviews. The validator checks report mechanics and provenance; it
-cannot judge taste or authenticate that independent agents actually executed.
-The producer must ensure genuine independent review.
-
-Leave Studio running and return the qualified MP4 and working preview URL.
-Record actual validation, alignment limitations, deliberate holds, findings,
-repairs, and review evidence in `review/REPORT.md`. Retain one global audio clock
-for longer films; rebuild timing and assembly after timing corrections without
-regenerating unchanged scene designs.
-
-After creative review, save useful new components, short action sequences, and
-assets as candidate bundles in `jobs/<slug>/library-candidates/`. Generalize
-content and timing, preserve provenance, include preview/review evidence, and
-publish new immutable versions with `library-add --source <bundle-dir>`. Record
-contributions in `review/REPORT.md`. The collection grows from actual production;
-no fixed reuse quota or preset film structure is required.
+Jobs without `film.json` still use the earlier `beats.json` + hand-written compositions path (`compile`, `assemble`,
+`audit`, `check`, `render`).

@@ -1,0 +1,329 @@
+{
+  "date": "2026-10-15",
+  "baselineCommit": "d8226f4",
+  "job": "jobs/can-9-year-old-gpu-beats-today-s-latest--2",
+  "scope": "Audit only; original job unchanged; synthetic review records not submitted.",
+  "testSuite": {
+    "command": "npm test",
+    "passed": 42,
+    "failed": 0
+  },
+  "codeSha256": {
+    "lib/film.mjs": "4b6fd6f00fa782df2e8a9e5b0d4e3dd7bbccf4c7b20ccb04f861081b72e4ba78",
+    "lib/briefs.mjs": "90ae4f11bf173830fa079316d8eb581c76b0432bdfdd1aea4f222dbdc81fa40e",
+    "lib/spec.mjs": "26f4895a77dd468071d91cc30c104767e744cf67235dbcb742ea06118823be25",
+    "lib/inspect.mjs": "fd2d34e8eaca7976dded2b421c48f2badf5a6e5da91291b6c400696580ab0a17",
+    "lib/kit/kit.js": "ec5065ea5ee842b335366bbe7df8619fe3b65e75b8ee5478060746e5993cbb1e",
+    "lib/review.mjs": "c642c3405c02e0b8fb4ecb8c3d821e46a5e87dbf1e7d73f3ed17596184221087",
+    "lib/review-pack.mjs": "f390b4b6eca6e61cdc3284b19ead91d3edfd736c1f4d0c9bb2177a2a45cd509f",
+    "lib/audio-verification.mjs": "a0a9622c9775bdc64b0cfab290517934f367b83a037dc96e1d332e2be868c7b5",
+    "scripts/video.mjs": "b535f8eeb4e725fd7b6246d03f85605b44f04e822df5b57e5f7ff9d5c8f29723"
+  },
+  "probes": [
+    {
+      "probe": "current-artifact",
+      "actual": "474003ce00b8270ce81a9de4f2bff8aa2ade4f2b351fa18304544961b47ad47e",
+      "renderReceipt": "e9f4601e94686ecceb96a96939c1441870fae0007f060cad5318c90a1a9f7b99",
+      "technical": "474003ce00b8270ce81a9de4f2bff8aa2ade4f2b351fa18304544961b47ad47e",
+      "source": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6"
+    },
+    {
+      "probe": "build-then-next",
+      "iteration": 0,
+      "state": "render",
+      "sourceBefore": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "sourceAfter": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "changed": []
+    },
+    {
+      "probe": "build-then-next",
+      "iteration": 1,
+      "state": "render",
+      "sourceBefore": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "sourceAfter": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "changed": []
+    },
+    {
+      "probe": "build-then-next",
+      "iteration": 2,
+      "state": "render",
+      "sourceBefore": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "sourceAfter": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "changed": []
+    },
+    {
+      "probe": "round-bookkeeping-changes-source",
+      "before": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "after": "c6b111e27c3b37c579d21b8cd2e42daa6d141805d73f375c1d1d3f0050b6596a",
+      "next": "build"
+    },
+    {
+      "probe": "prototype-dependencies",
+      "accepted": false,
+      "errors": [
+        "shots/prices.json actions[0] (fadeOut): target \"own\" is not defined. Defined objects: shelf, spark, rtx, spark-readout, rtx-readout, spark-leader, rtx-leader, tick-spark, tick-rtx",
+        "shots/prices.json actions[1] (create): target \"rail\" is not defined. Defined objects: shelf, spark, rtx, spark-readout, rtx-readout, spark-leader, rtx-leader, tick-spark, tick-rtx",
+        "shots/prices.json actions[3] (move): target \"chip\" is not defined. Defined objects: shelf, spark, rtx, spark-readout, rtx-readout, spark-leader, rtx-leader, tick-spark, tick-rtx",
+        "shots/prices.json actions[4] (scale): target \"chip\" is not defined. Defined objects: shelf, spark, rtx, spark-readout, rtx-readout, spark-leader, rtx-leader, tick-spark, tick-rtx",
+        "shots/prices.json actions[13] (pulse): target \"chip\" is not defined. Defined objects: shelf, spark, rtx, spark-readout, rtx-readout, spark-leader, rtx-leader, tick-spark, tick-rtx",
+        "shots/prices.json actions[22] (focus): target \"chip\" is not defined. Defined objects: shelf, spark, rtx, spark-readout, rtx-readout, spark-leader, rtx-leader, tick-spark, tick-rtx",
+        "shots/prices.json actions[22] (focus): target \"rail\" is not defined. Defined objects: shelf, spark, rtx, spark-readout, rtx-readout, spark-leader, rtx-leader, tick-spark, tick-rtx"
+      ]
+    },
+    {
+      "probe": "text-only-pass",
+      "accepted": true
+    },
+    {
+      "probe": "done-without-artifacts",
+      "state": "done",
+      "text": "STATE: done\nThe film is delivered: ../../../../tmp/workflow-audit/probes-CIflzp/done/renders/video.mp4\nDO: run `npm run video -- preview --job ../../../../tmp/workflow-audit/probes-CIflzp/done`, then report the MP4 path and preview URL to the user with the verification note from ../../../../tmp/workflow-audit/probes-CIflzp/done/review/delivery.json."
+    },
+    {
+      "probe": "camera-only-inspection",
+      "errors": [],
+      "warnings": [],
+      "report": {
+        "step": 0.25,
+        "scenes": {
+          "camera": {
+            "frameUse": 0.324,
+            "centre": [
+              -0.016,
+              0.056
+            ],
+            "longestStill": 0.25,
+            "windows": [
+              4,
+              4,
+              4,
+              4
+            ]
+          }
+        }
+      },
+      "transcript": "# Motion transcript\n\nEvery timed action in the film, in order, with where the subject is on screen when the action ends.\nCoordinates are pixels in a 1920\u00d71080 frame (x right, y down). \"dev/3s\" counts distinct elements that visibly change in each 3 s window.\n\n## camera \u2014 0.00\u20136.00 s\nFrame use 32% \u00b7 longest still 0.25s \u00b7 dev/3s: 4 4 4 4\n\n  0.00  camera       camera center (960,540) zoom 1 \u2192 center (1040,540) zoom 1 (6.00s)\n\nOn screen at the end: left, right, bottom\n\n",
+      "log": [
+        {
+          "t": 0,
+          "d": 6,
+          "verb": "camera",
+          "id": "camera",
+          "detail": "center (960,540) zoom 1 \u2192 center (1040,540) zoom 1"
+        }
+      ]
+    },
+    {
+      "probe": "fixture-directory",
+      "path": "/tmp/workflow-audit/probes-CIflzp"
+    }
+  ],
+  "cleanRender": {
+    "command": "npm run video -- render --job /tmp/workflow-audit/probes-rVRGD5/job",
+    "exitCode": 0,
+    "build": {
+      "ok": true,
+      "scope": "all",
+      "missing": [
+        "motives"
+      ],
+      "sourceHash": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "errors": [],
+      "warnings": [
+        "shots/server.json uses \"tl-1000000\" which is not visible at the scene start. Bring it back with fadeIn/create, or add it to \"carry\" in film.json.",
+        "Film is 61% rectangles and text. That reads as an infographic: build mechanisms from geometry, graphs, morphs, particles, networks or custom components."
+      ],
+      "report": {
+        "step": 0.25,
+        "scenes": {
+          "ladder": {
+            "frameUse": 0.295,
+            "centre": [
+              0.002,
+              0.083
+            ],
+            "longestStill": 0.75,
+            "windows": [
+              11,
+              12,
+              15,
+              15,
+              15,
+              17,
+              7,
+              6
+            ]
+          },
+          "server": {
+            "frameUse": 0.269,
+            "centre": [
+              -0.028,
+              -0.024
+            ],
+            "longestStill": 0.25,
+            "windows": [
+              17,
+              14,
+              3
+            ]
+          }
+        }
+      }
+    },
+    "pixels": {
+      "ok": true,
+      "method": "ffmpeg 6fps 192x108 luma; background 18",
+      "errors": [],
+      "warnings": [],
+      "scenes": {
+        "ladder": {
+          "contentBox": 0.289,
+          "longestFrozen": 1,
+          "blankShare": 0,
+          "meanChange": 0.0154
+        },
+        "server": {
+          "contentBox": 0.275,
+          "longestFrozen": 0.33,
+          "blankShare": 0,
+          "meanChange": 0.0134
+        }
+      }
+    },
+    "renderSource": {
+      "version": 1,
+      "sourceHash": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "videoSha256": "474003ce00b8270ce81a9de4f2bff8aa2ade4f2b351fa18304544961b47ad47e"
+    },
+    "verification": {
+      "ok": true,
+      "output": "../../../../tmp/workflow-audit/probes-rVRGD5/job/renders/video.mp4",
+      "duration": 30,
+      "width": 1920,
+      "height": 1080,
+      "fps": "30/1",
+      "audioCodec": "aac",
+      "meanVolumeDb": -16.9,
+      "sha256": "474003ce00b8270ce81a9de4f2bff8aa2ade4f2b351fa18304544961b47ad47e",
+      "narrationIntegrity": {
+        "ok": true,
+        "method": "ffmpeg-8khz-mono-waveform-comparison-v2-gain-fitted",
+        "sampleRate": 8000,
+        "correlation": 0.9997862629105532,
+        "normalizedError": 0.020674343891648853,
+        "gain": 0.708952280716389,
+        "durationDifference": 0.016,
+        "limitation": "Heuristic comparison of decoded waveforms, not listening, exact sample preservation, word recognition, or proof of intelligibility. No time-shift correction is applied; a single least-squares gain is fitted because the renderer may change level. Significant mixes or processing may fail despite preserved narration.",
+        "unfittedError": 0.4109647855337002
+      }
+    },
+    "nextState": "freeze prototype review evidence",
+    "matchesOriginalMp4": true
+  },
+  "originalAtEnd": {
+    "mp4Sha256": "474003ce00b8270ce81a9de4f2bff8aa2ade4f2b351fa18304544961b47ad47e",
+    "manifest": {
+      "version": 1,
+      "name": "can-9-year-old-gpu-beats-today-s-latest--2",
+      "createdAt": "2026-10-15T10:21:53.466Z",
+      "duration": 30,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "audio": {
+        "path": "assets/narration.wav",
+        "source": "inputs/audio/source.mp3",
+        "sourceStart": 0,
+        "sha256": "910b1a27ebbcf52f4775a65aa8417a7a693dc9e47a73bdf09356ca61b66baf33"
+      },
+      "script": {
+        "path": "inputs/source-script.md",
+        "source": "inputs/scripts/Can 9 year old GPU beats today's latest GPUs\uff1f.md",
+        "sha256": "85bbc39e890dac4c3fd1d496f9e360e10b3de4d4c5d06ed9d35e00211b547760"
+      },
+      "transcription": {
+        "language": "en",
+        "model": "small.en",
+        "engine": "faster-whisper",
+        "suppliedWords": false
+      },
+      "creativeMode": "agent-discretion",
+      "workflow": "faceless-explainer",
+      "status": "rendering",
+      "review": {
+        "producerAgentIds": [
+          "/root"
+        ],
+        "requiredRoles": [
+          "visual-mechanism",
+          "narration-fidelity",
+          "continuity-legibility"
+        ]
+      },
+      "canvas": "#151915",
+      "reviewRounds": {
+        "prototype": 3
+      }
+    },
+    "build": {
+      "ok": true,
+      "scope": "all",
+      "missing": [
+        "motives"
+      ],
+      "sourceHash": "04c8abb3efbe90933237c52a7e5b15ee38ed26d4131e46002a4e8c05b78052d6",
+      "errors": [],
+      "warnings": [
+        "shots/server.json uses \"tl-1000000\" which is not visible at the scene start. Bring it back with fadeIn/create, or add it to \"carry\" in film.json.",
+        "Film is 61% rectangles and text. That reads as an infographic: build mechanisms from geometry, graphs, morphs, particles, networks or custom components."
+      ],
+      "report": {
+        "step": 0.25,
+        "scenes": {
+          "ladder": {
+            "frameUse": 0.295,
+            "centre": [
+              0.002,
+              0.083
+            ],
+            "longestStill": 0.75,
+            "windows": [
+              11,
+              12,
+              15,
+              15,
+              15,
+              17,
+              7,
+              6
+            ]
+          },
+          "server": {
+            "frameUse": 0.269,
+            "centre": [
+              -0.028,
+              -0.024
+            ],
+            "longestStill": 0.25,
+            "windows": [
+              17,
+              14,
+              3
+            ]
+          }
+        }
+      }
+    },
+    "renderSource": {
+      "version": 1,
+      "sourceHash": "eb9a67025850f99ccfad273c00e251808750e1b81d42d666648997e344d1d59b",
+      "videoSha256": "e9f4601e94686ecceb96a96939c1441870fae0007f060cad5318c90a1a9f7b99"
+    }
+  },
+  "limitations": [
+    "Ordered frame samples, not normal-speed playback.",
+    "No supported listening; Spark/Park ambiguity unresolved.",
+    "No controlled blinded old/new creative comparison performed.",
+    "Original historical loop not reproduced; clean render advances to review preparation."
+  ]
+}

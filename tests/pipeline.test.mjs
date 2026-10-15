@@ -100,12 +100,12 @@ test('CLI qualifies real encoded media only after prototype and final independen
     const dispatch=JSON.parse(packResult.stdout);
     assert.equal(dispatch.briefs.length,3);
     assert.equal(dispatch.packSha256,await fileHash(path.join(job,`review/${stage}/pack.json`)));
-    assert.match(await readFile(dispatch.briefs[0].path,'utf8'),/BEFORE reading narrative context/);
+    assert.match(await readFile(dispatch.briefs[0].path,'utf8'),/Blind first pass: BEFORE reading/);
     const context=await loadReviewPack(job,stage);
     for(const role of REVIEW_ROLES) {
       const report={version:1,stage,role,reviewer:{agentId:`/fixture/${role}`,independent:true},
         sourceHash:context.pack.sourceHash,videoSha256:context.pack.videoSha256,packSha256:context.packSha256,
-        inspection:{mode:'frame-sequence',limitations:['Synthetic reviewer test fixture, not a production judgment.'],
+        inspection:{mode:'frame-sequence',visual:'viewed',evidence:context.pack.evidence.filter(e=>e.kind==='frames').map(e=>e.path),limitations:['Synthetic reviewer test fixture, not a production judgment.'],
           ...(role==='narration-fidelity'?{audio:'signal-verified'}:{})},
         coverage:[context.pack.interval],initialObservation:'Test pattern changes.',findings:[],verdict:'pass'};
       const input=path.join(job,`review/${stage}-${role}-input.json`);

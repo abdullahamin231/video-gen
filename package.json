@@ -11,6 +11,11 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
-    "hyperframes": "0.8.156"
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@fontsource/source-serif-4": "5.3.1",
+    "gsap": "3.15.0",
+    "hyperframes": "0.8.156",
+    "mathjax-full": "3.2.2"
   }
 }

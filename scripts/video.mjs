@@ -9,6 +9,12 @@ import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verify
 import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
+import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, nextStep, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
+import {installKit} from '../lib/world.mjs';
+import {setupManim} from '../lib/manim.mjs';
+import {SpecError} from '../lib/spec.mjs';
+import {directorBrief, writeBrief} from '../lib/briefs.mjs';
+import {readdir} from 'node:fs/promises';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
@@ -88,9 +94,13 @@ async function prepare(opts) {
   if (language !== 'en' && model.endsWith('.en')) throw new Error('Non-English audio requires a multilingual model.');
   if (opts.resolution && !['landscape','1080p','portrait','square'].includes(opts.resolution)) throw new Error('Unsupported pipeline resolution.');
   await mkdir(path.dirname(job), {recursive: true});
-  await hf(['init', job, '--non-interactive', '--resolution', opts.resolution || 'landscape', '--skill', 'faceless-explainer']);
-  await writeFile(path.join(job, 'AGENTS.md'), '# Job authoring\n\nRead ../../AGENTS.md and ../../docs/agent-workflow.md first.\nThe agent has full creative discretion. Supplied audio is authoritative.\n');
-  for (const dir of ['inputs', 'assets', 'compositions', 'review', 'renders']) await mkdir(path.join(job, dir), {recursive: true});
+  await hf(['init', job, '--non-interactive', '--resolution', opts.resolution || 'landscape'], {capture: true, env: {HYPERFRAMES_SKIP_SKILLS: '1'}});
+  const pointer = `# Job ${opts.name}\n\nThis is a pipeline job. Do not run hyperframes or npx commands here and never upgrade HyperFrames.\nFrom the repository root run: npm run video -- next --job jobs/${opts.name}\nand do exactly what it prints.\n`;
+  for (const f of ['AGENTS.md', 'CLAUDE.md']) await writeFile(path.join(job, f), pointer);
+  await writeFile(path.join(job, 'package.json'), JSON.stringify({name: opts.name, private: true, type: 'module',
+    scripts: {next: `npm --prefix ../.. run video -- next --job jobs/${opts.name}`}}, null, 2) + '\n');
+  for (const dir of ['inputs', 'assets', 'compositions', 'review', 'renders', 'shots', 'components', 'briefs']) await mkdir(path.join(job, dir), {recursive: true});
+  await installKit(job);
   await writeFile(path.join(job, 'inputs/source-script.md'), sourceScript);
   const narration = extractNarration(sourceScript);
   await writeFile(path.join(job, 'inputs/narration.txt'), narration);
@@ -130,16 +140,37 @@ async function finishPreparation(job, manifest, narration) {
   const alignment = reconcile(words, narration);
   await save(path.join(job, 'alignment.json'), alignment);
   await writeFile(path.join(job, 'SCRIPT.md'), `# Recorded excerpt\n\n${words.map(w => w.text).join(' ')}\n`);
-  await save(path.join(job, 'beats.json'), {version: 1, scenes: []});
-  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: faceless-explainer\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult repository AGENTS.md, docs/agent-workflow.md and docs/independent-review.md.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nCommission three independent reviewer sub-agents for the demanding prototype and final render.\nRepair blocking findings autonomously; no interview, forced preset, or user approval checkpoint.\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
-  await writeFile(path.join(job, 'STORYBOARD.md'), '# Storyboard\n\nAgent: design evolving visuals from the recorded excerpt and word cues.\n');
+  await writeBrief(job, 'director.md', directorBrief(job, manifest, alignment));
+  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: faceless-explainer\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult repository AGENTS.md, docs/agent-workflow.md and docs/independent-review.md.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nProduction is driven by: npm run video -- next --job jobs/${manifest.name}\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
   manifest.status = 'prepared';
   await save(path.join(job, 'job.json'), manifest);
   await mkdir(path.join(ROOT, '.video'), {recursive: true});
   await save(path.join(ROOT, '.video/latest.json'), {job: path.relative(ROOT, job)});
   console.log(`Prepared ${path.relative(ROOT, job)}: ${words.length} words, ${(alignment.matchRatio * 100).toFixed(1)}% exact script matches.`);
+  console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
 }
+// Agents often mangle unusual filenames (quotes, full-width punctuation). Resolve a near miss to the real file.
+async function resolveInput(given, label) {
+  const direct = path.resolve(ROOT, given);
+  if (await exists(direct)) return direct;
+  const dir = path.dirname(direct), want = normalizedName(path.basename(direct));
+  const entries = await readdir(dir).catch(() => []);
+  const match = entries.find(e => normalizedName(e) === want) || (entries.length === 1 ? entries[0] : null);
+  if (match) return path.join(dir, match);
+  throw new Error(`${label} not found: ${given}. Files in ${path.relative(ROOT, dir) || '.'}: ${entries.join(', ') || '(none)'}`);
+}
+const normalizedName = name => name.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}.]/gu, '');
+function slugFrom(file) { return path.basename(file, path.extname(file)).normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'film'; }
+async function start(opts) {
+  const audio = await resolveInput(opts.audio || '', 'Audio'), script = await resolveInput(opts.script || '', 'Script');
+  let name = opts.name || slugFrom(script);
+  if (!/^[a-z0-9]/.test(name)) name = 'film-' + name;
+  let candidate = name, i = 2;
+  while (await exists(path.join(ROOT, 'jobs', candidate))) candidate = `${name}-${i++}`;
+  await prepare({...opts, name: candidate, audio: path.relative(ROOT, audio), script: path.relative(ROOT, script)});
+}
+
 const escape = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function assemble(job) {
   const {manifest: m, timing} = await compile(job);
@@ -219,6 +250,18 @@ async function verify(job) {
 
 const HELP = `Narration-driven HyperFrames pipeline
 
+Agents: run \`next\` and do exactly what it prints, until it says done.
+
+start --audio <file> --script <file> [--duration 30 --start 0 --name slug]   create a job
+next [--job jobs/<slug>]             print the single next step (state machine)
+plan-check                          validate film.json (director output)
+build [--scene <id>]                 compile shots, assemble, inspect, print motion transcript
+snapshot [--scene <id>] [--at 1.2,3] write PNG frames of the world (for agents that can view images)
+review-template --stage S --role R   write a pre-filled reviewer report
+alignment-approve --note "..."       record review of a low script match
+setup-manim                          install ManimCE locally for "manim" objects
+kit-update                           refresh the job's frozen kit copy from lib/kit
+
 prepare --name <slug> --audio <file> --script <file> [--start 0 --duration 30]
         [--language en --model small.en --engine faster-whisper|hyperframes]
         [--words measured-words.json --resolution landscape --fps 30]
@@ -242,6 +285,8 @@ try {
   const [command = 'help', ...args] = process.argv.slice(2), opts = options(args);
   if (command === 'help') console.log(HELP);
   else if (command === 'prepare') await prepare(opts);
+  else if (command === 'start') await start(opts);
+  else if (command === 'setup-manim') console.log(await setupManim());
   else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
   else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
   else if (command === 'library-add') {
@@ -262,31 +307,49 @@ try {
       await save(path.join(job,'job.json'), manifest);
       await transcribe(job, manifest);
       await finishPreparation(job, manifest, await readFile(path.join(job,'inputs/narration.txt'),'utf8'));
-    } else if (command === 'compile') await compile(job);
+    } else if (command === 'next') {
+      const step = await nextStep(job);
+      console.log(step.text);
+    } else if (command === 'plan-check') {
+      try { await planCheck(job); console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`); }
+      catch (error) { if (error instanceof SpecError) { printSpecError(error); console.error('\nFix film.json and run plan-check again.'); process.exitCode = 1; } else throw error; }
+    } else if (command === 'build') {
+      const result = await buildFilm(job, {scene: opts.scene || null});
+      if (!result.ok) { process.exitCode = 1; console.log(opts.scene ? `\nFix the errors in shots/${opts.scene}.json and run build again.` : '\nFix the errors and run build again.'); }
+      else console.log(opts.scene ? `\nScene ${opts.scene} passes the checks. Read the transcript above against the plan, then finish.` : `\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
+    } else if (command === 'snapshot') await snapshot(job, {scene: opts.scene, at: opts.at});
+    else if (command === 'review-template') await reviewTemplate(job, {stage: opts.stage || 'final', role: opts.role});
+    else if (command === 'kit-update') { await installKit(job); console.log('Kit refreshed. Run build.'); }
+    else if (command === 'alignment-approve') {
+      if (!opts.note?.trim()) throw new Error('alignment-approve needs --note "<what differs and how it was handled>"');
+      const file = path.join(job, 'alignment.json'), alignment = await json(file);
+      alignment.review = {approved: true, note: opts.note}; await save(file, alignment);
+      console.log(`Alignment review recorded.\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
+    }
+    else if (command === 'compile') await compile(job);
     else if (command === 'assemble') await assemble(job);
-    else if (command === 'audit') await audit(job);
+    else if (command === 'audit') { if (await isFilmJob(job)) console.log(JSON.stringify(await filmAudit(job), null, 2)); else await audit(job); }
     else if (command === 'verify') await verify(job);
     else if (command === 'review-pack') {
-      const pack = await createReviewPack(job, {stage:opts.stage || 'final',
-        start:numeric(opts.start,0,'start'), end:opts.end === undefined ? undefined : numeric(opts.end,0,'end')});
-      const packPath = path.join(job,pack.packPath), packSha256 = await fileHash(packPath), briefs = [];
-      const directions = {
-        'visual-mechanism': 'First inspect only rendered images/clips, without narration, script, storyboard or producer explanations. Save your plain-language first observations to visual-first.md in your incoming directory BEFORE reading narrative context. Then compare those observations with the recording, SCRIPT.md and STORYBOARD.md. Report missing interactions, consequences and payoffs; drawing, packet movement or camera motion alone is insufficient.',
-        'narration-fidelity': 'Inspect the supplied recording where supported, inputs/source-script.md, SCRIPT.md, alignment.json, timing.json and the rendered evidence. Check actual claims, displayed numbers including intermediate counter values, cue alignment and what the narration actually says at each passage. Signal-only audio inspection needs the frozen verification receipt and an explicit listening limitation.',
-        'continuity-legibility': 'Inspect the rendered evidence at full and phone scale, including dense cut/handoff samples and the entire ending. Then read STORYBOARD.md and frame.md to assess recurring subjects and intended focus. Check essential labels, collisions, inactive passages, intermediate transformations and continuity.'
-      };
-      for (const role of REVIEW_ROLES) {
-        const relative = `review/${pack.stage}/briefs/${role}.md`;
-        const incoming = path.join(job,`review/${pack.stage}/incoming`);
-        await writeReviewFile(job,relative,`# Independent ${role} review\n\nRead ${path.join(ROOT,'docs/independent-review.md')} for the required report schema and quality contract.\nYou must be a separately spawned reviewer, with no producer history, and must not have built this film.\nUse your actual assigned agent ID; never invent an identity or claim unavailable playback/listening.\n\nJob: ${job}\nEvidence pack: ${packPath}\nStage: ${pack.stage}\nAssigned interval: ${pack.interval.start}–${pack.interval.end} seconds; inspect all of it.\npackSha256: ${packSha256}\nsourceHash: ${pack.sourceHash}\nvideoSha256: ${pack.videoSha256}\n\n${directions[role]}\n\nWrite only your own report to ${path.join(incoming,role+'.json')} (create the directory if needed), plus visual-first.md for the visual role. Do not edit the composition, other reports, evidence or verdicts. Do not ask the user for approval. Return the report path and a concise list of blocking findings. The producer will submit it, repair defects and commission reinspection.\n`);
-        briefs.push({role,path:path.join(job,relative)});
+      const film = await isFilmJob(job);
+      let start = numeric(opts.start,0,'start'), end = opts.end === undefined ? undefined : numeric(opts.end,0,'end');
+      if (film && (opts.stage || 'final') === 'prototype' && opts.start === undefined) {
+        const {prototypeInterval} = await import('../lib/film.mjs');
+        const iv = prototypeInterval(await json(path.join(job,'timing.json')), await json(path.join(job,'film.json')), (await json(path.join(job,'job.json'))).duration);
+        start = iv.start; end = iv.end;
       }
-      console.log(JSON.stringify({stage:pack.stage,packPath,packSha256,sourceHash:pack.sourceHash,
-        videoSha256:pack.videoSha256,interval:pack.interval,evidenceCount:pack.evidence.length,briefs,
-        next:'Spawn a distinct reviewer with fork_turns: none for each brief; submit their own reports after inspection.'},null,2));
+      const pack = await createReviewPack(job, {stage:opts.stage || 'final', start, end});
+      const packPath = path.join(job,pack.packPath), packSha256 = await fileHash(packPath), briefs = [];
+      void briefs;
+      const written = await writeReviewerBriefs(job, pack, packPath, packSha256);
+      console.log(JSON.stringify({stage:pack.stage,packPath,packSha256,sourceHash:pack.sourceHash,videoSha256:pack.videoSha256,interval:pack.interval,evidenceCount:pack.evidence.length,briefs:written,
+        next:`npm run video -- next --job ${path.relative(ROOT, job)}`},null,2));
     } else if (command === 'review-submit') {
       if (!opts.file) throw new Error('review-submit requires --file from an independent reviewer.');
-      console.log(JSON.stringify(await submitReview(job,await json(path.resolve(ROOT,opts.file))),null,2));
+      const raw = await readFile(path.resolve(ROOT,opts.file),'utf8');
+      if (raw.includes('FILL-IN')) throw new Error('The report still contains FILL-IN placeholders. Replace every FILL-IN value (agentId, verdict, initialObservation) and delete "findingExample".');
+      const report = JSON.parse(raw); delete report.findingExample;
+      console.log(JSON.stringify(await submitReview(job,report),null,2));
     } else if (command === 'review-status') {
       const status = await reviewStatus(job,opts.stage || 'final');
       console.log(JSON.stringify(status,null,2));
@@ -295,7 +358,15 @@ try {
       const manifest = await json(path.join(job,'job.json'));
       manifest.status = 'awaiting-review'; delete manifest.completedAt; delete manifest.delivery;
       await save(path.join(job,'job.json'),manifest);
-      await audit(job);
+      const filmMode = await isFilmJob(job);
+      if (filmMode) {
+        await filmAudit(job);
+        const timing = await json(path.join(job,'timing.json'));
+        if (timing.missing?.length) throw new Error(`Cannot deliver missing scenes: ${timing.missing.join(', ')}`);
+        const pixels = await json(path.join(job,'review/pixels.json')).catch(() => null);
+        if (!pixels?.ok) throw new Error('Pixel checks on the render have not passed; render again after repairs.');
+        await writeProductionReport(job);
+      } else await audit(job);
       await verify(job);
       const qualification = await qualifyDelivery(job);
       await writeReviewFile(job,'review/delivery.json',JSON.stringify(qualification,null,2)+'\n');
@@ -305,8 +376,12 @@ try {
       await save(path.join(job,'job.json'), manifest);
       console.log(JSON.stringify({...qualification,output:path.relative(ROOT,path.join(job,'renders/video.mp4'))},null,2));
     }
-    else if (command === 'check') {await audit(job); await hf(['check', '--snapshots'], {cwd: job});}
+    else if (command === 'check') { if (await isFilmJob(job)) { const r = await buildFilm(job); if (!r.ok) process.exitCode = 1; await hf(['lint'], {cwd: job}); } else {await audit(job); await hf(['check', '--snapshots'], {cwd: job});} }
     else if (command === 'preview') await hf(['preview', '--background', '--port', opts.port || '3002'], {cwd: job});
+    else if (command === 'render' && await isFilmJob(job)) {
+      await renderFilm(job, {hf, verify, quality: opts.quality || 'delivery', force: opts.force === 'true'});
+      console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
+    }
     else if (command === 'render') {
       const manifest = await json(path.join(job,'job.json'));
       if (![24,30,60].includes(manifest.fps)) throw new Error('Job fps must be 24, 30, or 60.');
