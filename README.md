@@ -38,6 +38,17 @@ theme) and prints a motion transcript that reviewers can read without vision.
 
 Optional: `npm run video -- setup-manim` installs ManimCE 0.19 locally (conda-forge via micromamba; no sudo).
 
+## Configuration
+
+| Variable | Default | Effect |
+|---|---|---|
+| `VG_ALLOW_WEB_IMAGES` | unset | Unset: `asset --src <url>` accepts only `.svg` files from the web. Set to `1` (or `true`/`yes`) to also let agents download `.png`, `.jpg`, `.jpeg`, `.webp` and `.gif` images from URLs. Local files and fonts are unaffected. |
+| `VG_LIBRARY` | `library/` | Shared library location. |
+| `VG_MANIM_ENV` | `~/.cache/video-gen/manim-env` | ManimCE environment. |
+
+Agents run in the same shell as you, so setting the variable in your environment is what enables raster downloads for
+their `asset` calls. Leave it unset to keep web imports to SVG.
+
 ## Job artifacts
 
 ```text

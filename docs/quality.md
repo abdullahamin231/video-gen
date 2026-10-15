@@ -70,7 +70,9 @@ These are the qualities that separate a produced explainer from an animated slid
   illustration with its true silhouette and details. An anonymous rectangle with a label is a last resort.
 - Bring real images in with `npm run video -- asset --src <url|file> --name <name>.png` (the source is recorded in
   `assets/SOURCES.json`). Search the library first (`library-search`, then `library-use`): earlier films may already
-  hold the image, drawing or component you need. Every asset must end up inside the repository, never in `/tmp` or a
+  hold the image, drawing or component you need. Web images are SVG-only by default: a png, jpg, webp or gif from a URL
+  is refused. A person can allow raster downloads for the whole session with `VG_ALLOW_WEB_IMAGES=1`; local raster
+  files are always accepted. Every asset must end up inside the repository, never in `/tmp` or a
   scratch directory, and every asset is saved to `library/` so the next film can find it: `asset` saves what it
   imports, `save` saves what an agent draws or builds (a drawing, a component, a Manim scene) with a title and search
   tags, and `next` saves anything left over before review. Prefer images that already have no background: press-kit PNGs and product renders. A plain

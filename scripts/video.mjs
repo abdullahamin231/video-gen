@@ -11,7 +11,7 @@ import {createReviewPack} from '../lib/review-pack.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
 import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, nextStep, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
 import {installKit} from '../lib/world.mjs';
-import {importAsset} from '../lib/assets.mjs';
+import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {setupManim} from '../lib/manim.mjs';
 import {SpecError} from '../lib/spec.mjs';
 import {directorBrief, writeBrief} from '../lib/briefs.mjs';
@@ -259,6 +259,7 @@ plan-check                          validate film.json (director output)
 build [--scene <id>]                 compile shots, assemble, inspect, print motion transcript
 snapshot [--scene <id>] [--at 1.2,3] write PNG frames of the world (for agents that can view images)
 asset --src <url|file> --name <x.png> --note "what it shows" [--title ".." --tags "a,b"]  bring an image/logo/font into assets/ and save it to library/
+                                     web URLs: SVG only unless VG_ALLOW_WEB_IMAGES=1 (png/jpg/webp/gif then allowed)
 save --file <job file> --title ".." --tags "a,b" [--note ".." --id slug]  save something you made (drawing, component, Manim file) to library/
 save-all                             save every job asset/component the library does not hold yet
 review-template --stage S --role R   write a pre-filled reviewer report
@@ -325,7 +326,7 @@ try {
     else if (command === 'review-template') await reviewTemplate(job, {stage: opts.stage || 'final', role: opts.role});
     else if (command === 'asset') {
       if (!opts.note?.trim()) throw new Error('asset needs --note "<what it shows>" so later films can find it in the library');
-      const a = await importAsset(job, ROOT, {src: opts.src, name: opts.name, note: opts.note, title: opts.title || '', tags: opts.tags || ''});
+      const a = await importAsset(job, ROOT, {src: opts.src, name: opts.name, note: opts.note, title: opts.title || '', tags: opts.tags || '', allowWebImages: webImagesAllowed()});
       const lib = await saveToLibrary(LIBRARY, job, {file: a.path, title: opts.title || a.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '), tags: opts.tags || '', note: opts.note, origin: a.src});
       console.log(`Saved ${a.path} (library: ${lib.item}). Use it as {"type": "image", "src": "${a.path}", ...}${a.name.startsWith('fonts/') ? ' or in theme.fontFiles' : ''}. Look at it before using it.`);
     }

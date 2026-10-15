@@ -155,7 +155,7 @@ name from the theme), `width` (stroke px; default `theme.stroke`), `fill` (true 
 | `network` | `nodes` | `nodes: [{"id","at","label","r"}]`, `edges: [["a","b"], ...]`; parts are node ids and `a-b` |
 | `particles` | `at` | `count`, `size: [w,h]` region, `seed`, `r`, `colors`, `points`; parts `p0`, `p1`… |
 | `group` | `at`, `children` | children are objects positioned relative to the group |
-| `image` | `at`, `src`, `size` | a file under `assets/` (product photo, logo, illustration); `fit: "cover"` crops; `knockout: "white"\|"black"` (or `{"key", "tolerance", "softness"}`) makes a plain studio background transparent; `frame: true` (or `{"padding", "fill", "color", "corner", "width"}`) presents it as a card in the theme's style. Search `library-search` first; bring new files in with `npm run video -- asset --src <url\|file> --name <name>.png --note "<what it shows>"` (saved to the library too) |
+| `image` | `at`, `src`, `size` | a file under `assets/` (product photo, logo, illustration); `fit: "cover"` crops; `knockout: "white"\|"black"` (or `{"key", "tolerance", "softness"}`) makes a plain studio background transparent; `frame: true` (or `{"padding", "fill", "color", "corner", "width"}`) presents it as a card in the theme's style. Search `library-search` first; bring new files in with `npm run video -- asset --src <url\|file> --name <name>.png --note "<what it shows>"` (saved to the library too; web URLs must be `.svg` unless `VG_ALLOW_WEB_IMAGES=1`) |
 | `svg` | `markup` | raw SVG; elements with `id` become parts |
 | `manim` | `at`, `size`, `file`, `class` | a ManimCE clip (see below); starts at its `play` action |
 | `video` | `at`, `src`, `size` | local video file |
