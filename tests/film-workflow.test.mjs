@@ -114,6 +114,10 @@ test('style is advice: small text and off-theme colours warn, invented numbers s
   const {warnings,timing}=await compileFilm(job,film,alignment,manifest,{allowMissing:true});
   assert.ok(warnings.some(w=>/text size 18/.test(w))&&warnings.some(w=>/colour "purple" is outside the film's theme/.test(w))&&warnings.some(w=>/#00ff00/.test(w)),warnings.join('\n'));
   assert.ok(!warnings.some(w=>/bounce/.test(w)),'eases are the theme\'s choice');
+  await put(job,'shots/comparison.json',{scene:'comparison',objects:[{id:'built',type:'rect',at:[960,540],size:[200,100],visible:true},{id:'flick',type:'circle',at:[300,300],r:50}],actions:[{do:'show',target:'flick',at:'start+0.5'}]});
+  const dyn=(await compileFilm(job,film,alignment,manifest,{allowMissing:true})).warnings;
+  assert.ok(dyn.some(w=>/built.*fully built/.test(w))&&dyn.some(w=>/"show" makes "flick" appear instantly/.test(w)),dyn.join('\n'));
+  await rm(path.join(job,'shots/comparison.json'));
   assert.equal(timing.scenes[0].notes,'Tiny texture labels on purpose.');
   await put(job,'shots/opening.json',{scene:'opening',objects:[{id:'subject',type:'text',at:[960,540],text:'999 tokens'}],actions:[]});
   await assert.rejects(compileFilm(job,film,alignment,manifest,{allowMissing:true}),/displays 999/);

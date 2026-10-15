@@ -40,7 +40,8 @@ plus a motion transcript of what is actually on screen. Iterate until it reports
 ## Coordinates
 
 World units are pixels of a 1920×1080 frame at camera zoom 1: x right, y down, the default view centre is [960, 540].
-Positions are `[x, y]`. Objects are hidden until an action shows them (`"visible": true` shows one from the start). Prefer `draw`/`create` for set-up objects over `"visible": true`: a scene that starts fully built looks like a pop-in.
+Positions are `[x, y]`. Objects are hidden until an action shows them (`"visible": true` shows one from the start). Prefer an arrival verb (`create`, `drop`, `pop`, `type`, `grow`, `transform`, ...) over `"visible": true` or `show`: an object
+that is just there looks static. The build warns about both.
 Lines, arrows, paths and polygons use world coordinates directly. Everything else is placed by `at` (its centre).
 Objects with `"of": "<axes-or-plane-id>"` use **data coordinates** of that axes and move with it.
 

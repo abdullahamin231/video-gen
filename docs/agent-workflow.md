@@ -46,10 +46,10 @@ the clip, then play inside the world.
 
 - Spec (compile time): schema, the film's design theme (required: name, description, bg, colours; bundled or shipped
   fonts), ids, targets, cue phrases (with suggestions), durations inside the scene, asset files present under
-  `assets/`, colours and fonts outside the theme (warning), font sizes, numbers not in the narration/script, overlong
+  `assets/`, colours and fonts outside the theme (warning), objects that appear with no motion (warning), font sizes, numbers not in the narration/script, overlong
   text, entrance-only choreography, determinism and literal-time lint for hooks/components.
 - Browser (`build`): legibility on screen (≥28 px labels, ≥40 px values), text collisions and cut-off text, frame use
-  (content box ≥20%), centring, subject stillness (>4 s without development outside a declared hold), diagnostic activity
+  (content box ≥20%), centring, subject stillness (>3 s without development outside a declared hold), diagnostic activity
   counts in world coordinates (camera movement excluded), overlapping tweens on the same property, and seek-order consistency.
 - Pixels (`render`): content box, frozen picture and blank frames measured on the encoded MP4.
 - Media (`verify`): streams, duration, size, fps, audible narration, gain-fitted waveform match with the source.

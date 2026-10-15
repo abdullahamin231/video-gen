@@ -289,7 +289,7 @@ inspection.
 Submit each review and inspect the gate status:
 
 ```bash
-npm run video -- review-submit --job jobs/example --file jobs/example/review/incoming/reviewer-report.json
+npm run video -- review-submit --job jobs/example --file jobs/example/review/prototype/incoming/visual-mechanism.json
 npm run video -- review-status --job jobs/example --stage prototype
 ```
 

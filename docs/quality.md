@@ -99,13 +99,17 @@ These are the qualities that separate a produced explainer from an animated slid
   it, transform it into the next stage, or cut cleanly to a new one. Recurring subjects carry across the cut.
 - Leave generous empty space and keep one clear focal point. Supporting elements are smaller or dimmed.
 
-### Every spoken beat lands as a visible event
+### The film is dynamic: every spoken beat lands as a visible event
 
-- Each phrase that introduces something gets its own event, timed to the word: an object arrives, a tag drops, a
-  stamp slams down, a line strikes through, a counter rolls, a bar grows, a product is swapped for another.
-- Then let it sit while the narrator talks about it. A held picture that matches what is being said is good; a held
-  picture while the narration has moved on is not. Over ~4 s with nothing new should be a deliberate hold.
-- One event at a time. Several things may move together only when they are one event (a shelf and its items arriving).
+- Something meaningful happens on screen all the time. Each phrase that introduces something gets its own event,
+  timed to the word: an object arrives, a tag drops, a stamp slams down, a line strikes through, a counter rolls, a
+  bar grows, a product is swapped for another, the stage transforms into the next one.
+- Holds are short. Let a payoff register for a moment (about 1–2 s), then the next beat moves the picture on. Over
+  ~3 s with nothing new is a warning; a longer hold needs a reason. Idle wobble, blinking or drifting particles do not
+  count as something happening.
+- One clear event at a time, in quick succession. Several things may move together when they are one event (a shelf
+  and its items arriving) or when a supporting reaction answers the main action (a price tag swings as the product
+  lands).
 
 ### Motion with a personality
 
@@ -114,11 +118,14 @@ These are the qualities that separate a produced explainer from an animated slid
   `theme.eases` so every scene shares it.
 - Use motion that means something: arrival (`drop`, `pop`, `create`), verdict (`stamp`, `strike`, `shake`),
   quantity (`count`, `grow`, `retarget`), change (`transform`, `move`, `arrange`), attention (`focus`, `indicate`).
-- Avoid fading everything in and out: a fade says nothing about what happened.
-- Never pop a built object into place when its construction can be shown. Hardware, furniture, and any object the
-  narration describes being set up (a computer, desk, shelf, rig) draws itself on with line strokes (`draw`/`create`),
-  part by part in the order a viewer would assemble it. Do not mark those parts `"visible": true`; an opening scene
-  starts with only what is on screen at 0 s, and each part arrives on its own cue, not all at once.
+- Nothing simply appears. Every object arrives with motion that suits the theme (it draws on, drops, pops, slides,
+  types, grows or transforms out of something already on screen); an instant cut-in or a plain fade says nothing
+  about what happened. Only a deliberate scene cut may show a new stage at once.
+- Show construction. When the narration describes something being set up or built (a computer, a desk, a shelf, a
+  rig, a network), it assembles part by part, in the order a viewer would build it, each part on its own cue, in the
+  theme's motion language: line drawings draw themselves on, sticker parts drop and snap into place, photo parts slide
+  in and stack. Do not start a scene with those parts already on screen (`"visible": true`); the opening frame holds
+  only what is meant to be there at 0 s.
 
 ### Explain, do not decorate
 
@@ -167,8 +174,9 @@ Reviewers judge the rendered film, not the plan. Each item is a question about w
 - **Theme:** Does every scene look like the same film? Palette, line weight, type, imagery language and motion
   personality consistent? (A scene that breaks the theme without a reason is blocking.)
 - **Recognition:** Can each concrete subject be recognised within a second, without reading its label?
-- **Events:** Does each spoken idea land as a visible event at its words? Is anything shown before it is said, or
-  left on screen after it stops mattering?
+- **Dynamic:** Does each spoken idea land as a visible event at its words, with the picture moving on in quick
+  succession? Does anything just appear without motion, sit idle while the narration moves on, or show up before it
+  is said?
 - **Explanation:** With the sound off, does the action show what happens and why (cause → consequence → payoff)?
 - **Readability:** Is every essential label and number readable at 480 px wide? No text collisions, nothing cut off?
 - **Focus:** Is there one clear focal point at each moment, with the most important thing the most prominent?
