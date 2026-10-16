@@ -216,7 +216,10 @@ Two actions must not animate the same property of the same object at the same ti
 Recurring subjects are listed in film.json `subjects`; a scene's `carry` lists subjects that stay from earlier scenes.
 Reuse their ids — never redefine them. At each handoff the pipeline fades out everything that is neither carried into
 nor used by the next scene, after its last action. If film.json gives the scene a `region`, the camera moves there at the
-scene start unless your first second already moves the camera. Remove or transform your own objects when the mechanism
+scene start unless your first second already moves the camera. Without a region, each new scene resets to the film's
+initial `camera` (or the frame centre, zoom 1, rotation 0). A camera action at/before the scene start overrides that reset;
+a later camera action begins from the reset view. Set `"inheritCamera": true` on the film scene only when deliberately
+continuing the previous camera pose; do not combine it with `region`. Remove or transform your own objects when the mechanism
 requires it; do not leave finished diagrams lying around.
 
 ## Worked example

@@ -140,6 +140,61 @@ test('later visible subjects do not leak into the opening',async t=>{
   assert.ok(world.actions.some(a=>a.do==='show'&&a.target==='later'&&a.t===6));
 });
 
+for (const [width,height] of [[1920,1080],[1080,1920]]) test(`real browser: a close-up cannot leak into later ${width}x${height} scenes`,async t=>{
+  try{await chromePath();}catch{return t.skip('Chrome unavailable');}
+  const {job,film,alignment,manifest}=await fixture(t);
+  Object.assign(manifest,{width,height});
+  await put(job,'shots/opening.json',{scene:'opening',objects:[
+    {id:'subject',type:'rect',at:[width/2,height/2],size:[width*0.6,height*0.4],visible:true},
+    {id:'detail',type:'rect',at:[width*0.8,height/2],size:[80,80],visible:true}],
+    actions:[{do:'camera',focus:'detail',rotate:12,at:'start+1',dur:1}]});
+  for(const id of ['comparison','ending']) await put(job,`shots/${id}.json`,{scene:id,objects:[],actions:[]});
+  const {world}=await compileFilm(job,film,alignment,manifest);
+  await installKit(job);await writeWorld(job,world,manifest);
+  const ins=await openInspector(job,manifest);
+  try {
+    const box=s=>s.objects.find(o=>o.id==='subject').box;
+    const initial=box(await ins.seek(0.1));
+    assert.ok(box(await ins.seek(5))[2]>initial[2]*2,'fixture must actually zoom into the detail');
+    // Check both the next scene and the ending, then revisit in reverse order.
+    for(const at of [6,6.05,12,13,5,13,6]) {
+      const actual=box(await ins.seek(at));
+      if(at===5) continue;
+      assert.ok(actual.every((v,i)=>Math.abs(v-initial[i])<1),`camera leaked at ${at}s: ${actual}; expected ${initial}`);
+    }
+  } finally { await ins.close(); }
+});
+
+test('camera handoffs preserve authored framing and require explicit inheritance',async t=>{
+  const {job,film,alignment,manifest}=await fixture(t);
+  await put(job,'shots/opening.json',{scene:'opening',objects:[],actions:[{do:'camera',zoom:2,at:'start+1',dur:1}]});
+  await put(job,'shots/comparison.json',{scene:'comparison',objects:[],actions:[{do:'camera',center:[400,400],zoom:1.5,at:'start',dur:0.2}]});
+  await put(job,'shots/ending.json',{scene:'ending',objects:[],actions:[]});
+  film.scenes[2].inheritCamera=true;
+  const {world}=await compileFilm(job,film,alignment,manifest);
+  const handoff=world.actions.filter(a=>a.scene==='comparison'&&a.do==='camera');
+  assert.equal(handoff.length,1);assert.equal(handoff[0].zoom,1.5);assert.ok(!handoff[0].auto);
+  assert.ok(!world.actions.some(a=>a.scene==='ending'&&a.do==='camera'),'explicit inheritance must not reset');
+  film.scenes[2].inheritCamera='true';
+  await assert.rejects(compileFilm(job,film,alignment,manifest),/inheritCamera.*true or false/);
+  film.scenes[2].inheritCamera=true;film.scenes[2].region={center:[960,540]};
+  await assert.rejects(compileFilm(job,film,alignment,manifest),/choose "region" or "inheritCamera"/);
+});
+
+test('a delayed camera move starts from the film baseline; regions keep their own framing',async t=>{
+  const {job,film,alignment,manifest}=await fixture(t);
+  film.camera={center:[800,500],zoom:0.8,rotate:5};
+  film.scenes[2].region={center:[1400,600],zoom:1.2};
+  for(const id of ['opening','ending']) await put(job,`shots/${id}.json`,{scene:id,objects:[],actions:[]});
+  await put(job,'shots/comparison.json',{scene:'comparison',objects:[],actions:[{do:'camera',zoom:2,at:'start+2',dur:1}]});
+  const {world}=await compileFilm(job,film,alignment,manifest);
+  const start=world.actions.find(a=>a.scene==='comparison'&&a.do==='camera'&&a.t<=6&&a.t+a.dur===6);
+  assert.ok(start,'a delayed move must not leave the previous pose on screen');
+  assert.deepEqual(start.center,film.camera.center);assert.equal(start.zoom,0.8);assert.equal(start.rotate,5);
+  const region=world.actions.find(a=>a.scene==='ending'&&a.do==='camera');
+  assert.deepEqual(region.center,[1400,600]);assert.equal(region.zoom,1.2);
+});
+
 test('real browser: a camera pan cannot disguise a static subject',async t=>{
   try{await chromePath();}catch{return t.skip('Chrome unavailable');}
   const {job,manifest}=await fixture(t);await installKit(job);

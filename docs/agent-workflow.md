@@ -48,7 +48,10 @@ stroke, corner, fill opacity, shadow filter, label/text/value type, named eases 
 All shot scenes compile into one composition (`compositions/world.html`, id `world`) driven by `lib/kit/kit.js`:
 one SVG world, one camera, one paused GSAP timeline built from tracked state (every tween is an explicit fromTo), so
 any seek order renders the same frame. Objects persist across scenes; the compiler adds fade-outs at handoffs for
-objects that are not carried, and a camera move to each scene's `region`. HTML scenes (`kind: html`) are layered above
+objects that are not carried, and a camera move to each scene's `region`. Scenes without a region reset the camera to
+the film's initial view (frame centre, zoom 1, rotation 0 by default), unless an authored camera owns the boundary or
+`inheritCamera: true` deliberately preserves the preceding pose. This prevents one close-up from cropping every later
+scene. HTML scenes (`kind: html`) are layered above
 the world on their own tracks. Manim objects render to transparent WebM (`lib/manim.mjs`) with cue times relative to
 the clip, then play inside the world.
 
