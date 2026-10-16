@@ -88,6 +88,20 @@ agent types in `.claude/agents/` pin this:
 
 To change a role's model, edit `model:` in its file. Leave `CLAUDE_CODE_SUBAGENT_MODEL` unset; it overrides these.
 
+## Writing a script
+
+When the user asks for a script ("Write a 5-minute script from these links"), it comes from the sources they supply
+and a target duration. Spawn a fresh `script-writer` sub-agent (or any strong-model sub-agent) whose prompt gives the
+sources, the duration and any creator notes, and tells it to follow the `script-writing` skill
+(`.opencode/skills/script-writing/SKILL.md`, linked into `.claude/skills` and `.agents/skills`). It writes
+`outputs/scripts/<slug>/SCRIPT.md` with its research notes. Give the user the script, its word count and estimated
+duration and the speaking-rate assumption. Before delivery, commission a fresh `script-reviewer` (or strong-model reviewer)
+with the brief, script, saved sources and research notes, following the skill's `references/review.md`. Have the writer address blockers
+and the reviewer check revisions (at most two rounds); unresolved work is a draft, never an independently passed script.
+If the user names no duration, use a positive `length` from `video.config.json` (seconds); if it is null, ask for the
+missing target. For a reel, short or vertical video (or `"format": "vertical"` in the config), tell the writer it is
+vertical short-form. When choosing a default duration, respect `verticalMaxSeconds`; explicit user duration takes priority.
+
 ## References
 
 - [docs/SCENE_SPEC.md](docs/SCENE_SPEC.md) — the scene language (objects, verbs, cues, camera, components, hooks, Manim).
