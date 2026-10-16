@@ -5,7 +5,7 @@ each stage does and where its rules are enforced, for people changing the pipeli
 
 | Stage | Command | Inputs → outputs | Enforced by |
 |---|---|---|---|
-| Prepare | `start` (wraps `prepare`) | audio + script → `jobs/<slug>/` with clipped WAV, ASR words, `alignment.json`, kit copy, `briefs/director.md` | `scripts/video.mjs` |
+| Prepare | `start` (wraps `prepare`) | audio + script (+ `--format`, `--length`, defaults from `video.config.json`) → `jobs/<slug>/` with clipped WAV, ASR words, `alignment.json`, kit copy, `briefs/director.md`; `job.json` records `format`, `width`, `height` | `scripts/video.mjs`, `lib/format.mjs resolveSettings` |
 | Plan | director sub-agent, `plan-check`, `asset` | → `film.json` (design theme, per-scene `owner`), `assets/` + `assets/SOURCES.json`; generated `STORYBOARD.md`, `briefs/build-<scene>.md` for delegated scenes | `lib/spec.mjs validateFilm` |
 | Build | director (owned scenes) and builder sub-agents, `build [--scene]` | `shots/*.json` (+ hooks, components, Manim) → `compositions/world.html`, `index.html`, `timing.json`, `assets/cues.js`, `review/motion.md`, `review/inspect.json`, `review/build.json` | `lib/spec.mjs compileFilm`, `lib/inspect.mjs` |
 | Render | `render` | → `renders/video.mp4`, `review/render-verification.json`, `review/pixels.json`, `review/render-source.json` | HyperFrames lint/render, `lib/pixels.mjs`, `verify` |
@@ -20,6 +20,16 @@ no current pack → review-pack; missing reviews → reviewers; failed reviews �
 (at most 4 distinct failed packs per stage, then `blocked`); plan defects or repeated visual failures → director revision;
 unsaved assets (before any review pack) → save-all; prototype accepted → build the remaining scenes; final pass → deliver. Querying the same failed pack does not consume another round.
 Review counters are excluded from render fingerprints. Persisted completion is requalified before `next` reports done.
+
+## Frame and format
+
+`lib/format.mjs` owns the frame: `landscape` 1920×1080 (default) or `vertical` 1080×1920 (`--resolution
+portrait|square` from older commands still map onto it). Everything downstream reads `job.json` width and height:
+the kit, world, render and `verify`. `frameGuide` writes the frame section of every director, builder and reviewer
+brief, with phone guidance for vertical jobs. For vertical jobs `inspect` also warns when text stays outside
+`safeArea` (the part of the frame phone app chrome leaves clear) for two consecutive samples, so entrance overshoot
+does not trip it. Review-pack contact sheets tile tall frames four across instead of two. A vertical job longer than
+`verticalMaxSeconds` gets a warning at `start`, never an error.
 
 ## Timing
 

@@ -40,6 +40,22 @@ Optional: `npm run video -- setup-manim` installs ManimCE 0.19 locally (conda-fo
 
 ## Configuration
 
+### Video settings: `video.config.json`
+
+Defaults for new jobs. Flags on `start` override them per job.
+
+| Setting | Default | Flag | Effect |
+|---|---|---|---|
+| `format` | `"landscape"` | `--format landscape\|vertical` | `landscape` is 1920×1080 long-form; `vertical` is 1080×1920 for reels and shorts (briefs, checks and review add phone guidance and a safe area). |
+| `length` | `null` | `--length <s>` (alias `--duration`) | With a supplied recording, keep only the first N seconds (`--start` moves the window). A config length trims only longer recordings; a flag must fit the recording. When a script is written from sources, this is the target duration if the request names none. |
+| `verticalMaxSeconds` | `90` | | A vertical job longer than this gets a warning (it still runs). |
+| `fps` | `30` | `--fps` | 24, 30 or 60. |
+
+Ask the agent for a "reel", "short" or "vertical video" and it adds `--format vertical`; "the first 30 seconds"
+becomes `--length 30`. Keys starting with `_` are comments; unknown keys are rejected so typos do not pass silently.
+
+### Environment variables
+
 | Variable | Default | Effect |
 |---|---|---|
 | `VG_ALLOW_WEB_IMAGES` | unset | Unset: `asset --src <url>` accepts only `.svg` files from the web. Set to `1` (or `true`/`yes`) to also let agents download `.png`, `.jpg`, `.jpeg`, `.webp` and `.gif` images from URLs. Local files and fonts are unaffected. |
@@ -54,7 +70,7 @@ their `asset` calls. Leave it unset to keep web imports to SVG.
 ```text
 jobs/<name>/
   inputs/                 original script and extracted narration (local)
-  job.json                input provenance, hashes, duration, canvas
+  job.json                input provenance, hashes, duration, format and frame size, canvas
   transcript.json         measured ASR words
   alignment.json          script reconciliation and discrepancies
   SCRIPT.md               actual recorded excerpt

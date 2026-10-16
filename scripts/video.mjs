@@ -15,6 +15,7 @@ import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {setupManim} from '../lib/manim.mjs';
 import {SpecError} from '../lib/spec.mjs';
 import {directorBrief, writeBrief} from '../lib/briefs.mjs';
+import {loadConfig, resolveSettings} from '../lib/format.mjs';
 import {readdir} from 'node:fs/promises';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -83,19 +84,15 @@ async function prepare(opts) {
   if (await exists(job)) throw new Error(`Job exists: ${job}. Use a new --name; existing work is never overwritten.`);
   const audio = path.resolve(ROOT, opts.audio), script = path.resolve(ROOT, opts.script);
   const [metadata, sourceScript] = await Promise.all([probe(audio), readFile(script, 'utf8')]);
-  const sourceDuration = Number(metadata.format.duration);
-  const start = numeric(opts.start, 0, 'start'), duration = numeric(opts.duration, sourceDuration - start, 'duration');
-  if (start < 0 || duration <= 0 || start + duration > sourceDuration + 0.01)
-    throw new Error('Requested audio range lies outside the source recording.');
+  const settings = resolveSettings(opts, await loadConfig(ROOT), Number(metadata.format.duration));
+  const {start, duration, format, fps} = settings;
+  for (const w of settings.warnings) console.warn(`Warning: ${w}`);
   const language = opts.language || 'en', model = opts.model || (language === 'en' ? 'small.en' : 'small');
   const engine = opts.engine || 'faster-whisper';
-  const fps = numeric(opts.fps, 30, 'fps');
-  if (![24,30,60].includes(fps)) throw new Error('--fps must be 24, 30, or 60.');
   if (!['faster-whisper', 'hyperframes'].includes(engine)) throw new Error('--engine must be faster-whisper or hyperframes.');
   if (language !== 'en' && model.endsWith('.en')) throw new Error('Non-English audio requires a multilingual model.');
-  if (opts.resolution && !['landscape','1080p','portrait','square'].includes(opts.resolution)) throw new Error('Unsupported pipeline resolution.');
   await mkdir(path.dirname(job), {recursive: true});
-  await hf(['init', job, '--non-interactive', '--resolution', opts.resolution || 'landscape'], {capture: true, env: {HYPERFRAMES_SKIP_SKILLS: '1'}});
+  await hf(['init', job, '--non-interactive', '--resolution', format === 'vertical' ? 'portrait' : format], {capture: true, env: {HYPERFRAMES_SKIP_SKILLS: '1'}});
   const pointer = `# Job ${opts.name}\n\nThis is a pipeline job. Do not run hyperframes or npx commands here and never upgrade HyperFrames.\nFrom the repository root run: npm run video -- next --job jobs/${opts.name}\nand do exactly what it prints.\n`;
   for (const f of ['AGENTS.md', 'CLAUDE.md']) await writeFile(path.join(job, f), pointer);
   await writeFile(path.join(job, 'package.json'), JSON.stringify({name: opts.name, private: true, type: 'module',
@@ -111,7 +108,7 @@ async function prepare(opts) {
   await copyFile(path.join(ROOT, 'lib/motion.js'), path.join(job, 'assets/motion.js'));
   const actualDuration = Number((await probe(path.join(job, 'assets/narration.wav'))).format.duration);
   const manifest = {version: 1, name: opts.name, createdAt: new Date().toISOString(),
-    duration: actualDuration, width: 1920, height: 1080, fps,
+    duration: actualDuration, format, width: settings.width, height: settings.height, fps,
     audio: {path: 'assets/narration.wav', source: path.relative(ROOT, audio), sourceStart: start,
       sha256: await digest(path.join(job, 'assets/narration.wav'))},
     script: {path: 'inputs/source-script.md', source: path.relative(ROOT, script), sha256: await digest(script)},
@@ -119,11 +116,6 @@ async function prepare(opts) {
     creativeMode: 'agent-discretion', workflow: 'faceless-explainer', status: 'awaiting-transcription',
     review: {producerAgentIds: ['/root'], requiredRoles: ['visual-mechanism', 'narration-fidelity', 'continuity-legibility']},
     canvas: '#151915'};
-  if (opts.resolution && !['landscape', '1080p'].includes(opts.resolution)) {
-    const dimensions = {portrait: [1080,1920], square: [1080,1080]};
-    if (!dimensions[opts.resolution]) throw new Error('Pipeline currently supports landscape, portrait, or square.');
-    [manifest.width, manifest.height] = dimensions[opts.resolution];
-  }
   await save(path.join(job, 'job.json'), manifest);
   if (opts.words) await copyFile(path.resolve(ROOT, opts.words), path.join(job, 'transcript.json'));
   else await transcribe(job, manifest);
@@ -253,7 +245,8 @@ const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
 
-start --audio <file> --script <file> [--duration 30 --start 0 --name slug]   create a job
+start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug]   create a job
+                                     defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
 next [--job jobs/<slug>]             print the single next step (state machine)
 plan-check                          validate film.json (director output)
 build [--scene <id>]                 compile shots, assemble, inspect, print motion transcript
@@ -267,9 +260,9 @@ alignment-approve --note "..."       record review of a low script match
 setup-manim                          install ManimCE locally for "manim" objects
 kit-update                           refresh the job's frozen kit copy from lib/kit
 
-prepare --name <slug> --audio <file> --script <file> [--start 0 --duration 30]
+prepare --name <slug> --audio <file> --script <file> [--start 0 --length 30 --format landscape|vertical]
         [--language en --model small.en --engine faster-whisper|hyperframes]
-        [--words measured-words.json --resolution landscape --fps 30]
+        [--words measured-words.json --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
 compile | assemble | audit | check | preview | render | verify [--job jobs/<slug>]
 render [--quality delivery]          draft: audit + runtime check + render + verify

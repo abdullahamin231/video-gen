@@ -10,6 +10,11 @@ test('rejects bad measured intervals', () => {
     [{text:'a',start:0,end:3}], [{text:'a',start:'invalid',end:1}]])
     assert.throws(() => normalizeWords(input, 2));
 });
+test('drops punctuation-only ASR tokens left where a recording is cut mid-word', () => {
+  const words = normalizeWords([{text:'look',start:0,end:.5},{text:'-',start:.5,end:.5},{text:'at',start:.6,end:.9},{text:'-',start:1.98,end:1.98}], 2);
+  assert.deepEqual(words.map(w => `${w.id}:${w.text}`), ['w0:look', 'w1:at']);
+  assert.throws(() => normalizeWords([{text:'-',start:0,end:0}], 2), /nonempty/);
+});
 test('reconciles middle excerpt and preserves differences', () => {
   const a = reconcile(wordsFor('these old cards cost less'), 'intro words these old chips cost much less ending words');
   assert.equal(a.excerpt.scriptStart,2); assert.equal(a.excerpt.scriptEnd,8);

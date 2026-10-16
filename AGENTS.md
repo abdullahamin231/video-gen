@@ -14,7 +14,9 @@ sub-agents do the creative work from self-contained brief files. This works the 
    npm run video -- start --audio "<audio path>" --script "<script path>"
    ```
 
-   Add `--duration 30` (and `--start <s>`) only when the user asks for an excerpt ("first 30 seconds" → `--duration 30`).
+   Add `--length 30` (and `--start <s>`) only when the user asks for an excerpt ("first 30 seconds" → `--length 30`).
+   Add `--format vertical` when the user asks for a reel, short, TikTok or vertical video, and `--format landscape` for
+   long-form when the defaults say otherwise. Defaults come from `video.config.json`; never edit it unless asked.
 
 2. Run:
 
@@ -26,7 +28,7 @@ sub-agents do the creative work from self-contained brief files. This works the 
 
 `next` prints one of two kinds of step:
 
-- **`DO: run <command>`** — run that command yourself (build, render, review-pack, deliver, preview).
+- **`DO: run <command>`** — run that command yourself (build, render, review-pack, deliver).
 - **`DO: spawn ... sub-agent`** — start a fresh sub-agent with no conversation history whose entire prompt is the quoted
   line `Read <brief file> and follow it exactly.` Use whatever your harness provides (a Task/Agent/subagent tool,
   a new session). Several briefs may run in parallel. Wait for them to finish. Do not do their work yourself, do not edit
@@ -35,8 +37,10 @@ sub-agents do the creative work from self-contained brief files. This works the 
   The step names a role (`video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
   that name, use it: it pins the role's model (see "Models per role" below). Otherwise use any fresh sub-agent.
 
-When it prints `STATE: done`, give the user the MP4 path, the preview URL, and the short verification note from
-`review/delivery.json`. If it prints `STATE: blocked`, report honestly; never call an unqualified draft complete.
+When it prints `STATE: done`, give the user the MP4 path and a short verification note from `review/delivery.json`
+(its limitations and advisory findings). Do not run `preview` or open HyperFrames Studio: it rewrites job files and
+makes the delivered job look stale. The final MP4 is the deliverable.
+If it prints `STATE: blocked`, report honestly; never call an unqualified draft complete.
 
 ## Rules for the orchestrator
 

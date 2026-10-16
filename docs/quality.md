@@ -94,6 +94,17 @@ These are the qualities that separate a produced explainer from an animated slid
   narration already says the sentences.
 - Check every frame at phone size (480 px wide). If something essential cannot be read, make it bigger or remove it.
 
+### Vertical films (reels and shorts)
+
+A job made with `--format vertical` is 1080×1920 and watched full-screen on a phone. The brief states the frame.
+- Phone apps cover the top (title bar), the bottom (caption and buttons) and the right edge (action rail). Keep text
+  and the key subject inside the safe area the brief gives (about x 65–940, y 211–1536); backgrounds and motion may
+  use the whole frame. The build warns about text that stays outside it.
+- Stack, do not spread: comparisons go top and bottom, sequences flow downwards, one subject fills the width. The
+  frame is narrow, so text lines are short; the size minimums above stay the same.
+- The first second decides whether anyone keeps watching: something visible happens at once, with no slow build or
+  title card.
+
 ### One stage per idea, built up in front of the viewer
 
 - Give each idea a stage (a shelf, a desk, a map, a coordinate plane, a city block) and add to it as the narration
@@ -187,6 +198,9 @@ Reviewers judge the rendered film, not the plan. Each item is a question about w
 - **Stage:** Are layouts calm and framed, or crowded and shrinking? Are transitions clean and handoffs clear?
 - **Truth:** Is every number and claim supported by the narration or script?
 - **Finish:** Does it look like a produced YouTube explainer, not a slide deck or infographic export?
+- **Vertical (1080×1920 jobs):** Is essential text and the key subject clear of app chrome (inside the safe area)?
+  Is the layout stacked for a tall frame rather than a landscape layout squeezed in? Does something happen in the
+  first second?
 
 Blocking findings are those that hurt understanding, truth or the film's one theme. Taste-level improvements are
 advisory. See [independent-review.md](independent-review.md) for roles, evidence and the report format.
