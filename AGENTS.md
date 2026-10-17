@@ -49,8 +49,8 @@ If it prints `STATE: blocked`, report honestly; never call an unqualified draft 
 
 - Never run `npx hyperframes`, `hyperframes upgrade`, or edit files in `node_modules`. Use only `npm run video -- ...`.
   The one exception is `npx hyperframes tts` for generated narration, following [docs/tts.md](docs/tts.md).
-- Sound runs through the pipeline too: `npm run video -- setup-audio` (ffmpeg check, librosa), `setup-earshot` and
-  `sfx-library` (the sound effects library, once per machine), `music` and `earshot`. See [docs/sound.md](docs/sound.md).
+- Sound runs through the pipeline too: `npm run video -- setup-audio` (ffmpeg check, librosa), `music` and
+  `library-search` / `library-use` for existing sound effects. See [docs/sound.md](docs/sound.md).
 - Never read `scripts/` or `lib/` to work out what to do; `next`, the briefs and `docs/SCENE_SPEC.md` are the interface.
 - Never edit `film.json`, `shots/`, reviewer reports, or evidence yourself. Repairs go through the briefs `next` writes.
 - Keep the supplied recording unchanged. Never use TTS for a supplied recording. Music and sound effects go under it;
@@ -123,7 +123,7 @@ script. Never use TTS when the user supplied a recording.
 - [docs/quality.md](docs/quality.md) — the full creative and review standard (one design theme per film, chosen by the director).
 - [docs/independent-review.md](docs/independent-review.md) — review roles, evidence and report schema.
 - [docs/tts.md](docs/tts.md) — generating narration with HyperFrames TTS when there is no recording.
-- [docs/sound.md](docs/sound.md) — music, sound effects, the mix and its measurements; the sound library; earshot.
+- [docs/sound.md](docs/sound.md) — music, sound effects, the mix and its measurements; the sound library.
 - [docs/agent-workflow.md](docs/agent-workflow.md) — what each pipeline stage does, for maintainers.
 - `npm run video -- help` — all commands. `npm test` — pipeline tests.
 

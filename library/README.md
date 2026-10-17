@@ -95,8 +95,8 @@ cues, narration, rendered Manim clips) and copies installed with `library-use` a
 
 ## Sound effects and music
 
-`npm run video -- sfx-library` adds 34 `sfx-*` bundles (183 code-made sound effects from earshot forge, each with a
-`sounds.json` of variants: length, loudest moment, earshot's verdict). Search them by kind (`library-search --query
+Existing `sfx-*` bundles contain ready-made sound effects, each with a
+`sounds.json` of variants: length and loudest moment. Search them by kind (`library-search --query
 "sfx whoosh"`, `"sfx pop"`, `"sfx click"`), install with `library-use`, and place a variant in a shot's `"sounds"`.
 Music tracks are saved here by the `music` command with their source and licence in `origin`. See
 [docs/sound.md](../docs/sound.md).

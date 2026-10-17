@@ -9,7 +9,7 @@ import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verify
 import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
-import {earshotHome, earshotPython, audioEnv, audioPython, EARSHOT} from '../lib/sfx.mjs';
+import {audioEnv, audioPython} from '../lib/sfx.mjs';
 import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
 import {installKit} from '../lib/world.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
@@ -261,44 +261,6 @@ async function verify(job) {
   console.log(JSON.stringify(report, null, 2));
 }
 
-// ---------------------------------------------------------------- earshot: making and hearing sound effects
-async function setupEarshot() {
-  const home = earshotHome(), py = path.join(home, '.venv/bin/python');
-  if (await earshotPython()) {
-    const ok = await run(py, ['-c', 'import earshot, torch; print(earshot.__version__)'], {capture: true}).catch(() => null);
-    if (ok) { console.log(`earshot ${ok.trim()} is ready in ${home}.`); return py; }
-  }
-  if (!await exists(path.join(home, '.git'))) await run('git', ['clone', '-q', EARSHOT.repo, home]);
-  await run('git', ['-C', home, 'checkout', '-q', EARSHOT.commit]);
-  await run('python3', ['-m', 'venv', path.join(home, '.venv')]);
-  await run(py, ['-m', 'pip', 'install', '-q', '--no-cache-dir', 'torch', '--index-url', 'https://download.pytorch.org/whl/cpu']);
-  await run(py, ['-m', 'pip', 'install', '-q', '--no-cache-dir', '-e', `${home}[mcp]`]);
-  await run(py, ['-m', 'earshot', 'doctor']);
-  console.log(`earshot installed in ${home} (pinned to ${EARSHOT.commit}). Its models (~1.4 GB) download on first use.`);
-  return py;
-}
-async function earshot(args) {
-  const py = await earshotPython();
-  if (!py) throw new Error('earshot is not installed. Run: npm run video -- setup-earshot');
-  await run(py, ['-m', 'earshot', ...args], {env: {EARSHOT_THREADS: process.env.EARSHOT_THREADS || '4'}});
-}
-async function sfxLibrary(opts) {
-  const py = await earshotPython();
-  if (!py) throw new Error('earshot is not installed. Run: npm run video -- setup-earshot');
-  const staging = path.join(ROOT, '.video/sfx-staging');
-  await run('rm', ['-rf', staging]); await mkdir(staging, {recursive: true});
-  await run(py, ['-I', path.join(ROOT, 'scripts/sfx/build_library.py'), staging, EARSHOT.commit, ...(opts.check === 'false' ? [] : ['--check'])],
-    {env: {EARSHOT_THREADS: process.env.EARSHOT_THREADS || '4'}});
-  const published = [], kept = [];
-  for (const dir of (await readdir(staging, {withFileTypes: true})).filter(d => d.isDirectory()).map(d => d.name).sort()) {
-    if (await exists(path.join(LIBRARY, dir, '1.0.0'))) { kept.push(dir); continue; }
-    published.push((await publishBundle(LIBRARY, path.join(staging, dir))).item);
-  }
-  await run('rm', ['-rf', staging]);
-  console.log(`Sound effects library: ${published.length} bundle(s) published${kept.length ? `, ${kept.length} already present` : ''}.`);
-  console.log('Find them with: npm run video -- library-search --query "sfx whoosh"');
-}
-
 async function setupAudio() {
   const missing = [];
   for (const bin of ['ffmpeg', 'ffprobe']) if (!await run('which', [bin], {capture: true}).catch(() => null)) missing.push(bin);
@@ -349,9 +311,6 @@ alignment-approve --note "..."       record review of a low script match
 setup-manim                          install ManimCE locally for "manim" objects
 setup-audio                          check ffmpeg, install librosa (beat analysis for music)
 music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
-setup-earshot                        install earshot (hears and makes sound effects; CPU, ~4 GB with models)
-sfx-library [--check false]          render earshot's code-made sound effects into library/ (sfx-* bundles)
-earshot <args...>                    run earshot (describe, match, rank, forge, timeline, sheet ...; see docs/sound.md)
 kit-update                           refresh the job's frozen kit copy from lib/kit
 
 prepare --name <slug> --audio <file> --script <file> [--start 0 --length 30 --format landscape|vertical]
@@ -375,11 +334,8 @@ The latest prepared job is used when --job is omitted.
 Creative design is performed by the agent; see AGENTS.md and docs/agent-workflow.md.
 `;
 try {
-  const [command = 'help', ...args] = process.argv.slice(2), opts = command === 'earshot' ? {} : options(args);
+  const [command = 'help', ...args] = process.argv.slice(2), opts = options(args);
   if (command === 'help') console.log(HELP);
-  else if (command === 'setup-earshot') await setupEarshot();
-  else if (command === 'earshot') await earshot(args);
-  else if (command === 'sfx-library') await sfxLibrary(opts);
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
   else if (command === 'start') await start(opts);
@@ -418,11 +374,11 @@ try {
     else if (command === 'review-template') await reviewTemplate(job, {stage: opts.stage || 'final', role: opts.role});
     else if (command === 'asset') {
       if (!opts.note?.trim()) throw new Error('asset needs --note "<what it shows>" so later films can find it in the library');
-      if (/^(sfx|music)\//.test(opts.name || '') && !opts.license?.trim()) throw new Error('Audio needs --license "<the licence on its source page>" (and --source "<that page>"); for code-made sounds give the tool, e.g. --license "made with earshot forge (MIT)".');
+      if (/^(sfx|music)\//.test(opts.name || '') && !opts.license?.trim()) throw new Error('Audio needs --license "<the licence on its source page>" (and --source "<that page>").');
       if ((opts.name || '').startsWith('music/')) throw new Error('Bring music in with the music command (it also finds the beats): npm run video -- music --job <job> --src <url|file> --name ' + opts.name + ' --source "<page>" --license "<licence>"');
       const a = await importAsset(job, ROOT, {src: opts.src, name: opts.name, note: opts.note, title: opts.title || '', tags: opts.tags || '', allowWebImages: webImagesAllowed(), license: opts.license || '', source: opts.source || ''});
       const lib = await saveToLibrary(LIBRARY, job, {file: a.path, title: opts.title || a.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '), tags: opts.tags || '', note: opts.note, origin: opts.source || a.src, license: opts.license || ''});
-      const use = a.name.startsWith('sfx/') ? `add it to a shot's "sounds": {"src": "${a.path}", "at": "<cue>", "align": "start|peak|end", "volume": 0.3, "why": "..."}. Check it with npm run video -- earshot describe ${path.relative(ROOT, path.join(job, a.path))}`
+      const use = a.name.startsWith('sfx/') ? `add it to a shot's "sounds": {"src": "${a.path}", "at": "<cue>", "align": "start|peak|end", "volume": 0.3, "why": "..."}`
         : `use it as {"type": "image", "src": "${a.path}", ...}${a.name.startsWith('fonts/') ? ' or in theme.fontFiles' : ''}. Look at it before using it`;
       console.log(`Saved ${a.path} (library: ${lib.item}). ${use[0].toUpperCase()}${use.slice(1)}.`);
     }

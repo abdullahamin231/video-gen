@@ -21,9 +21,7 @@ music track. Agents cannot hear, so every step is measured and never judged by f
 4. **Every cut and big move gets one ready-made sound effect** from the library: whoosh for movement and cuts, pop
    for things appearing, click for clicks and stamps, typing for typing, impact for heavy verdicts. The library's
    `sfx-*` bundles come first (`library-search --query "sfx whoosh"`). Do not make new sounds in code during a film.
-   If the library has no `sfx-*` bundles, run `sfx-library`; only if that cannot run (no earshot, no network), stop
-   and ask the person. When no variant fits a move, use the closest one or leave the move silent and say why in the
-   shot's `notes`. The build lists moves without a sound.
+   When no variant fits a move, leave the move silent and say why in the shot's `notes`. The build lists moves without a sound.
 5. **The voice is the loudest thing.** Music drops while someone talks (it is ducked automatically under speech) and
    comes back up between sentences. Sound effects sit above the music but at least 6 dB under the voice while it
    speaks: the build measures each sound against the narration (K-weighted, like LUFS) and prints the volume that
@@ -39,9 +37,6 @@ music track. Agents cannot hear, so every step is measured and never judged by f
 
 ```bash
 npm run video -- setup-audio      # checks ffmpeg/ffprobe, installs librosa (beat analysis, plots) in ~/.cache/video-gen/audio-env
-npm run video -- setup-earshot    # earshot (listening and the sound library); CPU, ~4 GB with its models
-npm run video -- sfx-library      # renders the library's sfx-* bundles (once per machine; library/ is not in Git)
-npm run video -- earshot <args>   # earshot describe | match | rank | find | compare | timeline | sheet | measure ...
 ```
 
 If ffmpeg is missing, install it (`sudo apt install ffmpeg` or the platform's package) before anything else.
@@ -91,7 +86,7 @@ Then add to `film.json`:
 loudest moment hits the cue: whooshes, impacts, the landing of a drop) or `end` (it finishes on the cue: a riser
 into a reveal, a whoosh that leads into a cut). `volume` (0–1, default 0.3) scales the file; every library file
 peaks at -1 dBFS. `why` says what on screen makes the sound. Install a bundle with `library-use`; each has a
-`sounds.json` listing its variants with length, loudest moment and earshot's verdict (prefer `strong`/`plausible`).
+`sounds.json` listing its variants with length and loudest moment.
 
 Build errors: a file that is missing or not a WAV, an unknown cue, a sound outside its scene or the film, a volume
 outside 0–1, music without a licence or beat grid. Warnings (fix, or keep on purpose and say why in `notes`): a
@@ -110,22 +105,8 @@ narration-only correlation), so the delivered audio is exactly the declared mix.
 
 ## The sound library
 
-`npm run video -- sfx-library` fills `library/` with 34 `sfx-*` bundles (183 sounds): whooshes, swishes, swipes,
-risers, downlifters, zips, impacts, sub drops, logo stings, clicks, taps, toggles, hover ticks, pops, notification
-dings, shimmers, glitches, key presses and typing runs. They are the finished sounds of earshot forge 0.2.0
-(github.com/Leonxlnx/earshot, commit 9721326, MIT), rendered from the recipe parameters in its seed banks (no
-recorded audio) and checked by earshot against a plain description of their kind. On the first run, earshot heard
-84 of 183 as a strong match and 28 as plausible. Whooshes, swishes, impacts, sub drops, glitches, zips, shimmers,
-downlifters, clicks, hover ticks and key presses are reliable; taps, toggles, swipes, logo stings, notification dings,
-pop-ins and typing runs mostly were not recognised (partly earshot's own weakness on sounds under 0.5 s), so
-listen before relying on them. Every bundle is `draft` until a person has listened.
-
-## earshot
-
-earshot ("ears for coding agents", `.opencode/skills/earshot`, vendored from the same commit) describes a sound in
-words, says how well it fits a description, ranks candidates, finds the best moment in a long recording, and writes
-a listening transcript (`timeline`) or an annotated picture (`sheet`) of a whole soundtrack. Use it before saying
-anything about how a sound sounds, and quote its numbers. Run it as `npm run video -- earshot <command> ...` (the
-skill's own setup instructions are replaced by `setup-earshot`). It cannot judge taste, emotion or speech content,
-and its tags inside a busy mix are guesses; its launch-film `critique` profile describes music-driven launch films,
-not narrated explainers.
+Existing `sfx-*` bundles contain ready-made whooshes, swishes, swipes, risers, downlifters, zips, impacts,
+sub drops, logo stings, clicks, taps, toggles, hover ticks, pops, notification dings, shimmers, key presses,
+glitches and typing runs. Search with `library-search --query "sfx whoosh"`, inspect with `library-info`,
+and copy a bundle into a job with `library-use`. Each bundle includes a `sounds.json` with variant lengths
+and loudest moments. Bundles remain `draft` until a person has listened.

@@ -220,7 +220,7 @@ Two actions must not animate the same property of the same object at the same ti
 Every cut and big move (camera move, drop, stamp, transformation, a title appearing) gets one ready-made sound from
 the library: whoosh for movement and cuts, pop for things appearing, click for clicks and stamps, typing for typing.
 Find a bundle with `npm run video -- library-search --query "sfx whoosh"`, install it with `library-use`, and pick a
-variant from its `sounds.json` (length, loudest moment, earshot's verdict).
+variant from its `sounds.json` (length and loudest moment).
 
 ```json
 "sounds": [
