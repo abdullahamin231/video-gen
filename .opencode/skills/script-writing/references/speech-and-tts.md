@@ -10,7 +10,8 @@ Words = minutes × speaking rate. Rates in practice:
 | Typical conversational YouTube narration | 160–185 |
 | Fast, dense commentary | 185–210 |
 
-Default to 160 for a TTS voice unless the user gives a rate or the voice has been measured. Land within 5% of the
+Default to 160 for a TTS voice unless the user gives a rate or the voice has been measured. The repository's
+HyperFrames voice (`am_michael`) reads about 170 wpm at speed 1.0; `docs/tts.md` explains how to voice a finished script. Land within 5% of the
 budget. A script that is too long gets spoken too fast or cut; a short one leaves dead air.
 
 ## Writing for the voice

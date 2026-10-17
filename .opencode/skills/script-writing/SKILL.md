@@ -27,7 +27,7 @@ target minutes and chosen words per minute in `research.md`; use that same rate 
 
 ## Outputs
 
-Work in `outputs/scripts/<slug>/` (create it):
+Work in `jobs/scripts/<slug>/` (create it):
 
 | File | Contents |
 |---|---|
@@ -109,7 +109,7 @@ Read the draft once per pass, each time looking for one thing only:
 4. **Ownership pass.** Count the named sources. Keep a name only where it adds weight a viewer would care about (a
    company admitting something about its own product, a primary measurement); restate everything else as your own
    explanation. Keep attribution necessary for trust and fairness; do not optimize a source-count quota.
-5. **Tells pass.** Run `node .opencode/skills/script-writing/scripts/lint.mjs outputs/scripts/<slug>/SCRIPT.md --minutes
+5. **Tells pass.** Run `node .opencode/skills/script-writing/scripts/lint.mjs jobs/scripts/<slug>/SCRIPT.md --minutes
    <target> --wpm <chosen-rate>` and work through `references/tells.md`. Fix format/budget errors. Treat style counts
    as prompts to listen again, not targets or an AI detector; the reference sample is small and genre-specific.
 6. **Truth pass.** Every factual claim, including comparisons and causal explanations, is supported by the saved sources

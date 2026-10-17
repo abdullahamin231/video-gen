@@ -45,6 +45,7 @@ If it prints `STATE: blocked`, report honestly; never call an unqualified draft 
 ## Rules for the orchestrator
 
 - Never run `npx hyperframes`, `hyperframes upgrade`, or edit files in `node_modules`. Use only `npm run video -- ...`.
+  The one exception is `npx hyperframes tts` for generated narration, following [docs/tts.md](docs/tts.md).
 - Never read `scripts/` or `lib/` to work out what to do; `next`, the briefs and `docs/SCENE_SPEC.md` are the interface.
 - Never edit `film.json`, `shots/`, reviewer reports, or evidence yourself. Repairs go through the briefs `next` writes.
 - Keep the supplied recording unchanged. Never use TTS for a supplied recording.
@@ -94,7 +95,7 @@ When the user asks for a script ("Write a 5-minute script from these links"), it
 and a target duration. Spawn a fresh `script-writer` sub-agent (or any strong-model sub-agent) whose prompt gives the
 sources, the duration and any creator notes, and tells it to follow the `script-writing` skill
 (`.opencode/skills/script-writing/SKILL.md`, linked into `.claude/skills` and `.agents/skills`). It writes
-`outputs/scripts/<slug>/SCRIPT.md` with its research notes. Give the user the script, its word count and estimated
+`jobs/scripts/<slug>/SCRIPT.md` with its research notes. Give the user the script, its word count and estimated
 duration and the speaking-rate assumption. Before delivery, commission a fresh `script-reviewer` (or strong-model reviewer)
 with the brief, script, saved sources and research notes, following the skill's `references/review.md`. Have the writer address blockers
 and the reviewer check revisions (at most two rounds); unresolved work is a draft, never an independently passed script.
@@ -102,12 +103,21 @@ If the user names no duration, use a positive `length` from `video.config.json` 
 missing target. For a reel, short or vertical video (or `"format": "vertical"` in the config), tell the writer it is
 vertical short-form. When choosing a default duration, respect `verticalMaxSeconds`; explicit user duration takes priority.
 
+## Generating narration (TTS)
+
+When the user has a script but no recording (a script the `script-writer` wrote, or "make a video from this script"),
+generate the narration with HyperFrames TTS (local Kokoro) by following [docs/tts.md](docs/tts.md) exactly: one-time
+Python setup, `am_michael` at a speed chosen from the word count, one paragraph per call, joined with short pauses and
+1.5 s of trailing silence. Then run the loop above with `--audio jobs/scripts/<slug>/narration.wav` and the same
+script. Never use TTS when the user supplied a recording.
+
 ## References
 
 - [docs/SCENE_SPEC.md](docs/SCENE_SPEC.md) — the scene language (objects, verbs, cues, camera, components, hooks, Manim).
 - [docs/quality.md](docs/quality.md) — the full creative and review standard (one design theme per film, chosen by the director).
 - [docs/independent-review.md](docs/independent-review.md) — review roles, evidence and report schema.
+- [docs/tts.md](docs/tts.md) — generating narration with HyperFrames TTS when there is no recording.
 - [docs/agent-workflow.md](docs/agent-workflow.md) — what each pipeline stage does, for maintainers.
 - `npm run video -- help` — all commands. `npm test` — pipeline tests.
 
-Jobs live in `jobs/<slug>/` (ignored by Git). Reusable work belongs in `library/` and the kit (`lib/kit/kit.js`).
+Jobs live in `jobs/<slug>/` and scripts in `jobs/scripts/<slug>/` (script, research, sources, narration), both ignored by Git. Reusable work belongs in `library/` and the kit (`lib/kit/kit.js`).
