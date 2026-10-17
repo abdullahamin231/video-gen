@@ -246,6 +246,35 @@ helpers document their own pacing controls.
 
 Past a few paragraphs, write the text to a `.txt` file and pass the path. Inputs over ~5 minutes of speech may benefit from splitting into segments.
 
+### Local Kokoro Python error or a slow first paragraph
+
+Kokoro can print `Python 3 is required for text-to-speech` even when a valid
+Python 3.10+ virtual environment with `kokoro-onnx` and `soundfile` is installed.
+Before reinstalling packages, check the interpreter and imports in the same
+environment used for synthesis:
+
+```bash
+"$HYPERFRAMES_PYTHON" --version
+"$HYPERFRAMES_PYTHON" -c "import kokoro_onnx, soundfile; print('Kokoro ready')"
+```
+
+If both checks pass but the CLI still reports that Python is missing, retry
+`npx --no-install hyperframes tts` in a local execution environment that can
+spawn the configured Python subprocess. Restricted/sandboxed command runners
+may prevent that subprocess from being detected or launched; repeating package
+installation does not fix that restriction. Preserve
+`HYPERFRAMES_PYTHON=/absolute/path/to/venv/bin/python` in the command's
+environment.
+
+Allow a synthesis call at least 30 seconds before treating it as failed. A
+paragraph can take over 20 seconds, especially on the first call while model
+files are fetched. If the command runner returns a session ID, poll that same
+session until it exits; do not start a duplicate call just because the first
+10-second wait produced no WAV yet. Confirm the output file exists and is
+non-empty before joining segments. For long scripts, synthesize one paragraph
+at a time and retain per-paragraph logs so a genuinely failed segment can be
+retried without regenerating completed audio.
+
 ## HeyGen word-timestamp shape
 
 When `--words <path>` is passed to a HeyGen call, the file is written in the same flat shape `transcribe` produces — drop-in compatible with the captions pipeline:
