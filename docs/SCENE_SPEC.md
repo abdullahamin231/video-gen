@@ -19,6 +19,7 @@ plus a motion transcript of what is actually on screen. Iterate until it reports
   "actions": [ ... ],
   "holds": [{"from": "wait", "to": "wait+1.5", "reason": "let the empty queue register before the payoff"}],
   "hook": "shots/bottleneck.hook.js",
+  "sounds": [{"src": "assets/library/sfx-whoosh-fast/1.0.0/tight.wav", "at": "load", "align": "peak", "volume": 0.12, "why": "the weights rush onto the bus"}],
   "notes": "Replaced the planned pipe with a queue: waiting is easier to see as a line than as pressure."
 }
 ```
@@ -36,6 +37,9 @@ plus a motion transcript of what is actually on screen. Iterate until it reports
   `pop` (overshoot and settle), `snap` (fast stop), `settle` (springy), `drop` (bounces to rest) — or any GSAP ease
   (`"back.out(1.4)"`, `"elastic.out(1, 0.5)"`). The film's theme may redefine any name (`theme.eases`), so prefer the
   names: then every scene moves with the same personality.
+
+- **sounds** (optional): sound effects on cues, each one belonging to something visible at that moment. See
+  "Sound effects" below and [sound.md](sound.md).
 
 ## Coordinates
 
@@ -210,6 +214,33 @@ small stagger (`stagger` sets it).
 | component verbs | anything | defined by the component |
 
 Two actions must not animate the same property of the same object at the same time; the build reports overlaps.
+
+## Sound effects
+
+Every cut and big move (camera move, drop, stamp, transformation, a title appearing) gets one ready-made sound from
+the library: whoosh for movement and cuts, pop for things appearing, click for clicks and stamps, typing for typing.
+Find a bundle with `npm run video -- library-search --query "sfx whoosh"`, install it with `library-use`, and pick a
+variant from its `sounds.json` (length, loudest moment, earshot's verdict).
+
+```json
+"sounds": [
+  {"src": "assets/library/sfx-pop/1.0.0/01.wav", "at": "uh-0.05", "why": "the speech bubble pops up"},
+  {"src": "assets/library/sfx-whoosh-fast/1.0.0/heavy.wav", "at": "okthen", "align": "peak", "volume": 0.05, "why": "camera punches in"}
+]
+```
+
+| field | meaning |
+|---|---|
+| `src` | a `.wav` under `assets/` (installed library bundles live in `assets/library/...`) |
+| `at` | a cue, like an action's (`"cue"`, `"cue+0.2"`; not `@prev`/`@after`) |
+| `align` | `start` (default: begins on the cue), `peak` (its loudest moment hits the cue: whooshes, impacts, landings), `end` (finishes on the cue: a riser into a reveal) |
+| `volume` | 0–1, default 0.3 (files peak at -1 dBFS; the narration plays at 1) |
+| `why` | what on screen makes the sound |
+
+The build measures each sound against the narration and warns, with the volume that fixes it, when a sound comes
+within 6 dB of the voice while it speaks. It also lists cuts and big moves without a sound and, when the film has
+music, moves that miss the beat. The sound plan is written to `review/sounds.md`. Music is set once per film in
+`film.json` `"music"`; see [sound.md](sound.md).
 
 ## Continuity and exits
 

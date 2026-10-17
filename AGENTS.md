@@ -17,6 +17,7 @@ sub-agents do the creative work from self-contained brief files. This works the 
    Add `--length 30` (and `--start <s>`) only when the user asks for an excerpt ("first 30 seconds" → `--length 30`).
    Add `--format vertical` when the user asks for a reel, short, TikTok or vertical video, and `--format landscape` for
    long-form when the defaults say otherwise. Defaults come from `video.config.json`; never edit it unless asked.
+   Add `--music "<track>"` when the user supplies a music track; otherwise the director picks a licensed one.
 
 2. Run:
 
@@ -38,7 +39,9 @@ sub-agents do the creative work from self-contained brief files. This works the 
   that name, use it: it pins the role's model (see "Models per role" below). Otherwise use any fresh sub-agent.
 
 When it prints `STATE: done`, give the user the MP4 path and a short verification note from `review/delivery.json`
-(its limitations and advisory findings). Do not run `preview` or open HyperFrames Studio: it rewrites job files and
+(its limitations and advisory findings), the soundtrack's measurements (`soundtrack`: integrated LUFS and peaks,
+measured on the MP4) and the five `headphoneChecks` timestamps with what to listen for. Nobody in this pipeline can
+hear: never say the film sounds good, only what was measured. Do not run `preview` or open HyperFrames Studio: it rewrites job files and
 makes the delivered job look stale. The final MP4 is the deliverable.
 If it prints `STATE: blocked`, report honestly; never call an unqualified draft complete.
 
@@ -46,9 +49,12 @@ If it prints `STATE: blocked`, report honestly; never call an unqualified draft 
 
 - Never run `npx hyperframes`, `hyperframes upgrade`, or edit files in `node_modules`. Use only `npm run video -- ...`.
   The one exception is `npx hyperframes tts` for generated narration, following [docs/tts.md](docs/tts.md).
+- Sound runs through the pipeline too: `npm run video -- setup-audio` (ffmpeg check, librosa), `setup-earshot` and
+  `sfx-library` (the sound effects library, once per machine), `music` and `earshot`. See [docs/sound.md](docs/sound.md).
 - Never read `scripts/` or `lib/` to work out what to do; `next`, the briefs and `docs/SCENE_SPEC.md` are the interface.
 - Never edit `film.json`, `shots/`, reviewer reports, or evidence yourself. Repairs go through the briefs `next` writes.
-- Keep the supplied recording unchanged. Never use TTS for a supplied recording.
+- Keep the supplied recording unchanged. Never use TTS for a supplied recording. Music and sound effects go under it;
+  the pipeline mixes them and never processes the narration beyond one master gain.
 - Keep every asset inside the repository, never in `/tmp` or a scratch directory. Agents bring images and fonts in with
   `npm run video -- asset` (saved to the job's `assets/` and to `library/`) and save what they make with
   `npm run video -- save`. When `next` prints `save-all`, run it: it saves anything still missing from `library/`.
@@ -117,6 +123,7 @@ script. Never use TTS when the user supplied a recording.
 - [docs/quality.md](docs/quality.md) — the full creative and review standard (one design theme per film, chosen by the director).
 - [docs/independent-review.md](docs/independent-review.md) — review roles, evidence and report schema.
 - [docs/tts.md](docs/tts.md) — generating narration with HyperFrames TTS when there is no recording.
+- [docs/sound.md](docs/sound.md) — music, sound effects, the mix and its measurements; the sound library; earshot.
 - [docs/agent-workflow.md](docs/agent-workflow.md) — what each pipeline stage does, for maintainers.
 - `npm run video -- help` — all commands. `npm test` — pipeline tests.
 

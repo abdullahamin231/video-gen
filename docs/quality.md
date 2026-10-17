@@ -159,6 +159,16 @@ A job made with `--format vertical` is 1080×1920 and watched full-screen on a p
   has a reason; a subject that returns looks the same.
 - Every cut or transition has a handoff: an object that continues, transforms, or a deliberate clean break.
 
+### Sound
+
+The narration is the soundtrack's spine and always the loudest thing. Around it, a film gets one licensed music track
+and one ready-made sound effect for every cut and big move (whoosh for movement, pop for things appearing, click for
+clicks and stamps, typing for typing), from the library's `sfx-*` bundles. Big moves land on the music's beat. The
+music ducks under speech; effects sit above the music and at least 6 dB under the voice. The mix aims at about
+-16 LUFS with peaks at or under -4 dBFS, measured on the exported MP4. Agents cannot hear: every choice rests on a
+measurement, and nobody claims the film "sounds good". The full process, fields and commands are in
+[sound.md](sound.md).
+
 ## Working method
 
 ### Director
@@ -198,6 +208,11 @@ Reviewers judge the rendered film, not the plan. Each item is a question about w
 - **Stage:** Are layouts calm and framed, or crowded and shrinking? Are transitions clean and handoffs clear?
 - **Truth:** Is every number and claim supported by the narration or script?
 - **Finish:** Does it look like a produced YouTube explainer, not a slide deck or infographic export?
+- **Sound:** Does each sound effect belong to something visible at that moment (`review/sounds.md`, the cue sheets
+  in the pack)? Does every cut and big move have one, and do cuts sit on the beat? Do the measurements in
+  `review/mix.json` show the voice clear of effects and music, effects above the music, and the loudness and peak
+  targets met on the MP4? A measured risk of masking a word (`voiceMasked` in mix.json) is blocking until the mix is
+  repaired; the five headphone checks go to the person with the delivery.
 - **Vertical (1080×1920 jobs):** Is essential text and the key subject clear of app chrome (inside the safe area)?
   Is the layout stacked for a tall frame rather than a landscape layout squeezed in? Does something happen in the
   first second?
@@ -214,4 +229,6 @@ advisory. See [independent-review.md](independent-review.md) for roles, evidence
 - `build` checks each scene in a real browser (legibility, collisions, frame use, stillness, theme consistency,
   overlapping tweens, seek safety) and prints a motion transcript. `render` adds pixel checks of the encoded MP4.
   Checks prove the absence of known defects; they do not prove quality. Independent review remains mandatory.
-- Assets are local files under `assets/` with recorded sources. Sound effects, if used, must never mask the narration.
+- Assets are local files under `assets/` with recorded sources; music and sound files also record their licence.
+- The soundtrack is mixed by the pipeline (narration untouched, one master gain) and the delivered MP4's audio is
+  verified against that mix; loudness and peaks are measured on the MP4 (see [sound.md](sound.md)).

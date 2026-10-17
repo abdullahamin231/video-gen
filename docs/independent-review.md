@@ -194,8 +194,11 @@ the actual encoded render, not a different Studio state.
 
 The pack contains its interval, scenes, `sourceHash`, `videoSha256`, and
 `evidence` entries with `path`, `sha256`, `kind`, `start`, and `end`. The kinds
-are `frames`, `contact-sheet`, `clip`, `audio`, and `verification`; each individual
-PNG frame is a `frames` entry. Verification receipts are frozen inside the
+are `frames`, `contact-sheet`, `clip`, `audio`, `verification`, `motion`, `checks` and
+`sound`; each individual PNG frame is a `frames` entry. `sound` entries are the film's sound plan
+(`sounds.md`: every effect with its cue, volume and reason, every cut and big move with its beat offset), the mix
+measurements (`mix.json`, measured on the MP4), and the cue sheets (one frame before and after each cue with the
+waveform around it, decoded from the MP4) with the five headphone checks (`listen.md`). Verification receipts are frozen inside the
 evidence run so later technical checks do not overwrite historical evidence.
 Reviewers must cite exact paths present in that pack.
 Hash the pack bytes to obtain `packSha256`. Do not modify evidence after
@@ -247,7 +250,9 @@ The narration role additionally requires `inspection.audio` with one of
 `listened`, `signal-verified`, or `unavailable`. `listened` means the reviewer
 actually received supported audio input, not merely a transcript.
 `signal-verified` requires a passing technical waveform comparison between the
-rendered audio and supplied root narration, and the report explicitly states
+rendered audio and the reference soundtrack (the supplied narration, or for a film with sound effects or music the
+pipeline's own mix `renders/mix.wav`, in which the narration is unprocessed apart from one master gain), and the
+report explicitly states
 that listening was unavailable. This is a heuristic consistency check, not
 proof of exact sample preservation, unchanged words, or listening. The comparison
 decodes both tracks to 8 kHz mono float32, examines the entire decoded tracks
@@ -257,9 +262,10 @@ without time-shift correction, fits one global gain (strictly between 0.25 and 4
 fallback. These thresholds allow ordinary lossy encoding; they are not a
 validated speech-recognition or intelligibility test. Significant legitimate
 mixing or processing can fail the check and require supported listening instead.
-It does not establish intelligibility under added music or sound effects. An
-unresolved possibility of masked speech needs supported audio review or a mix
-repair and remains blocking. `unavailable` cannot pass required audio review.
+It does not establish intelligibility under added music or sound effects: for
+that, read the measurements in the pack's `mix.json` (`voiceMasked`: moments where effects and music come within
+3 dB of the voice while it speaks, K-weighted) and the build's masking warnings in `sounds.md`. An unresolved
+possibility of masked speech needs supported audio review or a mix repair and remains blocking. `unavailable` cannot pass required audio review.
 The CLI can inspect receipts and reported methods; it cannot authenticate
 listening or model capability.
 

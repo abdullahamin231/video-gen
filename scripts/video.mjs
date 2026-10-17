@@ -9,7 +9,8 @@ import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verify
 import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
-import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, nextStep, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
+import {earshotHome, earshotPython, audioEnv, audioPython, EARSHOT} from '../lib/sfx.mjs';
+import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
 import {installKit} from '../lib/world.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {setupManim} from '../lib/manim.mjs';
@@ -161,7 +162,17 @@ async function start(opts) {
   if (!/^[a-z0-9]/.test(name)) name = 'film-' + name;
   let candidate = name, i = 2;
   while (await exists(path.join(ROOT, 'jobs', candidate))) candidate = `${name}-${i++}`;
-  await prepare({...opts, name: candidate, audio: path.relative(ROOT, audio), script: path.relative(ROOT, script)});
+  const {music, ...rest} = opts;
+  await prepare({...rest, name: candidate, audio: path.relative(ROOT, audio), script: path.relative(ROOT, script)});
+  if (music) { // a track the user supplied: keep it, analyse its beats, and tell the director to use it
+    const track = await resolveInput(music, 'Music');
+    await musicImport(path.join(ROOT, 'jobs', candidate), {src: path.relative(ROOT, track), name: `music/${path.basename(track).toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}`,
+      source: `supplied by the user (${path.relative(ROOT, track)})`, license: 'supplied by the user', note: 'music track supplied by the user for this film'});
+    const job = path.join(ROOT, 'jobs', candidate), manifest = await json(path.join(job, 'job.json'));
+    manifest.music = `assets/music/${path.basename(track).toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}`;
+    await save(path.join(job, 'job.json'), manifest);
+    await writeBrief(job, 'director.md', directorBrief(job, manifest, await json(path.join(job, 'alignment.json'))));
+  }
 }
 
 const escape = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -233,31 +244,114 @@ async function verify(job) {
   });
   const mean = Number(levels.match(/mean_volume:\s*([-\d.]+) dB/)?.[1]);
   if (!Number.isFinite(mean) || mean < -60) throw new Error('Rendered narration is silent or effectively inaudible.');
-  const narrationIntegrity = await compareNarration(file,await localFile(job,'assets/narration.wav'));
+  // A film's soundtrack is mixed by the pipeline (renders/mix.wav: narration unprocessed + sound effects + music, one
+  // master gain). The render must carry exactly that mix; without one (older jobs) it must carry the narration alone.
+  const narrationFile = await localFile(job, 'assets/narration.wav'), mixFile = path.join(job, 'renders/mix.wav');
+  const mixReport = await isFilmJob(job) && await exists(mixFile) ? await json(path.join(job, 'review/mix.json')).catch(() => null) : null;
+  const reference = mixReport ? mixFile : narrationFile;
+  const soundtrack = mixReport ? {reference: 'renders/mix.wav (narration unprocessed + declared sound effects + music, master gain ' + mixReport.gainDb + ' dB)',
+    narrationOnlyCorrelation: (await compareNarration(file, narrationFile)).correlation, loudness: {integratedLufs: mixReport.integratedLufs, truePeakDb: mixReport.truePeakDb,
+      samplePeakDb: mixReport.samplePeakDb, mono: mixReport.mono, peaksOk: mixReport.peaksOk, limitedBy: mixReport.limitedBy}, soundEffects: mixReport.soundEffects,
+    music: mixReport.music, voiceMasked: mixReport.voiceMasked, soundsUnderMusic: mixReport.soundsUnderMusic} : null;
+  const narrationIntegrity = {...await compareNarration(file, reference), ...(soundtrack ? {reference: soundtrack.reference} : {})};
   const report = {ok: true, output: path.relative(ROOT, file), duration: Number(metadata.format.duration),
     width: video.width, height: video.height, fps: video.avg_frame_rate, audioCodec: audio.codec_name,
-    meanVolumeDb: mean, sha256: await fileHash(file), narrationIntegrity};
+    meanVolumeDb: mean, sha256: await fileHash(file), narrationIntegrity, ...(soundtrack ? {soundtrack} : {})};
   await writeReviewFile(job,'review/render-verification.json',JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify(report, null, 2));
+}
+
+// ---------------------------------------------------------------- earshot: making and hearing sound effects
+async function setupEarshot() {
+  const home = earshotHome(), py = path.join(home, '.venv/bin/python');
+  if (await earshotPython()) {
+    const ok = await run(py, ['-c', 'import earshot, torch; print(earshot.__version__)'], {capture: true}).catch(() => null);
+    if (ok) { console.log(`earshot ${ok.trim()} is ready in ${home}.`); return py; }
+  }
+  if (!await exists(path.join(home, '.git'))) await run('git', ['clone', '-q', EARSHOT.repo, home]);
+  await run('git', ['-C', home, 'checkout', '-q', EARSHOT.commit]);
+  await run('python3', ['-m', 'venv', path.join(home, '.venv')]);
+  await run(py, ['-m', 'pip', 'install', '-q', '--no-cache-dir', 'torch', '--index-url', 'https://download.pytorch.org/whl/cpu']);
+  await run(py, ['-m', 'pip', 'install', '-q', '--no-cache-dir', '-e', `${home}[mcp]`]);
+  await run(py, ['-m', 'earshot', 'doctor']);
+  console.log(`earshot installed in ${home} (pinned to ${EARSHOT.commit}). Its models (~1.4 GB) download on first use.`);
+  return py;
+}
+async function earshot(args) {
+  const py = await earshotPython();
+  if (!py) throw new Error('earshot is not installed. Run: npm run video -- setup-earshot');
+  await run(py, ['-m', 'earshot', ...args], {env: {EARSHOT_THREADS: process.env.EARSHOT_THREADS || '4'}});
+}
+async function sfxLibrary(opts) {
+  const py = await earshotPython();
+  if (!py) throw new Error('earshot is not installed. Run: npm run video -- setup-earshot');
+  const staging = path.join(ROOT, '.video/sfx-staging');
+  await run('rm', ['-rf', staging]); await mkdir(staging, {recursive: true});
+  await run(py, ['-I', path.join(ROOT, 'scripts/sfx/build_library.py'), staging, EARSHOT.commit, ...(opts.check === 'false' ? [] : ['--check'])],
+    {env: {EARSHOT_THREADS: process.env.EARSHOT_THREADS || '4'}});
+  const published = [], kept = [];
+  for (const dir of (await readdir(staging, {withFileTypes: true})).filter(d => d.isDirectory()).map(d => d.name).sort()) {
+    if (await exists(path.join(LIBRARY, dir, '1.0.0'))) { kept.push(dir); continue; }
+    published.push((await publishBundle(LIBRARY, path.join(staging, dir))).item);
+  }
+  await run('rm', ['-rf', staging]);
+  console.log(`Sound effects library: ${published.length} bundle(s) published${kept.length ? `, ${kept.length} already present` : ''}.`);
+  console.log('Find them with: npm run video -- library-search --query "sfx whoosh"');
+}
+
+async function setupAudio() {
+  const missing = [];
+  for (const bin of ['ffmpeg', 'ffprobe']) if (!await run('which', [bin], {capture: true}).catch(() => null)) missing.push(bin);
+  if (missing.length) throw new Error(`${missing.join(' and ')} not found. Install ffmpeg (for example: sudo apt install ffmpeg), then run setup-audio again.`);
+  const env = audioEnv(), py = path.join(env, 'bin/python');
+  if (!await run(py, ['-c', 'import librosa, matplotlib, scipy, soundfile'], {capture: true}).catch(() => null)) {
+    await run('python3', ['-m', 'venv', env]);
+    await run(py, ['-m', 'pip', 'install', '-q', '--no-cache-dir', 'librosa', 'matplotlib', 'scipy', 'soundfile']);
+  }
+  console.log(`Audio tools ready: ffmpeg, librosa (${env}).`);
+  return py;
+}
+/** Bring a licensed music track into assets/music/, record its licence, find its beats (checked against the kicks). */
+async function musicImport(job, opts) {
+  if (!opts.src || !opts.name) throw new Error('music needs --src <url|file> --name music/<track>.mp3 --source "<page it came from>" --license "<licence>"');
+  if (!opts.license?.trim() || !opts.source?.trim()) throw new Error('music needs --license "<the licence named on its page, e.g. Mixkit Stock Music Free License>" and --source "<that page URL>". Unlicensed music cannot be used.');
+  if (/non-?commercial|\bNC\b|\bND\b|personal use|editorial/i.test(opts.license)) throw new Error(`Licence "${opts.license}" does not allow this use. Pick a track under a licence that allows commercial use and modification (Mixkit free license, Pixabay, CC0, CC BY).`);
+  const name = opts.name.startsWith('music/') ? opts.name : `music/${opts.name}`;
+  const a = await importAsset(job, ROOT, {src: opts.src, name, note: opts.note || `music: ${opts.title || path.basename(name)}`, title: opts.title || '', tags: opts.tags || 'music,track', license: opts.license, source: opts.source});
+  const py = await audioPython() || await setupAudio();
+  const base = path.basename(name).replace(/\.[^.]+$/, ''), beats = `assets/music/${base}.beats.json`, plot = `review/music/${base}-beats.png`;
+  await mkdir(path.join(job, 'review/music'), {recursive: true});
+  const out = await run(py, ['-I', path.join(ROOT, 'scripts/sfx/beats.py'), path.join(job, a.path), path.join(job, beats), path.join(job, plot)], {capture: true});
+  const r = await json(path.join(job, beats));
+  await saveToLibrary(LIBRARY, job, {file: a.path, title: opts.title || `music track ${base}`, tags: opts.tags || 'music,track', note: `${opts.title || base}: ${r.tempo} BPM. Source: ${opts.source}`, origin: opts.source, license: opts.license});
+  console.log(out.trim());
+  console.log(`\nMusic ${a.path}: ${r.tempo} BPM, beat every ${r.period}s; grid shifted ${(r.shiftApplied * 1000).toFixed(0)} ms${r.offBeatLock ? ' (librosa had locked onto the off-beat)' : ''}; kicks within 35 ms of the grid: ${Math.round((r.kickAlignment.after?.onBeat ?? 0) * 100)}%.`);
+  console.log(`Look at the plot: ${path.relative(ROOT, path.join(job, plot))} (red grid lines must sit on the orange kick marks).`);
+  console.log(`Then set film.json "music": {"src": "${a.path}", "source": ${JSON.stringify(opts.source)}, "license": ${JSON.stringify(opts.license)}, "trackStart": 0, "filmStart": 0} and run plan-check; the build reports which cuts land on the beat.`);
 }
 
 const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
 
-start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug]   create a job
+start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug --music <track>]   create a job
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
 next [--job jobs/<slug>]             print the single next step (state machine)
 plan-check                          validate film.json (director output)
 build [--scene <id>]                 compile shots, assemble, inspect, print motion transcript
 snapshot [--scene <id>] [--at 1.2,3] write PNG frames of the world (for agents that can view images)
-asset --src <url|file> --name <x.png> --note "what it shows" [--title ".." --tags "a,b"]  bring an image/logo/font into assets/ and save it to library/
+asset --src <url|file> --name <x.png|sfx/x.wav> --note "what it shows" [--title ".." --tags "a,b" --license ".." --source ".."]  bring an image/logo/font/sound into assets/ and save it to library/
                                      web URLs: SVG only unless VG_ALLOW_WEB_IMAGES=1 (png/jpg/webp/gif then allowed)
 save --file <job file> --title ".." --tags "a,b" [--note ".." --id slug]  save something you made (drawing, component, Manim file) to library/
 save-all                             save every job asset/component the library does not hold yet
 review-template --stage S --role R   write a pre-filled reviewer report
 alignment-approve --note "..."       record review of a low script match
 setup-manim                          install ManimCE locally for "manim" objects
+setup-audio                          check ffmpeg, install librosa (beat analysis for music)
+music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
+setup-earshot                        install earshot (hears and makes sound effects; CPU, ~4 GB with models)
+sfx-library [--check false]          render earshot's code-made sound effects into library/ (sfx-* bundles)
+earshot <args...>                    run earshot (describe, match, rank, forge, timeline, sheet ...; see docs/sound.md)
 kit-update                           refresh the job's frozen kit copy from lib/kit
 
 prepare --name <slug> --audio <file> --script <file> [--start 0 --length 30 --format landscape|vertical]
@@ -265,7 +359,8 @@ prepare --name <slug> --audio <file> --script <file> [--start 0 --length 30 --fo
         [--words measured-words.json --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
 compile | assemble | audit | check | preview | render | verify [--job jobs/<slug>]
-render [--quality delivery]          draft: audit + runtime check + render + verify
+render [--quality delivery --workers 3 --reuse-build true]  render + mix + verify; reuse-build requires a current successful full build
+mix                                  redo the soundtrack mix on the current render (sources unchanged)
 review-pack --stage prototype|final [--start N --end N]  freeze rendered evidence
 review-submit --file <report.json>   validate an independent sub-agent report
 review-status --stage prototype|final  check independent review qualification
@@ -280,8 +375,12 @@ The latest prepared job is used when --job is omitted.
 Creative design is performed by the agent; see AGENTS.md and docs/agent-workflow.md.
 `;
 try {
-  const [command = 'help', ...args] = process.argv.slice(2), opts = options(args);
+  const [command = 'help', ...args] = process.argv.slice(2), opts = command === 'earshot' ? {} : options(args);
   if (command === 'help') console.log(HELP);
+  else if (command === 'setup-earshot') await setupEarshot();
+  else if (command === 'earshot') await earshot(args);
+  else if (command === 'sfx-library') await sfxLibrary(opts);
+  else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
   else if (command === 'start') await start(opts);
   else if (command === 'setup-manim') console.log(await setupManim());
@@ -319,9 +418,13 @@ try {
     else if (command === 'review-template') await reviewTemplate(job, {stage: opts.stage || 'final', role: opts.role});
     else if (command === 'asset') {
       if (!opts.note?.trim()) throw new Error('asset needs --note "<what it shows>" so later films can find it in the library');
-      const a = await importAsset(job, ROOT, {src: opts.src, name: opts.name, note: opts.note, title: opts.title || '', tags: opts.tags || '', allowWebImages: webImagesAllowed()});
-      const lib = await saveToLibrary(LIBRARY, job, {file: a.path, title: opts.title || a.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '), tags: opts.tags || '', note: opts.note, origin: a.src});
-      console.log(`Saved ${a.path} (library: ${lib.item}). Use it as {"type": "image", "src": "${a.path}", ...}${a.name.startsWith('fonts/') ? ' or in theme.fontFiles' : ''}. Look at it before using it.`);
+      if (/^(sfx|music)\//.test(opts.name || '') && !opts.license?.trim()) throw new Error('Audio needs --license "<the licence on its source page>" (and --source "<that page>"); for code-made sounds give the tool, e.g. --license "made with earshot forge (MIT)".');
+      if ((opts.name || '').startsWith('music/')) throw new Error('Bring music in with the music command (it also finds the beats): npm run video -- music --job <job> --src <url|file> --name ' + opts.name + ' --source "<page>" --license "<licence>"');
+      const a = await importAsset(job, ROOT, {src: opts.src, name: opts.name, note: opts.note, title: opts.title || '', tags: opts.tags || '', allowWebImages: webImagesAllowed(), license: opts.license || '', source: opts.source || ''});
+      const lib = await saveToLibrary(LIBRARY, job, {file: a.path, title: opts.title || a.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '), tags: opts.tags || '', note: opts.note, origin: opts.source || a.src, license: opts.license || ''});
+      const use = a.name.startsWith('sfx/') ? `add it to a shot's "sounds": {"src": "${a.path}", "at": "<cue>", "align": "start|peak|end", "volume": 0.3, "why": "..."}. Check it with npm run video -- earshot describe ${path.relative(ROOT, path.join(job, a.path))}`
+        : `use it as {"type": "image", "src": "${a.path}", ...}${a.name.startsWith('fonts/') ? ' or in theme.fontFiles' : ''}. Look at it before using it`;
+      console.log(`Saved ${a.path} (library: ${lib.item}). ${use[0].toUpperCase()}${use.slice(1)}.`);
     }
     else if (command === 'save') {
       if (!opts.file || !opts.title?.trim() || !opts.tags?.trim()) throw new Error('save needs --file <job file> --title "<what it is>" --tags "<words someone would search for>"');
@@ -333,6 +436,8 @@ try {
       console.log(saved.length ? saved.map(s => `${s.file} → ${s.item}${s.saved ? '' : ' (already saved)'}`).join('\n') : 'Nothing new to save.');
       console.log(`Next: npm run video -- next --job ${path.relative(ROOT, job)}`);
     }
+    else if (command === 'music') await musicImport(job, opts);
+    else if (command === 'mix') await remixFilm(job, {verify});
     else if (command === 'kit-update') { await installKit(job); console.log('Kit refreshed. Run build.'); }
     else if (command === 'alignment-approve') {
       if (!opts.note?.trim()) throw new Error('alignment-approve needs --note "<what differs and how it was handled>"');
@@ -383,6 +488,10 @@ try {
       } else await audit(job);
       await verify(job);
       const qualification = await qualifyDelivery(job);
+      const listen = await json(path.join(job,'review/sound/listen.json')).catch(() => null), mixed = await json(path.join(job,'review/mix.json')).catch(() => null);
+      if (mixed) qualification.soundtrack = {integratedLufs: mixed.integratedLufs, truePeakDb: mixed.truePeakDb, samplePeakDb: mixed.samplePeakDb, monoTruePeakDb: mixed.mono.truePeakDb,
+        target: mixed.target, peaksOk: mixed.peaksOk, limitedBy: mixed.limitedBy, soundEffects: mixed.soundEffects, music: mixed.music ? {src: mixed.music.src} : null, measuredOn: mixed.measuredOn};
+      if (listen?.listen?.length) qualification.headphoneChecks = listen.listen;
       await writeReviewFile(job,'review/delivery.json',JSON.stringify(qualification,null,2)+'\n');
       manifest.status = 'complete'; manifest.completedAt = new Date().toISOString();
       manifest.delivery = {videoSha256:qualification.videoSha256, sourceHash:qualification.sourceHash,
@@ -393,7 +502,8 @@ try {
     else if (command === 'check') { if (await isFilmJob(job)) { const r = await buildFilm(job); if (!r.ok) process.exitCode = 1; await hf(['lint'], {cwd: job}); } else {await audit(job); await hf(['check', '--snapshots'], {cwd: job});} }
     else if (command === 'preview') await hf(['preview', '--background', '--port', opts.port || '3002'], {cwd: job});
     else if (command === 'render' && await isFilmJob(job)) {
-      await renderFilm(job, {hf, verify, quality: opts.quality || 'delivery', force: opts.force === 'true'});
+      await renderFilm(job, {hf, verify, quality: opts.quality || 'delivery', force: opts.force === 'true',
+        reuseBuild: opts['reuse-build'] === 'true', workers: opts.workers});
       console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
     }
     else if (command === 'render') {

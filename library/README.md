@@ -93,6 +93,14 @@ instructions. Saving is content-addressed: an identical file is saved once, a ch
 of the same id. Auto-saved bundles are `draft`; their origin records the job and source URL. Pipeline files (the kit,
 cues, narration, rendered Manim clips) and copies installed with `library-use` are never saved again.
 
+## Sound effects and music
+
+`npm run video -- sfx-library` adds 34 `sfx-*` bundles (183 code-made sound effects from earshot forge, each with a
+`sounds.json` of variants: length, loudest moment, earshot's verdict). Search them by kind (`library-search --query
+"sfx whoosh"`, `"sfx pop"`, `"sfx click"`), install with `library-use`, and place a variant in a shot's `"sounds"`.
+Music tracks are saved here by the `music` command with their source and licence in `origin`. See
+[docs/sound.md](../docs/sound.md).
+
 ## Production rule
 
 Search by what should happen, not just the topic. Reuse suitable entries; invent
