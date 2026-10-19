@@ -5,7 +5,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { Store } from './store.mjs';
+import { Store, summary } from './store.mjs';
 import { Runner } from './runner.mjs';
 import { providerNames, discoverProviders } from './providers.mjs';
 import { jobFile, listFiles, inside, parseRange } from './files.mjs';
@@ -15,6 +15,7 @@ const staticFiles = new Map([
   ['/', ['ui/index.html', 'text/html']], ['/app.mjs', ['ui/app.mjs', 'text/javascript']],
   ['/styles.css', ['ui/styles.css', 'text/css']],
   ['/icons.mjs', ['ui/icons.mjs', 'text/javascript']],
+  ['/shared/routing.mjs', ['ui/shared/routing.mjs', 'text/javascript']],
   ...['400', '500', '600'].map(weight => [`/fonts/inter-${weight}.woff2`, [`node_modules/@fontsource/inter/files/inter-latin-${weight}-normal.woff2`, 'font/woff2']]),
   ['/fonts/mono.woff2', ['node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2', 'font/woff2']],
 ]);
@@ -34,7 +35,7 @@ function config(input, existing) {
   if (existing && input.provider !== existing.provider && existing.agents.length) throw fail('Provider cannot change after its first agent starts. Create a new thread to use a different CLI.');
   return { provider: input.provider, main: (input.main || '').trim(), sub: (input.sub || '').trim(), directorModel: (input.directorModel || '').trim(), reviewerModel: (input.reviewerModel || '').trim(), gateScript: input.gateScript, gatePrototype: input.gatePrototype };
 }
-function summary(job) { const { messages, events, ...rest } = job; return { ...rest, messageCount: messages.length, eventCount: events.length }; }
+const detail = (store, job) => ({ ...summary(job), messages: job.messages, events: store.events(job.id) });
 
 export async function createApp({ root, directory = path.join(root, '.video/ui'), runnerFactory } = {}) {
   let defaults = {};
@@ -44,7 +45,28 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
   const clients = new Set();
   let providerCache = null;
   const getProviders = refresh => { if (!providerCache || refresh) providerCache = discoverProviders(root); return providerCache; };
-  const unsubscribe = store.subscribe(id => { for (const client of clients) client.write(`event: change\ndata: ${JSON.stringify({ id })}\n\n`); });
+
+  // Changes are batched and pushed as deltas: new events, new or updated messages, changed thread summaries.
+  const pending = { jobs: new Set(), events: [], messages: [], removed: [] };
+  let flushTimer = null;
+  const flush = () => {
+    flushTimer = null;
+    const jobs = [...pending.jobs].map(id => store.jobs.get(id)).filter(Boolean).map(summary);
+    const payload = { jobs, events: pending.events, messages: pending.messages, removed: pending.removed };
+    pending.jobs.clear(); pending.events = []; pending.messages = []; pending.removed = [];
+    const data = `event: update\ndata: ${JSON.stringify(payload)}\n\n`;
+    for (const client of clients) client.write(data);
+  };
+  const unsubscribe = store.subscribe((type, id, payload) => {
+    if (type === 'removed') pending.removed.push(id);
+    else {
+      pending.jobs.add(id);
+      if (type === 'event') pending.events.push({ ...payload, jobId: id });
+      if (type === 'message') pending.messages.push({ ...payload, jobId: id });
+    }
+    flushTimer ||= setTimeout(flush, 200);
+  });
+
   async function validateInput(filename, audio) {
     if (!filename) return '';
     if (!string(filename, 1000) || path.isAbsolute(filename)) throw fail('Input paths must be relative to the repository');
@@ -109,25 +131,36 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
           if (!['landscape', 'vertical'].includes(input.format)) throw fail('Choose landscape or vertical');
           if (!Number.isInteger(input.duration) || input.duration < 10 || input.duration > 3600) throw fail('Target duration must be 10–3600 seconds');
           const title = string(input.title, 150) && input.title.trim() ? input.title.trim() : input.prompt.replace(/\s+/g, ' ').trim().slice(0, 65);
-          return json(res, 201, await runner.create({ ...config(input), title, prompt: input.prompt.trim(), duration: input.duration, format: input.format, audioPath: await validateInput(input.audioPath, true), inputScript: await validateInput(input.inputScript, false) }));
+          const job = await runner.create({ ...config(input), title, prompt: input.prompt.trim(), duration: input.duration, format: input.format, audioPath: await validateInput(input.audioPath, true), inputScript: await validateInput(input.inputScript, false) });
+          return json(res, 201, detail(store, job));
         }
       }
-      const match = /^\/api\/jobs\/([a-f0-9-]+)(?:\/(file|files|artifact|messages|control|log))?$/.exec(url.pathname);
+      const match = /^\/api\/jobs\/([a-f0-9-]+)(?:\/(file|files|artifact|messages|control|log|events)(?:\/([a-f0-9-]+))?)?$/.exec(url.pathname);
       if (match) {
         const job = store.get(match[1]); const operation = match[2];
-        if (!operation && req.method === 'GET') return json(res, 200, job);
-        if (!operation && req.method === 'PATCH') { Object.assign(job, config(await body(req), job)); store.event(job, { type: 'configuration', text: 'Model routing and checkpoint preferences updated', source: 'user' }); return json(res, 200, job); }
+        if (!operation && req.method === 'GET') return json(res, 200, detail(store, job));
+        if (!operation && req.method === 'PATCH') { Object.assign(job, config(await body(req), job)); store.event(job, { type: 'configuration', text: 'Model routing and checkpoint preferences updated', source: 'user' }); store.save(job); return json(res, 200, detail(store, job)); }
+        if (!operation && req.method === 'DELETE') { runner.remove(job); return json(res, 200, { removed: job.id }); }
         if (operation === 'files' && req.method === 'GET') return json(res, 200, await listFiles(root, job));
+        if (operation === 'events' && req.method === 'GET') {
+          if (match[3]) { const event = await store.fullEvent(job.id, match[3]); if (!event) throw fail('Event not found', 404); return json(res, 200, event); }
+          const before = Number(url.searchParams.get('before')) || Infinity, limit = Math.min(500, Number(url.searchParams.get('limit')) || 200);
+          return json(res, 200, await store.page(job.id, { before, limit, agentId: url.searchParams.get('agent') || '' }));
+        }
         if (operation === 'messages' && req.method === 'POST') {
           const input = await body(req);
           if (!string(input.text, 20000) || !input.text.trim()) throw fail('Message is empty or too long');
           store.message(job, 'You', input.text.trim());
-          store.event(job, { type: 'feedback', text: 'Feedback saved for the agent’s next feedback poll', source: 'user' }); return json(res, 201, job);
+          store.event(job, { type: 'feedback', text: 'Your message is queued for the orchestrator’s next feedback check', source: 'user' }); return json(res, 201, { ok: true });
         }
-        if (operation === 'control' && req.method === 'POST') { const input = await body(req); if (input.feedback !== undefined && !string(input.feedback, 20000)) throw fail('Feedback too long'); return json(res, 200, await runner.control(job, input.action, input)); }
+        if (operation === 'control' && req.method === 'POST') {
+          const input = await body(req);
+          for (const field of ['feedback', 'answer']) if (input[field] !== undefined && !string(input[field], 20000)) throw fail('Text too long');
+          return json(res, 200, summary(await runner.control(job, input.action, input)));
+        }
         if (operation === 'log' && req.method === 'GET') {
           res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Content-Disposition': `attachment; filename="${job.slug}-events.jsonl"` });
-          const stream = createReadStream(path.join(directory, `${job.id}.events.jsonl`)); stream.on('error', () => res.end()); stream.pipe(res); return;
+          const stream = createReadStream(store.logPath(job.id)); stream.on('error', () => res.end()); stream.pipe(res); return;
         }
         if ((operation === 'file' || operation === 'artifact') && ['GET', 'HEAD'].includes(req.method)) {
           const file = await jobFile(root, job, url.searchParams.get('path'));
@@ -150,5 +183,5 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
     } catch (error) { if (!res.headersSent) json(res, error.status || (error.code === 'ENOENT' ? 404 : 500), { error: redact(error.message) }); else res.end(); }
   });
   server.requestTimeout = 0;
-  return { server, store, runner, async start(port = 4310) { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); }); const url = `http://127.0.0.1:${server.address().port}`; await runner.initialize(url); return url; }, async close() { unsubscribe(); await runner.shutdown(); for (const client of clients) client.end(); await new Promise(resolve => server.close(resolve)); } };
+  return { server, store, runner, async start(port = 4310) { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); }); const url = `http://127.0.0.1:${server.address().port}`; await runner.initialize(url); return url; }, async close() { unsubscribe(); clearTimeout(flushTimer); await runner.shutdown(); for (const client of clients) client.end(); await new Promise(resolve => server.close(resolve)); } };
 }

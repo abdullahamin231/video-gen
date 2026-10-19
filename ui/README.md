@@ -2,30 +2,41 @@
 
 Start with `npm run ui`, then open http://127.0.0.1:4310. The server binds to loopback only. Use `npm run ui -- --port 4311` to choose another port. No new application dependencies are needed.
 
-The sidebar contains conversations and New video. Each new thread starts a real CLI orchestrator, using the existing Codex, Claude Code, or OpenCode installation and account. Choose the main and builder models, with optional director and independent-reviewer overrides. Blank model fields use the CLI's default or inherit the main model; arbitrary model IDs are passed as arguments, never shell-interpolated. Codex suggestions come from its installed model cache; Claude's suggestions are CLI aliases. OpenCode accepts its provider/model IDs. Authentication, model availability, and provider policy errors appear in the thread and event log.
+The sidebar contains threads and New video. Each new thread starts a real CLI orchestrator, using the existing Codex, Claude Code, or OpenCode installation and account. Model IDs are passed as arguments, never shell-interpolated. Codex suggestions come from its installed model cache; Claude's suggestions are CLI aliases. OpenCode accepts its provider/model IDs. Authentication, model availability, and provider policy errors appear in the thread and event log.
 
 Give a high-level prompt and a target duration. Optionally upload a script or recording (250 MB maximum each), or provide repository-relative paths. Without a recording, the orchestrator follows the repository narration workflow. A supplied recording stays unchanged. The high-level prompt drives research, independently reviewed script, narration, the existing `npm run video -- next` loop, and a separately reviewed thumbnail.
 
 ## Following a job
 
-- **Thread:** actual agent responses, pipeline reports, checkpoints, and user feedback. Messages sent during a run queue until the agent next calls the runner's feedback tool. This is not native mid-token steering.
-- **Activity:** normalized tool starts/results, provider errors, filesystem changes, role launches, and token usage. Each event records its source. Full JSONL history can be downloaded; the UI shows the latest 300 events and thread snapshots keep the latest 1,000.
-- **Files:** actual files under the thread's script and job directories. Text inspection is read-only. Artifact requests reject traversal, outside-thread paths, and symlinks leaving the allowed directories.
-- **Outputs:** playable MP4s, thumbnail images, downloads, editable source, and review evidence. Unqualified files are explicitly labeled drafts. MP4 delivery supports byte ranges for seeking.
+Progress is never taken from the agent's word. The runner reads it from three sources:
 
-Pipeline stage reports are labeled **agent-reported**. File modifications are observed separately from disk. Health does not invent passing checks: tool errors and the actual delivery evidence are retained.
+- **The pipeline's own state.** `npm run video -- status --json` is a read-only twin of `next`: the same checks in the same order, writing nothing. The runner calls it whenever the job's files change. It reports each step (plan, prototype scenes, build, render, review, final cycle, delivery) with its detail, every scene (owner, timing, built or not, check and review problems) and each reviewer's verdict.
+- **The running processes.** Every sub-agent is a separate CLI process started through the runner's `delegate` tools. Each CLI's built-in sub-agent tool is switched off (Codex `--disable multi_agent`, Claude `--disallowedTools Agent,Task`, OpenCode `permission.task: deny`), so none can run untracked. Each agent records its parent, brief, scene, pipeline step, model and where it came from, current file, last tool, tool and failure counts, and tokens.
+- **The job's files** (script, review, narration, thumbnail, archive), polled from disk.
+
+Views: **Thread** (your messages, the orchestrator, milestones and a live *Now* card), **Progress** (all steps from script to verified delivery, a scene strip and review verdicts, plus what `next` last told the agent), **Agents** (the live tree; open one to see its brief, prompt, messages and activity), **Activity** (filterable events; full tool output on demand), **Files** and **Outputs**. *Run health* comes from facts: stalls, repeated tool failures, failed sub-agents, review rounds, blocked steps. A failed `grep` is not an error.
+
+Script review progress requires an explicit `pass` disposition in `review.md`; `revise` and `incomplete` remain repair steps. A newer script, research note or saved source makes that review stale. This reads the reviewer's recorded verdict; final video qualification still belongs to the pipeline. Failed status reads appear in run health as well as Progress.
+
+The browser receives batched updates and re-renders only the parts that changed, so a playing video is left alone. Snapshots hold no events: events go to an append-only JSONL log, and the latest 600 stay in memory.
+
+## Human in the loop
+
+- **Checkpoints** (optional, after the independent script review and after the prototype review) and **questions** (the agent can ask at any time with `ask`) keep the agent's tool call open until you answer, so it cannot carry on past them. A decision made while the server was down reaches the resumed orchestrator.
+- **Messages** you send queue until the orchestrator next calls `feedback`. Only the orchestrator can read them; reviewers never see your notes.
+- **Pause** holds every agent at its next runner call, without freezing processes or dropping provider connections. **Cancel** stops the processes. Finished threads can be archived or deleted (job folders on disk are kept).
+
+## Models
+
+Choose the provider, the main model (orchestrator) and the sub-agent (builder) model, with optional overrides for creative roles and reviewers. With Claude and blank fields, each role uses this repository's pinned model from `.claude/agents/` (director and reviewers opus, builders haiku) and runs as that agent type. The form shows exactly which model each role will run on, and why.
 
 ## Execution and recovery
 
-Default concurrency is one video job, with more threads queued. Workspace settings permit up to three jobs. Each job has at most four simultaneous CLI processes, including the orchestrator, so three independent review roles can run together. Jobs use separate artifact directories; agents still share the repository and reusable asset library. This is not OS-level filesystem isolation between jobs.
+Default concurrency is one video job, with more threads queued; workspace settings allow up to three. Each job runs at most four CLI processes at once, including the orchestrator, so three independent reviewers can run together. Jobs use separate artifact directories but share the repository and asset library; this is not OS-level isolation. The orchestrator always names its job with `start --name <thread slug>`, so the UI and the pipeline agree on the job folder.
 
-The runner injects a per-process MCP bridge without changing global CLI configuration. Its tools launch fresh, role-specific agent sessions; resume a director when continuity is needed; report progress; read feedback; honor checkpoints; and request verified completion. Independent reviewers cannot resume a producer role. The backend provides actual runtime agent IDs in MCP initialization and results, and the orchestrator follows `docs/independent-review.md` when recording them.
+The runner injects a per-process MCP bridge without changing global CLI configuration. The orchestrator gets `delegate`, `delegate_parallel`, `feedback`, `progress`, `checkpoint`, `ask` and `complete`; role agents only get `note`. A resumed orchestrator receives a short continuation prompt, not the whole brief again. After a crash, recorded Linux PID start times prevent signalling reused PIDs, and active jobs become **interrupted**; Continue resumes the saved CLI session.
 
-Pause/resume uses process-group signals on Linux/macOS. Cancel terminates the associated CLI process groups and escalates after five seconds if needed. A graceful server shutdown stops agents. After a crash, recorded Linux PID start times prevent signaling reused PIDs; previously active jobs become **interrupted** rather than silently running again. Continue resumes the saved provider session and consults existing artifacts.
-
-Optional checkpoints pause after independent script or prototype review. Approve continues; request changes requires feedback. These gates supplement, and never replace, independent reviews. Checkpoint preferences and model changes apply to future dispatches; an active provider process retains the model it started with.
-
-CLIs run from the repository and use their existing credentials and permissions. Codex uses workspace-write with networking and no interactive approvals. Claude uses acceptEdits and an explicit allowlist of production tools. OpenCode uses automatic approvals while retaining explicit denials. No adapter requests a global sandbox bypass. Provider denials or environmental restrictions can still block a production run.
+CLIs run from the repository and use their existing credentials and permissions. Codex uses workspace-write with networking and no interactive approvals. Claude uses acceptEdits and an explicit tool allowlist. OpenCode uses automatic approvals while keeping explicit denials. No adapter requests a global sandbox bypass.
 
 ## Token and quota accounting
 
@@ -41,10 +52,12 @@ Primary references used for adapters and accounting: [Codex non-interactive mode
 
 ## Completion boundary
 
-An agent writing “done” does not complete a thread. `complete` reruns the public `next` command and requires `STATE: done`, an MP4, a 1280×720 PNG, an editable thumbnail source, a thumbnail brief, a fresh independently invoked thumbnail reviewer with a passing `thumbnail/REVIEW.json`, and a matching archive under `library/thumbnails/<slug>/`. The qualified film's evidence is not modified by the UI. Reviewer judgments still depend on the actual agents inspecting the material; a server cannot mechanically prove subjective creative quality.
+An agent writing “done” does not complete a thread. `complete` re-reads the pipeline with the read-only `status` and requires state `done`, an MP4, a 1280×720 PNG, a 320×180 feed preview, an editable thumbnail source, a thumbnail brief, a fresh independently invoked thumbnail reviewer with a passing `thumbnail/REVIEW.json`, and a matching archive under `library/thumbnails/<slug>/`. The qualified film's evidence is not modified by the UI. Reviewer judgments still depend on the actual agents inspecting the material; a server cannot mechanically prove subjective creative quality.
 
 ## Local state and tests
 
 All state is local under ignored `.video/ui/`: atomic thread snapshots, append-only event logs, settings, and uploaded inputs. Actual film work lives in `jobs/`; archived thumbnails live in `library/thumbnails/`. Prototype browser fixtures are not imported. The UI adds no external hosting, account signup, tracking, or database service.
 
-`npm run test:ui` runs unit and integration tests with **fixture subprocesses**, without paid provider calls. It covers stream normalization, role models, actual process launch/pause/resume/cancel, queue ordering, persisted sessions/messages/events, restart recovery, gate decisions, token deduplication/reconciliation, origin restrictions, runner authentication, artifact path boundaries, and media ranges. Browser and live-provider smoke tests are separate commands because they need the installed browser or real CLI accounts.
+`npm run test:ui` runs unit and integration tests with **fixture subprocesses**, without paid provider calls. It covers stream normalization, pipeline command and `next` parsing, role model routing and disabled built-in sub-agents, the sub-agent tree, feedback isolation, process launch/pause/cancel, queue ordering, event storage cost, restart recovery, blocking checkpoints and questions, progress and health, token deduplication/reconciliation, origin restrictions, runner authentication, artifact path boundaries, and media ranges. `npm run test:ui:browser` drives the real page in headless Chrome and saves screenshots to `.video/ui-qa/`. Browser and live-provider smoke tests are separate commands because they need the installed browser or real CLI accounts.
+
+Validation on 2026-10-19: 89 pipeline tests and 15 UI tests passed. Browser checks passed, including delayed file responses, player preservation, agent inspection and mobile layout. Real bridge checks passed for Codex and OpenCode; Claude reported its session limit, so that smoke command correctly exited with a failure. The earlier sky explainer demo stopped at prototype review without qualifying delivery; this validation does not claim an end-to-end production pass.

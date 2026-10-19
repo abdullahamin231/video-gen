@@ -1,22 +1,36 @@
 import { icon } from './icons.mjs';
+import { ROLES, routeModel } from './shared/routing.mjs';
+
+// ---------- helpers ----------
 const $ = (selector, parent = document) => parent.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const names = ['Codex', 'Claude', 'OpenCode'];
 const marks = { Codex: '✳', Claude: '✺', OpenCode: '⌘' };
-const stages = ['Research & script', 'Narration & alignment', 'Creative direction', 'Build prototype', 'Prototype review', 'Build remaining scenes', 'Render & final review', 'Thumbnail & delivery'];
-const labels = { queued: 'Queued', running: 'In progress', paused: 'Paused', gate: 'Needs your input', complete: 'Completed', failed: 'Failed', needs_attention: 'Needs attention', interrupted: 'Interrupted', cancelled: 'Cancelled' };
-let usageState = [];
-let workspaceSettings = {concurrency:1, defaultFormat:'landscape', defaultDuration:180};
-let jobs = [], selected = null, job = null, providers = [], files = [], tab = 'thread', inspectorTab = 'overview', connected = false, toastTimer, refreshTimer, lastFocus, loading = true;
-try { selected = localStorage.getItem('video-workspace-selected'); } catch {}
-const roleName = role => role === 'You' ? 'You' : role.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+const labels = { queued: 'Queued', running: 'In progress', paused: 'Paused', gate: 'Needs your input', complete: 'Delivered', failed: 'Failed', needs_attention: 'Needs attention', interrupted: 'Interrupted', cancelled: 'Cancelled' };
+const roleLabel = role => role === 'You' ? 'You' : ROLES.find(item => item.role === role)?.label.replace(/s$/, '') || String(role || '').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 const time = at => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-const elapsed = j => { const seconds = Math.floor((j.elapsedMs + (j.runStartedAt ? Date.now() - j.runStartedAt : 0)) / 1000); return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`; };
-const runningIcon = j => j.status === 'running' ? '<span class="running-ring"></span>' : icon(j.status === 'complete' ? 'check' : ['failed','interrupted','needs_attention'].includes(j.status) ? 'warning' : j.status === 'queued' ? 'clock' : 'pause');
-const badge = j => `<span class="status-badge ${esc(j.status)}">${runningIcon(j)}${labels[j.status] || j.status}</span>`;
-const artifact = (p, download = false) => `/api/jobs/${job.id}/artifact?path=${encodeURIComponent(p)}${download ? '&download=1' : ''}`;
+const count = value => new Intl.NumberFormat().format(Math.round(value || 0));
+const span = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` : `${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, '0')}m`; };
+const ago = at => at ? `${span(Date.now() - Date.parse(at))} ago` : '';
+const since = at => at ? `<span data-since="${esc(at)}">${span(Date.now() - Date.parse(at))}</span>` : '';
+const sinceAgo = at => at ? `<span data-ago="${esc(at)}">${ago(at)}</span>` : '';
 const format = j => j.format === 'vertical' ? '9:16' : '16:9';
 const duration = j => j.duration >= 60 ? `${Math.floor(j.duration / 60)}m${j.duration % 60 ? ` ${j.duration % 60}s` : ''}` : `${j.duration}s`;
+const elapsedMs = j => (j.elapsedMs || 0) + (j.runStartedAt ? Date.now() - j.runStartedAt : 0);
+const short = (file, job) => String(file || '').replace(`${job.jobPath}/`, '').replace(`${job.scriptPath}/`, 'script/');
+const live = agent => ['running', 'starting', 'waiting'].includes(agent.status);
+const statusIcon = status => ({ done: icon('check'), skipped: icon('check'), current: '<span class="running-ring"></span>', repair: icon('retry'), blocked: icon('x'), waiting: icon('pause') }[status] || '');
+
+// ---------- state ----------
+const state = {
+  jobs: new Map(), selected: null, job: null, messages: [], events: [], files: [], providers: [], usage: [],
+  settings: { concurrency: 1, defaultFormat: 'landscape', defaultDuration: 180 },
+  tab: 'thread', inspectorTab: 'overview', connected: false, loading: true, showArchived: false,
+  activityFilter: 'all', activityAgent: '', olderLoaded: false, drawer: null,
+};
+try { state.selected = localStorage.getItem('video-workspace-selected'); } catch {}
+let toastTimer, lastFocus, renderQueued = false, filesTimer, filesRequest = 0;
+
 function toast(text) { $('#toast').textContent = text; $('#toast').classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), 4500); }
 async function api(url, { method = 'GET', data, raw } = {}) {
   const response = await fetch(url, { method, headers: { ...(method !== 'GET' ? { 'X-Video-Client': '1' } : {}), ...(data !== undefined ? { 'Content-Type': 'application/json' } : {}) }, body: raw || (data !== undefined ? JSON.stringify(data) : undefined) });
@@ -24,193 +38,432 @@ async function api(url, { method = 'GET', data, raw } = {}) {
   if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
   return result;
 }
-async function refresh() {
-  const list = await api('/api/jobs'); jobs = list;
-  if (!selected || !jobs.some(j => j.id === selected)) selected = jobs[0]?.id || null;
-  if (selected) {
-    const id = selected;
-    const [detail, artifacts] = await Promise.all([api(`/api/jobs/${id}`), api(`/api/jobs/${id}/files`)]);
-    if (id !== selected) return;
-    job = detail; files = artifacts;
-  } else { job = null; files = []; }
-  loading = false;
-  try { if (selected) localStorage.setItem('video-workspace-selected', selected); } catch {}
-  render();
+const artifact = (p, download = false) => `/api/jobs/${state.job.id}/artifact?path=${encodeURIComponent(p)}${download ? '&download=1' : ''}`;
+const agentById = id => state.job?.agents.find(agent => agent.id === id);
+
+// ---------- data ----------
+async function loadJobs() {
+  const list = await api('/api/jobs');
+  state.jobs = new Map(list.map(job => [job.id, job]));
+  const visible = [...state.jobs.values()].filter(job => !job.archived);
+  if (!state.selected || !state.jobs.has(state.selected)) state.selected = visible[0]?.id || null;
+  await loadDetail();
 }
-function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => refresh().catch(error => toast(error.message)), 180); }
+async function loadDetail() {
+  if (!state.selected) { state.job = null; state.messages = []; state.events = []; state.loading = false; return schedule(); }
+  const id = state.selected, detail = await api(`/api/jobs/${id}`);
+  if (id !== state.selected) return;
+  const { messages, events, ...job } = detail;
+  Object.assign(state, { job, messages, events, olderLoaded: false, loading: false });
+  state.jobs.set(id, job);
+  try { localStorage.setItem('video-workspace-selected', id); } catch {}
+  if (state.tab === 'files' || state.tab === 'outputs') await loadFiles();
+  schedule();
+}
+async function loadFiles() {
+  if (!state.job) return;
+  const request = ++filesRequest;
+  const id = state.job.id, files = await api(`/api/jobs/${id}/files`);
+  if (state.job?.id === id && request === filesRequest) { state.files = files; schedule(); }
+}
+function applyUpdate(update) {
+  for (const id of update.removed) { state.jobs.delete(id); if (state.selected === id) { state.selected = null; void loadJobs(); } }
+  for (const job of update.jobs) { state.jobs.set(job.id, job); if (job.id === state.selected) state.job = job; }
+  const lastSeq = state.events.at(-1)?.seq ?? 0;
+  for (const event of update.events) if (event.jobId === state.selected && event.seq > lastSeq) state.events.push(event);
+  if (state.events.length > 1500) state.events.splice(0, state.events.length - 1500);
+  for (const message of update.messages) {
+    if (message.jobId !== state.selected) continue;
+    const index = state.messages.findIndex(item => item.id === message.id);
+    if (index >= 0) state.messages[index] = message; else state.messages.push(message);
+  }
+  if (update.events.some(event => event.jobId === state.selected && event.type === 'file') && ['files', 'outputs'].includes(state.tab)) {
+    clearTimeout(filesTimer); filesTimer = setTimeout(() => loadFiles().catch(() => {}), 1200);
+  }
+  if (state.drawer) refreshDrawer(update.events.filter(event => event.agentId === state.drawer));
+  schedule();
+}
+
+// ---------- rendering ----------
+// Regions are replaced only when their HTML changes, so a playing video or an open menu is left alone.
+function set(element, html) {
+  if (!element || element._html === html) return false;
+  const drafts = [...element.querySelectorAll('textarea[id],input[id]')].map(input => ({ id: input.id, value: input.value, focused: document.activeElement === input, start: input.selectionStart, end: input.selectionEnd }));
+  const open = [...element.querySelectorAll('details[data-key][open]')].map(item => item.dataset.key);
+  element.innerHTML = html; element._html = html;
+  for (const draft of drafts) {
+    const input = element.querySelector('#' + CSS.escape(draft.id)); if (!input) continue;
+    input.value = draft.value;
+    if (draft.focused && !$('.modal')) { input.focus(); try { input.setSelectionRange(draft.start, draft.end); } catch {} }
+  }
+  for (const key of open) { const item = element.querySelector(`details[data-key="${CSS.escape(key)}"]`); if (item) item.open = true; }
+  return true;
+}
+function schedule() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); }
+function render() {
+  if (!$('#sidebar')) $('#app').innerHTML = '<aside id="sidebar" class="sidebar" aria-label="Video threads"></aside><main class="main-panel" id="main"><div id="topbar"></div><div id="heading"></div><div class="content-scroll" id="content-scroll"></div><div id="footer"></div></main><aside id="inspector" class="inspector" aria-label="Job inspector"></aside>';
+  $('#app').classList.toggle('no-job', !state.job);
+  set($('#sidebar'), sidebar());
+  set($('#topbar'), topbar());
+  const scroller = $('#content-scroll');
+  const atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80, top = scroller.scrollTop;
+  if (!state.job) { set($('#heading'), ''); set(scroller, welcome()); set($('#footer'), ''); set($('#inspector'), ''); return; }
+  set($('#heading'), heading());
+  const changed = set(scroller, { thread, progress: progressView, agents: agentsView, activity, files: fileView, outputs }[state.tab]());
+  if (changed) scroller.scrollTop = state.tab === 'thread' && atBottom ? scroller.scrollHeight : top;
+  set($('#footer'), state.tab === 'thread' ? composer() : `<div class="view-footer">${icon('info')}Local artifacts · ${esc(state.job.jobPath)}</div>`);
+  set($('#inspector'), inspector());
+}
+// Live clocks update in place every second instead of re-rendering.
+setInterval(() => {
+  for (const node of document.querySelectorAll('[data-since]')) node.textContent = span(Date.now() - Date.parse(node.dataset.since));
+  for (const node of document.querySelectorAll('[data-ago]')) node.textContent = ago(node.dataset.ago);
+  const clock = $('#elapsed'); if (clock && state.job) clock.textContent = span(elapsedMs(state.job));
+}, 1000);
+
+// ---------- chrome ----------
 function sidebar() {
-  return `<aside class="sidebar" aria-label="Job threads"><button class="new-job" data-action="new">${icon('plus')}New video<span class="keycap">N</span></button><nav class="job-list" aria-label="Conversations">${jobs.map(j => `<button class="job-item ${j.id === selected ? 'selected' : ''}" data-action="select" data-id="${j.id}" ${j.id === selected ? 'aria-current="page"' : ''}><span class="job-state ${esc(j.status)}">${runningIcon(j)}</span><span class="job-item-copy"><strong>${esc(j.title)}</strong><small>${j.status === 'running' ? stages[j.stage] : labels[j.status]}</small></span>${j.status === 'gate' ? '<span class="notification-dot"></span>' : ''}</button>`).join('') || '<div class="empty-search">Your conversations will appear here.</div>'}</nav></aside>`;
+  const all = [...state.jobs.values()], archivedCount = all.filter(job => job.archived).length;
+  const list = all.filter(job => Boolean(job.archived) === state.showArchived);
+  return `<button class="new-job" data-action="new">${icon('plus')}New video<span class="keycap">N</span></button>
+  <nav class="job-list" aria-label="Threads">${list.map(job => {
+    const progress = job.progress, current = progress?.current;
+    const sub = job.status === 'running' && current ? current.label : labels[job.status] || job.status;
+    return `<button class="job-item ${job.id === state.selected ? 'selected' : ''}" data-action="select" data-id="${job.id}" ${job.id === state.selected ? 'aria-current="page"' : ''}>
+      <span class="job-state ${esc(job.status)}">${jobIcon(job)}</span>
+      <span class="job-item-copy"><strong>${esc(job.title)}</strong><small>${esc(sub)}</small>${progress ? `<span class="mini-progress"><span style="width:${(progress.done / progress.total * 100).toFixed(1)}%"></span></span>` : ''}</span>
+      ${job.status === 'gate' ? '<span class="notification-dot"></span>' : ''}</button>`;
+  }).join('') || `<div class="empty-search">${state.showArchived ? 'No archived threads.' : 'Your video threads will appear here.'}</div>`}</nav>
+  ${archivedCount || state.showArchived ? `<button class="sidebar-archive text-button" data-action="toggle-archived">${icon('archive')}${state.showArchived ? 'Back to threads' : `Archived (${archivedCount})`}</button>` : ''}`;
 }
-function topbar() { return `<header class="topbar"><button class="icon-button mobile-menu" data-action="sidebar" aria-label="Toggle conversations">${icon('menu')}</button><div class="breadcrumbs"><span>video-gen</span>${job ? `${icon('chevron')}<span>${esc(job.title)}</span>` : ''}</div><div class="topbar-right"><span class="connection-label ${connected ? 'connected' : ''}"><span class="tiny-dot"></span>${connected ? 'Connected' : 'Reconnecting…'}</span><button class="text-button usage-trigger" data-action="usage">${icon('pulse')}Usage</button><button class="icon-button" data-action="settings" aria-label="Workspace settings">${icon('sliders')}</button></div></header>`; }
-function empty() {
-  return `<main class="main-panel">${topbar()}<div class="welcome"><div class="welcome-content"><span class="welcome-symbol">${icon('film')}</span><h1>What are we making?</h1><p>Give your agent an idea. Follow every step from the first brief to the final video.</p><button class="primary-button" data-action="new">${icon('plus')}New video</button><div class="welcome-features"><span>${icon('terminal')}Your CLI, your models</span><span>${icon('file')}Every file in view</span><span>${icon('film')}Video + thumbnail</span></div>${loading ? '<p class="muted">Loading your workspace…</p>' : ''}</div></div></main>`;
+const jobIcon = job => job.status === 'running' ? '<span class="running-ring"></span>' : icon(job.status === 'complete' ? 'check' : ['failed', 'interrupted', 'needs_attention'].includes(job.status) ? 'warning' : job.status === 'queued' ? 'clock' : job.status === 'gate' ? 'question' : 'pause');
+const badge = job => `<span class="status-badge ${esc(job.status)}">${jobIcon(job)}${labels[job.status] || job.status}</span>`;
+function topbar() {
+  return `<header class="topbar"><button class="icon-button mobile-menu" data-action="sidebar" aria-label="Toggle threads">${icon('menu')}</button><div class="breadcrumbs"><span>video-gen</span>${state.job ? `${icon('chevron')}<span>${esc(state.job.title)}</span>` : ''}</div><div class="topbar-right"><span class="connection-label ${state.connected ? 'connected' : ''}"><span class="tiny-dot"></span>${state.connected ? 'Live' : 'Reconnecting…'}</span><button class="text-button usage-trigger" data-action="usage">${icon('pulse')}Usage</button><button class="icon-button" data-action="settings" aria-label="Workspace settings">${icon('sliders')}</button></div></header>`;
 }
-function header() {
-  return `${topbar()}<div class="job-heading"><div><div class="eyebrow">VIDEO THREAD <span>/ ${job.id.slice(0, 6)}</span></div><h1>${esc(job.title)}</h1><div class="job-meta"><span>${icon('film')}${format(job)} · ${duration(job)}</span><span class="meta-separator"></span><span>${job.provider} CLI</span><span class="meta-separator"></span><span>${icon('pulse')}${job.usage?.reports ? count(job.usage.total)+' tokens' : 'Tokens pending'}</span><span class="meta-separator"></span><span>${icon('clock')}<span id="elapsed">${elapsed(job)}</span></span></div></div><div class="heading-actions">${badge(job)}<button class="icon-button inspector-toggle" data-action="inspector" aria-label="Toggle pipeline inspector">${icon('sliders')}</button></div></div><nav class="content-tabs" aria-label="Thread views">${[['thread','chat','Thread'],['activity','pulse','Activity'],['files','folder','Files'],['outputs','grid','Outputs']].map(([key,image,label]) => `<button class="content-tab ${tab === key ? 'active' : ''}" data-action="tab" data-tab="${key}" ${tab === key ? 'aria-current="page"' : ''}>${icon(image)}${label}${key === 'activity' ? `<span class="tab-count">${job.events.length}</span>` : ''}</button>`).join('')}<span class="tab-spacer"></span><a class="text-button" href="/api/jobs/${job.id}/log" download aria-label="Download full event log">${icon('download')}</a></nav>`;
+function welcome() {
+  return `<div class="welcome"><div class="welcome-content"><span class="welcome-symbol">${icon('film')}</span><h1>What are we making?</h1><p>Give your agent an idea. Follow every step, every agent and every file, from the first brief to the final video.</p><button class="primary-button" data-action="new">${icon('plus')}New video</button><div class="welcome-features"><span>${icon('terminal')}Your CLI, your models</span><span>${icon('layers')}Every pipeline step</span><span>${icon('users')}Every sub-agent</span></div>${state.loading ? '<p class="muted">Loading your workspace…</p>' : ''}</div></div>`;
 }
-function task() {
-  const recent = job.events.findLast(e => e.type === 'tool' && e.name) || job.events.at(-1);
-  const agent = job.agents.findLast(a => a.status === 'running');
-  return `<div class="task-card"><div class="task-top"><div class="task-indicator ${esc(job.status)}">${runningIcon(job)}</div><div><strong>${esc(job.status === 'complete' ? 'Delivery independently verified' : job.summary || (job.status === 'queued' ? 'Waiting for a runner slot' : stages[job.stage] || 'Working'))}</strong><small>${esc(agent ? `${roleName(agent.role)} · ${agent.model || 'Provider default'}` : labels[job.status])}</small></div><span class="task-provider">${job.stageSource === 'verified' ? 'Verified' : job.stageSource === 'agent-reported' ? 'Agent report' : 'Runner'}</span></div>${job.current ? `<div class="file-working"><span class="file-operation">${esc((job.operation || 'observed').toUpperCase())}</span><button data-action="file" data-file="${esc(job.current)}">${icon('file')}<code>${esc(job.current)}</code>${icon('arrow')}</button></div>` : '<div class="file-working"><span class="muted">No file operation observed yet.</span></div>'}<div class="task-checks"><span>${icon('terminal')}${esc(recent?.name || recent?.text || 'Waiting for the first CLI event').slice(0, 90)}</span><span>${recent ? time(recent.at) : ''}</span></div></div>`;
+function heading() {
+  const job = state.job, liveAgents = job.agents.filter(live).length;
+  const tabs = [['thread', 'chat', 'Thread'], ['progress', 'layers', 'Progress'], ['agents', 'users', 'Agents', liveAgents ? `${liveAgents} live` : job.agents.length || ''], ['activity', 'pulse', 'Activity', job.eventSeq || ''], ['files', 'folder', 'Files'], ['outputs', 'grid', 'Outputs']];
+  return `<div class="job-heading"><div><div class="eyebrow">VIDEO THREAD <span>/ ${job.id.slice(0, 6)}</span></div><h1>${esc(job.title)}</h1><div class="job-meta"><span>${icon('film')}${format(job)} · ${duration(job)}</span><span class="meta-separator"></span><span>${marks[job.provider]} ${job.provider}</span><span class="meta-separator"></span><span>${icon('pulse')}${job.usage?.reports ? count(job.usage.total) + ' tokens' : 'Tokens pending'}</span><span class="meta-separator"></span><span>${icon('clock')}<span id="elapsed">${span(elapsedMs(job))}</span></span></div></div><div class="heading-actions">${badge(job)}<button class="icon-button inspector-toggle" data-action="inspector" aria-label="Toggle inspector">${icon('sliders')}</button></div></div>
+  <nav class="content-tabs" aria-label="Thread views">${tabs.map(([key, image, label, n]) => `<button class="content-tab ${state.tab === key ? 'active' : ''}" data-action="tab" data-tab="${key}" ${state.tab === key ? 'aria-current="page"' : ''}>${icon(image)}${label}${n ? `<span class="tab-count">${esc(n)}</span>` : ''}</button>`).join('')}<span class="tab-spacer"></span><a class="text-button" href="/api/jobs/${job.id}/log" download aria-label="Download full event log">${icon('download')}</a></nav>`;
 }
-function message(message) {
-  const isUser = message.role === 'You';
-  return `<article class="message ${isUser ? 'user-message' : ''}"><div class="avatar ${isUser ? 'user-avatar' : message.role === 'orchestrator' ? 'agent-avatar' : 'director-avatar'}">${isUser ? 'Y' : icon(message.role === 'orchestrator' ? 'bolt' : 'branch')}</div><div class="message-body"><div class="message-heading"><strong>${roleName(message.role)}</strong>${isUser ? '' : `<span class="agent-label">${esc(job.agents.find(a => a.id === message.agentId)?.model || job.provider)}</span>`}<time>${time(message.at)}</time></div><p class="message-text">${esc(message.text)}</p>${isUser && !message.deliveredAt && message !== job.messages[0] ? '<span class="feedback-pending">Queued for the agent’s next feedback poll</span>' : ''}</div></article>`;
+
+// ---------- thread ----------
+function thread() {
+  const job = state.job, orchestrator = job.orchestratorId;
+  const shown = new Set(['lifecycle', 'pipeline', 'checkpoint', 'delivery']);
+  const items = [
+    ...state.messages.filter(m => m.role === 'You' || m.agentId === orchestrator || m.role === 'orchestrator').map(m => ({ ...m, kind: 'message' })),
+    ...state.events.filter(e => shown.has(e.type) || (e.type === 'progress' && e.agentId === orchestrator) || (e.type === 'agent' && e.role !== 'orchestrator') || (e.type === 'error' && e.source === 'runner')).map(e => ({ ...e, kind: 'event' })),
+  ].sort((a, b) => a.at.localeCompare(b.at)).slice(-300);
+  return `<div class="thread-content"><div class="thread-date"><span></span>${new Date(job.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()}<span></span></div>${items.map(item => item.kind === 'message' ? message(item) : threadEvent(item)).join('')}${nowCard()}${job.error && !['running', 'gate'].includes(job.status) ? `<div class="run-error">${icon('warning')}<div><strong>${labels[job.status] || job.status}</strong><p>${esc(job.error)}</p>${['interrupted', 'failed', 'needs_attention', 'cancelled'].includes(job.status) ? `<button class="secondary-button small" data-action="resume">${icon('retry')}Continue from saved state</button>` : ''}</div></div>` : ''}${job.status === 'gate' && job.gate && !job.gate.decision ? gate() : ''}${job.status === 'complete' ? `<div class="delivery-notice">${icon('check')}Video and reviewed thumbnail are ready.<button class="text-button accent" data-action="tab" data-tab="outputs">View outputs ${icon('arrow')}</button></div>` : ''}</div>`;
+}
+function message(item) {
+  const user = item.role === 'You';
+  const pending = user && !item.deliveredAt && item !== state.messages[0] && !['complete', 'cancelled'].includes(state.job.status);
+  return `<article class="message ${user ? 'user-message' : ''}"><div class="avatar ${user ? 'user-avatar' : 'agent-avatar'}">${user ? 'Y' : icon('bolt')}</div><div class="message-body"><div class="message-heading"><strong>${user ? 'You' : 'Orchestrator'}</strong>${user ? '' : `<span class="agent-label">${esc(agentById(item.agentId)?.model || state.job.provider)}</span>`}<time>${time(item.at)}</time></div><p class="message-text">${esc(item.text)}</p>${pending ? '<span class="feedback-pending">Queued for the orchestrator’s next feedback check</span>' : ''}</div></article>`;
+}
+function threadEvent(event) {
+  if (event.type === 'agent') {
+    const agent = agentById(event.agentId);
+    return `<button class="thread-event agent-event ${esc(event.status || '')}" data-action="agent" data-id="${esc(event.agentId)}">${icon('branch')}<span><strong>${esc(roleLabel(event.role))}</strong> · ${esc(event.text)}${event.status && agent && !live(agent) && agent.finishedAt && agent.startedAt ? ` <span class="muted">(${span(Date.parse(agent.finishedAt) - Date.parse(agent.startedAt))})</span>` : ''}</span><time>${time(event.at)}</time></button>`;
+  }
+  const image = { delivery: 'check', checkpoint: 'question', pipeline: 'layers', error: 'warning', progress: 'bolt' }[event.type] || 'pulse';
+  return `<div class="thread-event ${event.type === 'error' ? 'error' : ''} ${event.type === 'pipeline' ? 'pipeline-event' : ''}">${icon(image)}<span>${esc(event.text)}</span><time>${time(event.at)}</time></div>`;
+}
+// The live answer to "what is happening right now?"
+function nowCard() {
+  const job = state.job, current = job.progress?.current, health = job.health;
+  const working = job.agents.filter(live);
+  // A stopped run already has its own error card; the live card is for live work.
+  if (!['running', 'paused', 'gate', 'queued'].includes(job.status) && !working.length) return '';
+  return `<section class="now-card health-${esc(health?.level || 'idle')}"><div class="now-top"><div class="task-indicator ${esc(job.status)}">${jobIcon(job)}</div><div><span class="eyebrow">NOW</span><strong>${esc(current ? current.label : labels[job.status])}</strong><small>${esc(current?.detail || health?.headline || '')}</small></div><button class="text-button" data-action="tab" data-tab="progress">All steps ${icon('arrow')}</button></div>
+  ${working.length ? `<div class="now-agents">${working.map(agentLine).join('')}</div>` : `<div class="now-empty muted">${job.status === 'queued' ? 'Waiting for a runner slot.' : 'No agent is running.'}</div>`}
+  <div class="now-health"><span class="health-dot"></span>${esc(health?.headline || '')}${health?.lastEventAt ? ` · last activity ${sinceAgo(health.lastEventAt)}` : ''}</div></section>`;
+}
+function agentLine(agent) {
+  const waiting = agent.status === 'waiting' ? { agents: 'waiting for its sub-agents', you: 'waiting for you', pause: 'held by pause' }[agent.waitingFor] || 'waiting' : '';
+  return `<button class="agent-line" data-action="agent" data-id="${agent.id}"><span class="agent-dot ${esc(agent.status)}"></span><span class="agent-line-main"><strong>${esc(roleLabel(agent.role))}</strong><span>${esc(agent.task || '')}</span></span><span class="agent-line-file">${waiting ? `<em>${esc(waiting)}</em>` : agent.current ? `<span class="file-operation">${esc(String(agent.operation || 'file').toUpperCase())}</span><code>${esc(short(agent.current, state.job))}</code>` : `<em>${esc(agent.lastTool?.text || 'starting…')}</em>`}</span><span class="agent-line-time">${since(agent.startedAt)}</span></button>`;
 }
 function gate() {
-  return `<div class="gate-card"><div class="gate-icon">${icon('pause')}</div><div class="gate-content"><span class="eyebrow">YOUR INPUT NEEDED</span><h3>${job.gate.kind === 'script' ? 'Review the script before production' : 'Review the prototype before the full build'}</h3><p>${esc(job.gate.summary)}</p>${job.gate.file ? `<button class="file-pill" data-action="file" data-file="${esc(job.gate.file)}">${icon('file')}${esc(job.gate.file)}${icon('arrow')}</button>` : ''}<label class="sr-only" for="gate-feedback">Feedback for the agent</label><textarea id="gate-feedback" class="gate-feedback" placeholder="Leave feedback or describe the changes you want…" rows="3" maxlength="20000"></textarea><div class="gate-actions"><button class="primary-button small" data-action="approve">${icon('check')}Approve & continue</button><button class="secondary-button small" data-action="revise">Request changes</button></div><small class="muted">Your approval does not replace independent pipeline reviews.</small></div></div>`;
-}
-function thread() {
-  const events = job.events.filter(e => ['progress','checkpoint','lifecycle','delivery'].includes(e.type));
-  const timeline = [...job.messages.map(m => ({...m, kind:'message'})), ...events.map(e => ({...e,kind:'event'}))].sort((a,b) => a.at.localeCompare(b.at));
-  return `<div class="thread-content"><div class="thread-date"><span></span>${new Date(job.createdAt).toLocaleDateString([], {month:'short',day:'numeric'}).toUpperCase()}<span></span></div>${timeline.map(item => item.kind === 'message' ? message(item) : `<div class="thread-event">${icon(item.type === 'delivery' ? 'check' : 'pulse')}<span>${esc(item.text)}</span><time>${time(item.at)}</time></div>`).join('')}${task()}${job.error ? `<div class="run-error">${icon('warning')}<div><strong>${labels[job.status]}</strong><p>${esc(job.error)}</p><button class="secondary-button small" data-action="resume">${icon('retry')}Continue from saved state</button></div></div>` : ''}${job.status === 'gate' && job.gate ? gate() : ''}${job.status === 'complete' ? `<div class="delivery-notice">${icon('check')}Video and reviewed thumbnail are ready.<button class="text-button accent" data-action="tab" data-tab="outputs">View outputs ${icon('arrow')}</button></div>` : ''}</div>`;
-}
-function activity() {
-  return `<div class="view-content"><div class="view-title"><div><h2>Every step, in the open.</h2><p>Provider tool events and observed file changes.</p></div><a class="secondary-button small" href="/api/jobs/${job.id}/log" download>${icon('download')}Full log</a></div><div class="activity-context">${icon('terminal')}<span>${job.provider} CLI <span class="muted">/ ${job.agents.length} agent sessions</span></span>${badge(job)}</div><div class="activity-list">${job.events.slice(-300).map(e => `<div class="activity-row ${e.type === 'error' ? 'error' : ''}"><span class="activity-time">${time(e.at)}</span><span class="activity-node">${icon(e.type === 'error' ? 'warning' : e.type === 'file' ? 'file' : e.type === 'agent' ? 'branch' : 'terminal')}</span><div><strong>${esc(e.text)}</strong>${e.file ? `<button class="activity-file" data-action="file" data-file="${esc(e.file)}">${icon('file')}${esc(e.file)}${icon('arrow')}</button>` : ''}<div class="event-provenance">${esc(e.source || 'runner')}${e.role ? ' · '+esc(roleName(e.role)) : ''}${e.status ? ' · '+esc(e.status) : ''}</div>${e.output ? `<details class="tool-output" data-event-id="${e.id}"><summary>Tool output</summary><pre>${esc(e.output)}</pre></details>` : ''}</div><span class="activity-type">${e.type === 'error' ? 'ERROR' : e.type === 'file' ? 'DISK' : esc(e.type.toUpperCase())}</span></div>`).join('') || '<div class="empty-state"><p>Waiting for the first event.</p></div>'}</div><div class="info-note">${icon('info')}Showing up to 300 recent events. Download the full durable event log above.</div></div>`;
-}
-function fileView() {
-  return `<div class="view-content"><div class="view-title"><div><h2>The work, down to the file.</h2><p>Real artifacts in this thread’s script and job folders.</p></div><button class="text-button" data-action="refresh">${icon('retry')}Refresh</button></div><div class="files-toolbar"><span>${icon('folder')}${esc(job.jobPath)}/</span><span class="muted">${files.length} files</span></div><div class="file-table"><div class="file-table-header"><span>FILE</span><span>SIZE</span><span></span></div>${files.map(file => `<button class="file-row" data-action="file" data-file="${esc(file.path)}"><span>${icon(file.type.startsWith('video') ? 'film' : file.type.startsWith('image') ? 'image' : 'file')}<code>${esc(file.path.replace(job.jobPath + '/', '').replace(job.scriptPath + '/', 'script/'))}</code></span><span class="file-state">${file.size > 1048576 ? (file.size/1048576).toFixed(1)+' MB' : Math.ceil(file.size/1024)+' KB'}</span>${icon('arrow')}</button>`).join('') || '<div class="empty-state"><p>No artifacts yet. Files appear here as the agent works.</p></div>'}</div></div>`;
-}
-function outputs() {
-  const video = job.outputs.video || files.find(f => f.path === `${job.jobPath}/renders/video.mp4`)?.path;
-  const thumbnail = job.outputs.thumbnail || files.find(f => f.path === `${job.jobPath}/thumbnail/thumbnail.png`)?.path;
-  const delivery = files.find(f => f.path === `${job.jobPath}/review/delivery.json`)?.path;
-  const complete = job.status === 'complete';
-  return `<div class="view-content"><div class="view-title"><div><h2>${complete ? 'The final cut.' : 'Your video takes shape here.'}</h2><p>${complete ? 'Qualified video, independently reviewed thumbnail, and delivery evidence.' : 'Renders stay drafts until both the video and thumbnail qualify.'}</p></div><span class="subtle-tag">${complete ? 'VERIFIED DELIVERY' : 'IN PRODUCTION'}</span></div>${video ? `<div class="output-hero"><video class="real-video" src="${artifact(video)}" ${thumbnail ? `poster="${artifact(thumbnail)}"` : ''} controls preload="metadata"></video><div class="output-caption"><div><strong>${esc(job.title)}</strong><small>${format(job)} · ${complete ? 'Qualified final output' : 'Unqualified draft render'}</small></div><a class="secondary-button small" href="${artifact(video,true)}" download>${icon('download')}${complete ? 'Download video' : 'Download draft'}</a></div></div>` : `<div class="output-await"><span>${icon('film')}</span><h3>Waiting for the first render</h3><p>The MP4 will appear here when the pipeline renders it.</p></div>`}<div class="output-cards"><div class="output-card">${thumbnail ? `<button class="thumbnail-button" data-action="file" data-file="${esc(thumbnail)}"><img class="real-thumbnail" src="${artifact(thumbnail)}" alt="Thumbnail for ${esc(job.title)}"></button>` : '<div class="thumbnail-await">'+icon('image')+'</div>'}<span class="eyebrow">THUMBNAIL</span><strong>${thumbnail ? 'Your thumbnail' : 'Created after the film qualifies'}</strong><small>${complete ? 'Independently reviewed and archived' : thumbnail ? 'Review pending — not qualified for delivery' : 'PNG + editable source + feed preview'}</small>${thumbnail ? `<a class="text-button" href="${artifact(thumbnail,true)}" download>Download PNG ${icon('download')}</a>` : ''}${job.outputs.thumbnailSource ? `<a class="text-button source-download" href="${artifact(job.outputs.thumbnailSource,true)}" download>Editable source ${icon('download')}</a>` : ''}</div><div class="output-card review-output">${icon(complete ? 'check' : 'clock')}<span class="eyebrow">DELIVERY EVIDENCE</span><strong>${complete ? 'Checks passed. Evidence retained.' : 'Independent reviews required.'}</strong><p>Video qualification, audio measurements, limitations, headphone check timestamps, and thumbnail review.</p>${delivery ? `<button class="text-button" data-action="file" data-file="${esc(delivery)}">Read delivery report ${icon('arrow')}</button><button class="text-button source-download" data-action="measurements">Audio measurements & limitations ${icon('volume')}</button>` : '<span class="muted">Delivery report pending</span>'}${job.outputs.thumbnailReview ? `<button class="text-button source-download" data-action="file" data-file="${esc(job.outputs.thumbnailReview)}">Thumbnail review ${icon('arrow')}</button>` : ''}</div></div></div>`;
+  const g = state.job.gate;
+  if (g.kind === 'question') return `<div class="gate-card question"><div class="gate-icon">${icon('question')}</div><div class="gate-content"><span class="eyebrow">THE AGENT ASKS</span><h3>${esc(g.summary)}</h3>${g.file ? `<button class="file-pill" data-action="file" data-file="${esc(g.file)}">${icon('file')}${esc(g.file)}${icon('arrow')}</button>` : ''}${g.options?.length ? `<div class="gate-options">${g.options.map(option => `<button class="secondary-button small" data-action="answer-option" data-answer="${esc(option)}">${esc(option)}</button>`).join('')}</div>` : ''}<label class="sr-only" for="gate-answer">Your answer</label><textarea id="gate-answer" class="gate-feedback" rows="3" maxlength="20000" placeholder="Your answer…"></textarea><div class="gate-actions"><button class="primary-button small" data-action="answer">${icon('send')}Send answer</button></div><small class="muted">The agent is paused on this question until you answer.</small></div></div>`;
+  return `<div class="gate-card"><div class="gate-icon">${icon('pause')}</div><div class="gate-content"><span class="eyebrow">YOUR CHECKPOINT</span><h3>${g.kind === 'script' ? 'Review the script before production' : 'Review the prototype before the full build'}</h3><p>${esc(g.summary)}</p>${g.file ? `<button class="file-pill" data-action="file" data-file="${esc(g.file)}">${icon('file')}${esc(g.file)}${icon('arrow')}</button>` : ''}<label class="sr-only" for="gate-feedback">Feedback for the agent</label><textarea id="gate-feedback" class="gate-feedback" placeholder="Optional notes, or the changes you want…" rows="3" maxlength="20000"></textarea><div class="gate-actions"><button class="primary-button small" data-action="approve">${icon('check')}Approve & continue</button><button class="secondary-button small" data-action="revise">Request changes</button></div><small class="muted">The agent waits here. Your approval never replaces the independent reviews.</small></div></div>`;
 }
 function composer() {
-  return `<div class="composer-area"><form id="message-form" class="composer"><label class="sr-only" for="message-input">Send direction to this thread</label><textarea id="message-input" placeholder="Add direction, ask a question, or leave feedback…" rows="1" maxlength="20000"></textarea><div class="composer-toolbar"><button type="button" class="text-button provider-trigger" data-action="configure"><span class="provider-mark">${marks[job.provider]}</span>${job.provider}${icon('down')}</button><span class="composer-hint">Delivered when the agent next checks feedback</span><button class="send-button" type="submit" aria-label="Send feedback">${icon('send')}</button></div></form><div class="composer-footer"><span><span class="tiny-dot"></span>Saved on this machine</span><span>Enter to send <kbd>↵</kbd></span></div></div>`;
+  return `<div class="composer-area"><form id="message-form" class="composer"><label class="sr-only" for="message-input">Send direction to this thread</label><textarea id="message-input" placeholder="Add direction or leave feedback…" rows="1" maxlength="20000"></textarea><div class="composer-toolbar"><button type="button" class="text-button provider-trigger" data-action="configure"><span class="provider-mark">${marks[state.job.provider]}</span>${state.job.provider}${icon('down')}</button><span class="composer-hint">Delivered at the orchestrator’s next feedback check</span><button class="send-button" type="submit" aria-label="Send">${icon('send')}</button></div></form></div>`;
 }
+
+// ---------- progress ----------
+function progressView() {
+  const job = state.job, progress = job.progress;
+  if (!progress) return '<div class="view-content"><div class="empty-state"><p>Working out where this job is…</p></div></div>';
+  const film = progress.phases.find(phase => phase.id === 'film');
+  return `<div class="view-content progress-view"><div class="view-title"><div><h2>Every step, from brief to delivery.</h2><p>Read from the pipeline’s own state, the job’s files and the running processes — not from the agent’s say-so.</p></div><span class="subtle-tag">${progress.done} / ${progress.total} STEPS</span></div>
+  <div class="overall"><div class="progress-track"><span style="width:${(progress.done / progress.total * 100).toFixed(1)}%"></span></div>${pipelineSays()}</div>
+  ${job.pipelineError ? `<div class="inline-error">${icon('warning')}Could not read pipeline status: ${esc(job.pipelineError)}</div>` : ''}
+  ${progress.phases.map(phase => `<section class="phase"><div class="phase-head"><h3>${esc(phase.label)}</h3><span>${phase.steps.filter(step => ['done', 'skipped'].includes(step.status)).length}/${phase.steps.length}</span></div><ol class="steps">${phase.steps.map(stepRow).join('')}</ol>${phase.id === 'film' ? scenesGrid(film) + reviewsTable(film) : ''}</section>`).join('')}</div>`;
+}
+function pipelineSays() {
+  const job = state.job, pipeline = job.pipeline, told = job.lastNext;
+  const next = pipeline?.next;
+  const nextText = !next ? '' : next.command ? `run <code>video ${esc(next.command)}</code>` : `${esc(roleLabel(next.role))}${next.briefs?.length > 1 ? ` ×${next.briefs.length}` : ''} → ${next.briefs.map(brief => `<button class="link-file" data-action="file" data-file="${esc(brief)}">${esc(brief.split('/').at(-1))}</button>`).join(', ')}`;
+  return `<div class="pipeline-says"><div><span class="eyebrow">PIPELINE STATE</span><strong>${esc(pipeline?.state || 'not started')}</strong>${nextText ? `<small>Next: ${nextText}</small>` : ''}</div>${told ? `<div><span class="eyebrow">LAST TOLD THE AGENT</span><strong>STATE: ${esc(told.state)}</strong><small>${esc(told.actions.find(action => action.kind === 'DO')?.text || '')} · ${sinceAgo(told.at)}</small></div>` : ''}</div>`;
+}
+function stepRow(step) {
+  const agents = (step.agents || []).map(agentById).filter(Boolean);
+  return `<li class="step ${esc(step.status)}"><span class="step-marker">${statusIcon(step.status)}</span><div class="step-body"><div class="step-line"><strong>${esc(step.label)}</strong>${step.status === 'repair' ? '<span class="step-tag repair">repairing</span>' : step.status === 'blocked' ? '<span class="step-tag blocked">blocked</span>' : step.status === 'waiting' ? '<span class="step-tag waiting">your turn</span>' : ''}</div>${step.detail ? `<small>${step.file && step.status === 'done' ? `<button class="link-file" data-action="file" data-file="${esc(step.file)}">${esc(step.detail)}</button>` : esc(step.detail)}</small>` : ''}${step.running ? `<div class="step-running"><span class="running-ring"></span>Running <code>video ${esc(step.running.command)}</code> · ${since(step.running.startedAt)}</div>` : ''}${agents.length ? `<div class="agent-chips">${agents.slice(-8).map(agent => `<button class="agent-chip ${esc(agent.status)}" data-action="agent" data-id="${agent.id}"><span class="agent-dot ${esc(agent.status)}"></span>${esc(agent.scene || roleLabel(agent.role))}</button>`).join('')}${agents.length > 8 ? `<span class="muted">+${agents.length - 8}</span>` : ''}</div>` : ''}${step.errors?.length ? `<details class="step-errors" data-key="errors-${esc(step.id)}"><summary>${step.errors.length} problem(s)</summary><ul>${step.errors.map(error => `<li>${esc(error)}</li>`).join('')}</ul></details>` : ''}</div></li>`;
+}
+function scenesGrid(film) {
+  if (!film.scenes?.length) return '';
+  const building = new Map(state.job.agents.filter(agent => live(agent) && agent.scene).map(agent => [agent.scene, agent]));
+  const total = film.scenes.at(-1).end || 1;
+  return `<div class="scenes"><div class="section-label">SCENES<span>${film.scenes.filter(scene => scene.built).length}/${film.scenes.length} built · ★ prototype</span></div><div class="scene-strip">${film.scenes.map(scene => {
+    const problems = scene.buildErrors + scene.pixelErrors + scene.findings, agent = building.get(scene.id);
+    const cls = agent ? 'building' : problems ? 'problem' : scene.built ? 'built' : 'pending';
+    const width = scene.end != null ? Math.max(2, (scene.end - scene.start) / total * 100) : 100 / film.scenes.length;
+    return `<button class="scene ${cls} ${scene.prototypeCut ? 'proto-cut' : ''}" style="flex-basis:${width.toFixed(2)}%" data-action="${agent ? 'agent' : 'file'}" ${agent ? `data-id="${agent.id}"` : `data-file="${esc(scene.built ? scene.spec : scene.briefs[0] || scene.spec)}"`} title="${esc(`${scene.id} · ${scene.start?.toFixed?.(1) ?? '?'}–${scene.end?.toFixed?.(1) ?? '?'}s · ${scene.owner}${agent ? ' · being built' : ''}${problems ? ` · ${problems} problem(s)` : ''}`)}"><span>${scene.prototype ? '★ ' : ''}${esc(scene.id)}</span><small>${scene.owner === 'director' ? 'D' : 'B'}${problems ? ` · ${problems}!` : ''}</small></button>`;
+  }).join('')}</div><div class="scene-legend"><span class="pending">Not built</span><span class="building">Being built</span><span class="built">Built</span><span class="problem">Has problems</span><span>D director · B builder</span></div></div>`;
+}
+function reviewsTable(film) {
+  if (!film.reviews) return '';
+  return `<div class="reviews">${['prototype', 'final'].map(stage => {
+    const review = film.reviews[stage];
+    if (!review) return '';
+    return `<div class="review-stage"><div class="section-label">${stage.toUpperCase()} REVIEW<span>${review.accepted ? 'accepted' : review.ok ? 'passed' : review.pack ? `evidence frozen${review.rounds ? ` · round ${review.rounds}` : ''}` : 'not started'}</span></div>${review.roles.map(role => `<div class="review-role"><span>${esc(role.role.replace(/-/g, ' '))}</span><span class="verdict ${role.valid ? esc(role.verdict) : role.verdict ? 'stale' : 'none'}">${role.valid ? esc(role.verdict) : role.verdict ? 'stale' : '—'}</span><small>${role.blocking ? `${role.blocking} blocking · ` : ''}${role.advisory ? `${role.advisory} advisory` : ''}${role.error ? esc(role.error.slice(0, 120)) : ''}</small>${role.findings.length ? `<details data-key="f-${stage}-${esc(role.role)}"><summary>Findings</summary><ul>${role.findings.map(f => `<li><strong>${esc(f.subject)}</strong> ${f.start != null ? `(${Number(f.start).toFixed(1)}–${Number(f.end).toFixed(1)}s)` : ''}<br>${esc(f.observed)}<br><em>→ ${esc(f.repair)}</em></li>`).join('')}</ul></details>` : ''}</div>`).join('')}</div>`;
+  }).join('')}</div>`;
+}
+
+// ---------- agents ----------
+function agentsView() {
+  const job = state.job;
+  if (!job.agents.length) return '<div class="view-content"><div class="empty-state"><p>No agents yet. The orchestrator starts when a runner slot is free.</p></div></div>';
+  const children = id => job.agents.filter(agent => agent.parentId === id);
+  const roots = job.agents.filter(agent => !agent.parentId || !agentById(agent.parentId));
+  const tree = (agent, depth) => `${agentCard(agent, depth)}${children(agent.id).map(child => tree(child, depth + 1)).join('')}`;
+  const liveCount = job.agents.filter(live).length;
+  return `<div class="view-content"><div class="view-title"><div><h2>Every agent, live.</h2><p>Each sub-agent is a separate CLI process: its brief, model, current file, tools and tokens.</p></div><span class="subtle-tag">${liveCount} LIVE · ${job.agents.length} TOTAL</span></div><div class="agent-tree">${roots.map(agent => tree(agent, 0)).join('')}</div></div>`;
+}
+function agentCard(agent, depth) {
+  const usage = agent.usage?.reports ? `${count(agent.usage.total)} tok` : '';
+  const ran = agent.startedAt ? (live(agent) ? since(agent.startedAt) : agent.finishedAt ? span(Date.parse(agent.finishedAt) - Date.parse(agent.startedAt)) : '') : '';
+  return `<button class="agent-card ${esc(agent.status)}" style="--depth:${Math.min(depth, 3)}" data-action="agent" data-id="${agent.id}"><div class="agent-card-top"><span class="agent-dot ${esc(agent.status)}"></span><strong>${esc(roleLabel(agent.role))}</strong><span class="agent-task">${esc(agent.task || '')}</span><span class="subtle-tag">${esc(agent.status === 'waiting' ? `waiting · ${agent.waitingFor || ''}` : agent.status)}</span></div>
+  <div class="agent-card-grid"><span>${icon('file')}${agent.current ? `<code>${esc(short(agent.current, state.job))}</code> <em>${esc(agent.operation || '')}</em>` : '<em>no file yet</em>'}</span><span>${icon('terminal')}<em>${esc(agent.lastTool?.text || '—')}</em></span><span>${icon('bolt')}${esc(agent.model || 'CLI default')} <em>${esc(agent.modelSource || '')}</em></span><span>${icon('clock')}${ran} · ${agent.toolCount || 0} tools${agent.failedTools ? ` · ${agent.failedTools} failed` : ''}${usage ? ` · ${usage}` : ''}</span></div>${agent.note ? `<div class="agent-note">“${esc(agent.note)}”</div>` : ''}${agent.error ? `<div class="agent-error">${esc(agent.error.slice(0, 300))}</div>` : ''}</button>`;
+}
+async function openAgent(id) {
+  const agent = agentById(id); if (!agent) return;
+  state.drawer = id;
+  openModal(`<div id="agent-drawer"></div>`, true, () => { state.drawer = null; });
+  drawerEvents = [];
+  renderDrawer();
+  try { drawerEvents = await api(`/api/jobs/${state.job.id}/events?agent=${encodeURIComponent(id)}&limit=300`); renderDrawer(); } catch (error) { toast(error.message); }
+}
+let drawerEvents = [];
+function refreshDrawer(events) { if (!events.length) return; const last = drawerEvents.at(-1)?.seq ?? 0; drawerEvents.push(...events.filter(event => event.seq > last)); renderDrawer(); }
+function renderDrawer() {
+  const agent = agentById(state.drawer), host = $('#agent-drawer'); if (!agent || !host) return;
+  const messages = state.messages.filter(m => m.agentId === agent.id).slice(-6);
+  set(host, `${modalHeading(`${esc(roleLabel(agent.role))} · ${esc(agent.task || '')}`, `${esc(agent.status)} · ${esc(agent.model || 'CLI default')} (${esc(agent.modelSource || '')}) · ${agent.runs || 1} run(s)`)}
+  <div class="drawer-grid"><div><span class="field-label">Brief</span>${agent.brief ? `<button class="file-pill" data-action="file" data-file="${esc(agent.brief)}">${icon('file')}${esc(agent.brief)}</button>` : `<p class="muted">${agent.role === 'orchestrator' ? 'The thread brief' : 'No brief file'}</p>`}</div><div><span class="field-label">Now</span><p>${agent.current ? `<button class="link-file" data-action="file" data-file="${esc(agent.current)}">${esc(agent.current)}</button> · ${esc(agent.operation || '')}` : '—'}</p></div><div><span class="field-label">Pipeline step</span><p>${esc(agent.step || '—')}${agent.scene ? ` · scene ${esc(agent.scene)}` : ''}</p></div><div><span class="field-label">Session</span><p><code>${esc(agent.sessionId || '—')}</code><br><small class="muted">runner id ${esc(agent.id)}</small></p></div></div>
+  ${agent.promptPreview ? `<details data-key="prompt"><summary>Prompt</summary><pre class="pre">${esc(agent.promptPreview)}</pre></details>` : ''}
+  ${agent.error ? `<div class="inline-error">${icon('warning')}${esc(agent.error)}</div>` : ''}
+  ${messages.length ? `<span class="field-label">Messages</span>${messages.map(m => `<div class="drawer-message"><time>${time(m.at)}</time>${esc(m.text.slice(0, 1500))}</div>`).join('')}` : ''}
+  <span class="field-label">Activity</span><div class="activity-list compact">${drawerEvents.slice(-200).reverse().map(eventRow).join('') || '<p class="muted">Loading…</p>'}</div>`);
+}
+
+// ---------- activity ----------
+const filters = { all: () => true, tools: e => e.type === 'tool', files: e => e.type === 'file' || Boolean(e.file), pipeline: e => Boolean(e.pipeline) || e.type === 'pipeline', problems: e => e.type === 'error' || e.status === 'failed' };
+function activity() {
+  const job = state.job;
+  const list = state.events.filter(filters[state.activityFilter]).filter(e => !state.activityAgent || e.agentId === state.activityAgent);
+  return `<div class="view-content"><div class="view-title"><div><h2>Every event, in the open.</h2><p>Tool calls from every agent, pipeline commands, and file changes seen on disk.</p></div><a class="secondary-button small" href="/api/jobs/${job.id}/log" download>${icon('download')}Full log</a></div>
+  <div class="activity-filters">${Object.keys(filters).map(key => `<button class="chip ${state.activityFilter === key ? 'active' : ''}" data-action="filter" data-filter="${key}">${key}</button>`).join('')}<select id="activity-agent" aria-label="Filter by agent"><option value="">All agents</option>${job.agents.map(agent => `<option value="${agent.id}" ${state.activityAgent === agent.id ? 'selected' : ''}>${esc(roleLabel(agent.role))} · ${esc((agent.scene || agent.task || '').slice(0, 40))}</option>`).join('')}</select></div>
+  <div class="activity-list">${list.slice(-400).reverse().map(eventRow).join('') || '<div class="empty-state"><p>No matching events yet.</p></div>'}</div>${state.events[0]?.seq > 1 && !state.olderLoaded ? `<button class="secondary-button small load-older" data-action="older">Load older events</button>` : ''}</div>`;
+}
+function eventRow(e) {
+  const failed = e.type === 'error' || e.status === 'failed';
+  const kind = e.type === 'tool' ? (e.pipeline ? `VIDEO ${e.pipeline.command}` : e.status === 'running' ? 'TOOL' : e.status === 'failed' ? 'FAILED' : 'DONE') : e.type === 'file' ? 'DISK' : e.type.toUpperCase();
+  return `<div class="activity-row ${failed ? 'error' : ''} ${e.pipeline ? 'pipeline' : ''}"><span class="activity-time">${time(e.at)}</span><span class="activity-node">${icon(failed ? 'warning' : e.type === 'file' ? 'file' : e.type === 'agent' ? 'branch' : e.pipeline ? 'layers' : 'terminal')}</span><div><strong>${esc(String(e.text || e.name || '').slice(0, 400))}</strong>${e.next ? `<div class="next-told">STATE: ${esc(e.next.state)}${e.next.spawns?.length ? ` → ${e.next.spawns.map(s => esc(`${s.role} ${s.brief.split('/').at(-1)}`)).join(', ')}` : ''}</div>` : ''}${e.file ? `<button class="activity-file" data-action="file" data-file="${esc(e.file)}">${icon('file')}${esc(e.file)}${icon('arrow')}</button>` : ''}<div class="event-provenance">${esc(e.source || 'runner')}${e.role ? ' · ' + esc(roleLabel(e.role)) : ''}${e.agentId && agentById(e.agentId)?.scene ? ' · ' + esc(agentById(e.agentId).scene) : ''}${e.status ? ' · ' + esc(e.status) : ''}</div>${e.output ? `<details class="tool-output" data-key="out-${e.id}"><summary>Output${e.truncated ? ` (${count(e.outputSize)} chars)` : ''}</summary><pre>${esc(e.output)}</pre>${e.truncated ? `<button class="text-button" data-action="full-output" data-id="${e.id}">Show full output</button>` : ''}</details>` : ''}</div><span class="activity-type">${esc(kind)}</span></div>`;
+}
+
+// ---------- files & outputs ----------
+function fileView() {
+  const job = state.job;
+  return `<div class="view-content"><div class="view-title"><div><h2>The work, down to the file.</h2><p>Real artifacts in this thread’s script and job folders, newest first.</p></div><button class="text-button" data-action="refresh-files">${icon('retry')}Refresh</button></div><div class="files-toolbar"><span>${icon('folder')}${esc(job.jobPath)}/</span><span class="muted">${state.files.length} files</span></div><div class="file-table"><div class="file-table-header"><span>FILE</span><span>CHANGED</span><span>SIZE</span></div>${state.files.slice(0, 600).map(file => `<button class="file-row" data-action="file" data-file="${esc(file.path)}"><span>${icon(file.type.startsWith('video') ? 'film' : file.type.startsWith('image') ? 'image' : 'file')}<code>${esc(short(file.path, job))}</code></span><span class="file-state">${sinceAgo(new Date(file.modified).toISOString())}</span><span class="file-state">${file.size > 1048576 ? (file.size / 1048576).toFixed(1) + ' MB' : Math.ceil(file.size / 1024) + ' KB'}</span></button>`).join('') || '<div class="empty-state"><p>No artifacts yet. Files appear here as the agents work.</p></div>'}</div></div>`;
+}
+function outputs() {
+  const job = state.job, files = state.files, complete = job.status === 'complete';
+  const find = p => files.find(f => f.path === p)?.path;
+  const video = job.outputs?.video || find(`${job.jobPath}/renders/video.mp4`);
+  const thumbnail = job.outputs?.thumbnail || find(`${job.jobPath}/thumbnail/thumbnail.png`);
+  const preview = job.outputs?.thumbnailPreview || files.find(f => f.path.startsWith(`${job.jobPath}/thumbnail/`) && /320x180|feed|preview/i.test(f.path) && f.path.endsWith('.png'))?.path;
+  const delivery = find(`${job.jobPath}/review/delivery.json`);
+  return `<div class="view-content"><div class="view-title"><div><h2>${complete ? 'The final cut.' : 'Your video takes shape here.'}</h2><p>${complete ? 'Qualified video, independently reviewed thumbnail, and delivery evidence.' : 'Renders stay drafts until both the video and thumbnail qualify.'}</p></div><span class="subtle-tag">${complete ? 'VERIFIED DELIVERY' : 'IN PRODUCTION'}</span></div>${video ? `<div class="output-hero"><video class="real-video" src="${artifact(video)}" ${thumbnail ? `poster="${artifact(thumbnail)}"` : ''} controls preload="metadata"></video><div class="output-caption"><div><strong>${esc(job.title)}</strong><small>${format(job)} · ${complete ? 'Qualified final output' : 'Unqualified draft render'}</small></div><a class="secondary-button small" href="${artifact(video, true)}" download>${icon('download')}${complete ? 'Download video' : 'Download draft'}</a></div></div>` : `<div class="output-await"><span>${icon('film')}</span><h3>Waiting for the first render</h3><p>The MP4 appears here when the pipeline renders it.</p></div>`}<div class="output-cards"><div class="output-card">${thumbnail ? `<button class="thumbnail-button" data-action="file" data-file="${esc(thumbnail)}"><img class="real-thumbnail" src="${artifact(thumbnail)}" alt="Thumbnail for ${esc(job.title)}"></button>` : '<div class="thumbnail-await">' + icon('image') + '</div>'}<span class="eyebrow">THUMBNAIL</span><strong>${thumbnail ? 'Your thumbnail' : 'Created after the film qualifies'}</strong><small>${complete ? 'Independently reviewed and archived' : thumbnail ? 'Review pending — not qualified for delivery' : 'PNG + editable source + feed preview'}</small>${preview ? `<div class="feed-preview"><img src="${artifact(preview)}" alt="Feed-size preview" width="160" height="90"><small>Feed size</small></div>` : ''}${thumbnail ? `<a class="text-button" href="${artifact(thumbnail, true)}" download>Download PNG ${icon('download')}</a>` : ''}${job.outputs?.thumbnailSource ? `<a class="text-button source-download" href="${artifact(job.outputs.thumbnailSource, true)}" download>Editable source ${icon('download')}</a>` : ''}</div><div class="output-card review-output">${icon(complete ? 'check' : 'clock')}<span class="eyebrow">DELIVERY EVIDENCE</span><strong>${complete ? 'Checks passed. Evidence retained.' : 'Independent reviews required.'}</strong><p>Video qualification, audio measurements, limitations, headphone check timestamps, and thumbnail review.</p>${delivery ? `<button class="text-button" data-action="file" data-file="${esc(delivery)}">Read delivery report ${icon('arrow')}</button><button class="text-button source-download" data-action="measurements">Audio measurements & limitations ${icon('volume')}</button>` : '<span class="muted">Delivery report pending</span>'}${job.outputs?.thumbnailReview ? `<button class="text-button source-download" data-action="file" data-file="${esc(job.outputs.thumbnailReview)}">Thumbnail review ${icon('arrow')}</button>` : ''}</div></div></div>`;
+}
+
+// ---------- inspector ----------
 function inspector() {
-  const latestError = job.events.findLast(e => e.type === 'error');
-  return `<aside class="inspector" aria-label="Job inspector"><div class="inspector-tabs"><button data-action="inspector-tab" data-tab="overview" class="${inspectorTab === 'overview' ? 'active' : ''}">Overview</button><button data-action="inspector-tab" data-tab="agents" class="${inspectorTab === 'agents' ? 'active' : ''}">Agents & models</button></div><div class="inspector-scroll">${inspectorTab === 'agents' ? agentsPanel() : `<section><div class="section-label">PIPELINE<span>${Math.min(job.stage,8)} / 8 complete</span></div><div class="progress-track"><span style="width:${job.stage/8*100}%"></span></div><ol class="pipeline">${stages.map((stage,index) => `<li class="${index < job.stage ? 'done' : index === job.stage ? 'current '+job.status : 'pending'}"><div class="pipeline-step"><span class="stage-marker">${index < job.stage ? icon('check') : index === job.stage && job.status === 'running' ? '<span class="running-ring"></span>' : index+1}</span><span><strong>${stage}</strong>${index === job.stage ? `<small>${labels[job.status]}</small>` : ''}</span></div></li>`).join('')}</ol><div class="stage-provenance">${job.stageSource === 'verified' ? 'Delivery verified by the server' : job.stageSource === 'agent-reported' ? 'Stage reported by the orchestrator' : 'Waiting for agent progress reports'}</div></section>${jobUsage()}<section><div class="section-label">RUN HEALTH<span>${labels[job.status]}</span></div><div class="health-row"><span>${icon(latestError ? 'warning' : 'pulse')}${latestError ? 'An error was recorded' : job.events.length ? 'Events arriving from the runner' : 'Waiting for CLI events'}</span></div><small class="health-note">${latestError ? esc(latestError.text).slice(0,150) : 'No inferred “pass” status. See Activity for actual checks.'}</small></section><section><div class="section-label">CURRENT FILE<span class="operation-tag">${esc(job.operation || 'NONE')}</span></div>${job.current ? `<button class="inspector-file" data-action="file" data-file="${esc(job.current)}">${icon('file')}<span>${esc(job.current.split('/').at(-1))}<small>${esc(job.current.slice(0,job.current.lastIndexOf('/')+1))}</small></span>${icon('arrow')}</button>` : '<p class="inspector-note">No file operation observed yet.</p>'}</section><section><div class="section-label">HUMAN CHECKPOINTS<button class="text-button" data-action="configure">Edit ${icon('arrow')}</button></div><div class="checkpoint-row"><span>After script review</span><span>${job.gateScript ? 'Enabled' : 'Off'}</span></div><div class="checkpoint-row"><span>After prototype review</span><span>${job.gatePrototype ? 'Enabled' : 'Off'}</span></div><p class="inspector-note">Independent reviews always remain mandatory.</p></section><section class="deliverables-section"><div class="section-label">DELIVERABLES<span>${job.status === 'complete' ? '2 / 2 qualified' : 'Awaiting qualification'}</span></div><button data-action="tab" data-tab="outputs">${icon('film')}Video & thumbnail ${icon('arrow')}</button></section>`}</div><div class="inspector-footer">${job.status === 'running' ? '<button class="secondary-button" data-action="pause">'+icon('pause')+'Pause run</button>' : job.status === 'gate' ? '<button class="secondary-button" data-action="gate">'+icon('chat')+'Review checkpoint</button>' : ['paused','failed','interrupted','needs_attention','cancelled'].includes(job.status) ? '<button class="secondary-button" data-action="resume">'+icon('play')+'Continue run</button>' : job.status === 'complete' ? '<button class="secondary-button" data-action="tab" data-tab="outputs">'+icon('grid')+'View outputs</button>' : '<span>Waiting for a runner slot</span>'}${!['complete','cancelled'].includes(job.status) ? '<button class="cancel-run" data-action="cancel">Cancel run</button>' : ''}</div></aside>`;
+  const job = state.job;
+  return `<div class="inspector-tabs"><button data-action="inspector-tab" data-tab="overview" class="${state.inspectorTab === 'overview' ? 'active' : ''}">Overview</button><button data-action="inspector-tab" data-tab="models" class="${state.inspectorTab === 'models' ? 'active' : ''}">Models</button></div><div class="inspector-scroll">${state.inspectorTab === 'models' ? modelsPanel() : overviewPanel()}</div><div class="inspector-footer">${footerActions()}</div>`;
 }
-function agentsPanel() {
-  return `<section class="agent-panel"><div class="section-label">MODEL ROUTING<button class="text-button" data-action="configure">Configure ${icon('arrow')}</button></div>${[['Orchestrator',job.main],['Director',job.directorModel || job.main],['Builder',job.sub || job.main],['Independent reviewers',job.reviewerModel || job.main]].map(([role,model]) => `<div class="agent-role-card"><div class="agent-role-title">${icon('branch')}<strong>${role}</strong></div><code>${esc(model || 'Provider default')}</code></div>`).join('')}<div class="section-label agent-roles-label">ACTUAL SESSIONS<span>${job.agents.length}</span></div>${job.agents.map(a => `<div class="agent-role-card"><div class="agent-role-title">${icon(a.status === 'running' ? 'pulse' : 'check')}<strong>${roleName(a.role)}</strong><span class="subtle-tag">${esc(a.status)}</span></div><code>${esc(a.model || 'Provider default')}</code><small>${esc(a.id)}</small>${a.current ? `<button class="activity-file" data-action="file" data-file="${esc(a.current)}">${esc(a.current)}</button>` : ''}${a.sessionId ? `<small class="session-id">CLI session: ${esc(a.sessionId)}</small>` : ''}</div>`).join('') || '<p class="inspector-note">No agent sessions yet.</p>'}<div class="info-note">${icon('info')}Review agents use fresh sessions. Director sessions can be resumed for continuity.</div></section>`;
+function overviewPanel() {
+  const job = state.job, health = job.health, progress = job.progress;
+  const working = job.agents.filter(agent => live(agent) && agent.role !== 'orchestrator');
+  return `<section class="health-block health-${esc(health?.level || 'idle')}"><div class="section-label">RUN HEALTH<span>${esc(health?.level || '—')}</span></div><div class="health-headline"><span class="health-dot"></span>${esc(health?.headline || 'Checking…')}</div>${health?.lastEventAt ? `<small class="health-note">Last activity ${sinceAgo(health.lastEventAt)}</small>` : ''}${(health?.items || []).filter(item => item.text !== health.headline).slice(0, 4).map(item => `<div class="health-item ${esc(item.level)}">${esc(item.text)}</div>`).join('')}</section>
+  ${progress ? `<section><div class="section-label">PROGRESS<span>${progress.done} / ${progress.total}</span></div><div class="progress-track"><span style="width:${(progress.done / progress.total * 100).toFixed(1)}%"></span></div><ol class="phase-mini">${progress.phases.map(phase => { const current = phase.steps.find(step => ['current', 'repair', 'blocked', 'waiting'].includes(step.status)); const done = phase.steps.filter(step => ['done', 'skipped'].includes(step.status)).length; return `<li class="${done === phase.steps.length ? 'done' : current ? 'current' : 'pending'}"><button data-action="tab" data-tab="progress"><span class="stage-marker">${done === phase.steps.length ? icon('check') : current ? '<span class="running-ring"></span>' : ''}</span><span><strong>${esc(phase.label)}</strong><small>${current ? esc(current.label) : `${done}/${phase.steps.length}`}</small></span></button></li>`; }).join('')}</ol></section>` : ''}
+  <section><div class="section-label">${working.length ? 'WORKING NOW' : 'LAST FILE TOUCHED'}<span>${working.length} sub-agent${working.length === 1 ? '' : 's'} live</span></div>${working.length ? working.map(agent => `<button class="inspector-file" data-action="agent" data-id="${agent.id}"><span class="agent-dot ${esc(agent.status)}"></span><span>${esc(agent.scene || roleLabel(agent.role))}<small>${esc(agent.current ? short(agent.current, job) : agent.task || '')}</small></span>${icon('arrow')}</button>`).join('') : job.current ? `<button class="inspector-file" data-action="file" data-file="${esc(job.current)}">${icon('file')}<span>${esc(job.current.split('/').at(-1))}<small>${esc(roleLabel(job.role || ''))} · ${esc(job.current.slice(0, job.current.lastIndexOf('/') + 1))}</small></span>${icon('arrow')}</button>` : '<p class="inspector-note">No sub-agent running.</p>'}</section>
+  ${jobUsage()}
+  <section><div class="section-label">YOUR CHECKPOINTS<button class="text-button" data-action="configure">Edit ${icon('arrow')}</button></div><div class="checkpoint-row"><span>After script review</span><span>${job.approvedGates?.includes('script') ? 'Approved' : job.gateScript ? 'On' : 'Off'}</span></div><div class="checkpoint-row"><span>After prototype review</span><span>${job.approvedGates?.includes('prototype') ? 'Approved' : job.gatePrototype ? 'On' : 'Off'}</span></div><p class="inspector-note">The agent can also ask you a question at any time. Independent reviews always stay mandatory.</p></section>`;
 }
-function render() {
-  const old = $('#content-scroll'), oldTop = old?.scrollTop || 0, bottom = !old || old.scrollHeight-old.scrollTop-old.clientHeight < 70;
-  const drafts = ['message-input','gate-feedback'].map(id => ({id,value:$('#'+id)?.value, focused:document.activeElement?.id === id, start:$('#'+id)?.selectionStart, end:$('#'+id)?.selectionEnd}));
-  const open = [...document.querySelectorAll('details[data-event-id][open]')].map(d => d.dataset.eventId);
-  const sideTop = $('.job-list')?.scrollTop || 0, inspectorTop = $('.inspector-scroll')?.scrollTop || 0;
-  $('#app').innerHTML = `${sidebar()}${job ? `<main class="main-panel">${header()}<div class="content-scroll" id="content-scroll">${tab === 'thread' ? thread() : tab === 'activity' ? activity() : tab === 'files' ? fileView() : outputs()}</div>${tab === 'thread' ? composer() : '<div class="view-footer">'+icon('info')+'Real local artifacts · '+esc(job.jobPath)+'</div>'}</main>${inspector()}` : empty()}`;
-  $('#app').classList.toggle('no-job',!job);
-  for (const draft of drafts) { const input = $('#'+draft.id); if (input && draft.value !== undefined) { input.value = draft.value; if (draft.focused && !$('.modal')) { input.focus(); input.setSelectionRange(draft.start,draft.end); } } }
-  for (const id of open) { const item = $(`details[data-event-id="${id}"]`); if (item) item.open = true; }
-  if ($('.job-list')) $('.job-list').scrollTop = sideTop;
-  if ($('.inspector-scroll')) $('.inspector-scroll').scrollTop = inspectorTop;
-  if ($('#content-scroll')) $('#content-scroll').scrollTop = bottom && tab === 'thread' ? $('#content-scroll').scrollHeight : oldTop;
+function footerActions() {
+  const job = state.job, s = job.status;
+  const primary = s === 'running' ? `<button class="secondary-button" data-action="pause">${icon('pause')}Pause at next step</button>`
+    : s === 'gate' ? `<button class="secondary-button" data-action="gate">${icon('question')}Answer the agent</button>`
+    : ['paused', 'failed', 'interrupted', 'needs_attention', 'cancelled'].includes(s) ? `<button class="secondary-button" data-action="resume">${icon('play')}Continue run</button>`
+    : s === 'complete' ? `<button class="secondary-button" data-action="tab" data-tab="outputs">${icon('grid')}View outputs</button>` : '<span class="muted">Waiting for a runner slot</span>';
+  const secondary = !['complete', 'cancelled'].includes(s) ? '<button class="cancel-run" data-action="cancel">Cancel run</button>'
+    : `<div class="footer-row"><button class="cancel-run" data-action="${job.archived ? 'unarchive' : 'archive'}">${job.archived ? 'Unarchive' : 'Archive'}</button><button class="cancel-run" data-action="delete">Delete thread</button></div>`;
+  return primary + secondary;
 }
-function openModal(content,wide=false) { lastFocus = document.activeElement; $('#overlay').innerHTML = `<div class="modal-backdrop"><section class="modal ${wide?'wide-modal':''}" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">${content}</section></div>`; ($('textarea,input,select,button',$('.modal')) || $('.modal')).focus(); }
-function closeModal() { $('#overlay').innerHTML=''; if(lastFocus?.isConnected) lastFocus.focus(); }
-const modalHeading = (title,description) => `<div class="modal-heading"><div><h2 id="modal-title">${title}</h2><p>${description}</p></div><button class="icon-button" data-action="close" aria-label="Close dialog">${icon('close')}</button></div>`;
-function modelFields(j={}) {
-  const selectedProvider=j.provider || providers.find(p=>p.installed)?.name || 'Codex';
-  const models=providers.find(p=>p.name===selectedProvider)?.models || [];
-  return `<div class="field-label">CLI provider</div><div class="provider-options">${names.map(name=>{const p=providers.find(p=>p.name===name);return `<label class="provider-option"><input type="radio" name="provider" value="${name}" ${name===selectedProvider?'checked':''} ${p && !p.installed || j.agents?.length && name!==j.provider?'disabled':''}><span class="provider-option-content"><span class="provider-large">${marks[name]}</span>${name}<span class="provider-radio"></span></span></label>`;}).join('')}</div><div class="provider-install-note">${providers.length ? providers.map(p=>`${p.name}: ${p.installed ? p.version || 'installed' : 'not available'}`).map(esc).join(' · ') : 'Checking installed CLIs…'}</div><div class="form-grid"><label>Main model<input type="text" name="main" list="model-options" placeholder="Provider default" value="${esc(j.main || '')}" maxlength="120"><small>Orchestrator & creative direction</small></label><label>Sub-agent model<input type="text" name="sub" list="model-options" placeholder="Inherit main model" value="${esc(j.sub || '')}" maxlength="120"><small>Delegated scene builders</small></label></div><datalist id="model-options">${models.map(m=>`<option value="${esc(m)}">`).join('')}</datalist><details class="advanced-options"><summary>Per-role model overrides ${icon('down')}</summary><div class="form-grid"><label>Director<input name="directorModel" list="model-options" placeholder="Inherit main model" value="${esc(j.directorModel || '')}" maxlength="120"></label><label>Independent reviewers<input name="reviewerModel" list="model-options" placeholder="Inherit main model" value="${esc(j.reviewerModel || '')}" maxlength="120"></label></div></details><div class="model-caveat">Uses your existing CLI login. Models are passed directly to the selected CLI. Leave blank for its configured default.${j.agents?.length?' Provider is fixed for this thread; model changes apply to newly dispatched work.':''}</div><div class="form-divider"></div><div class="new-gates"><label><input type="checkbox" name="gateScript" ${j.gateScript?'checked':''}>Pause after script review</label><label><input type="checkbox" name="gatePrototype" ${j.gatePrototype?'checked':''}>Pause after prototype review</label></div>`;
+function modelsPanel() {
+  const job = state.job, pins = state.providers.find(p => p.name === 'Claude')?.pins || {};
+  return `<section class="agent-panel"><div class="section-label">MODEL ROUTING<button class="text-button" data-action="configure">Configure ${icon('arrow')}</button></div>${routingTable(job, pins)}<p class="inspector-note">Each sub-agent is a separate ${esc(job.provider)} process. ${job.provider === 'Claude' ? 'Claude roles run as this repository’s agent types (.claude/agents).' : ''} Changes apply to agents started afterwards.</p></section>`;
 }
-function newJob() {
-  openModal(`${modalHeading('What are we making?','One prompt. One thread. The entire production.')}<form id="new-job-form"><label class="field-label" for="new-prompt">Describe your video</label><textarea id="new-prompt" name="prompt" rows="4" placeholder="A 3-minute explainer about why batteries degrade. Make it visual and accessible, and include a thumbnail…" required maxlength="20000"></textarea><div class="form-grid"><label>Title (optional)<input name="title" placeholder="Name this conversation" maxlength="150"></label><label>Target duration (seconds)<input name="duration" type="number" value="${workspaceSettings.defaultDuration}" min="10" max="3600" required></label></div><div class="form-grid"><label>Format<select name="format"><option value="landscape" ${workspaceSettings.defaultFormat==='landscape'?'selected':''}>Landscape · 16:9</option><option value="vertical" ${workspaceSettings.defaultFormat==='vertical'?'selected':''}>Portrait · 9:16</option></select></label><div></div></div><details class="advanced-options input-options"><summary>Use an existing script or recording ${icon('down')}</summary><div class="form-grid"><label>Script file<input type="file" name="scriptFile" accept=".md,.txt"><input name="inputScript" placeholder="Or repository-relative path"></label><label>Recording<input type="file" name="audioFile" accept="audio/*,.webm,.mp4"><input name="audioPath" placeholder="Or repository-relative path"></label></div><p class="model-caveat">A supplied recording is kept unchanged. Without one, the agent generates narration from the reviewed script. Uploads stay inside this repository (250 MB per file).</p></details><div class="form-divider"></div>${modelFields({provider:job?.provider,main:job?.main || '',sub:job?.sub || ''})}<div class="modal-footer"><span>${icon('terminal')}Runs real CLI agents and production tools</span><button class="primary-button" type="submit">Start video ${icon('arrow')}</button></div><div id="form-error" class="form-error" role="alert"></div></form>`,true);
+function routingTable(job, pins) {
+  return `<div class="routing">${ROLES.map(item => { const route = routeModel(job, item.role, pins); return `<div class="routing-row"><span>${esc(item.label)}</span><code>${esc(route.model || 'CLI default')}</code><small>${esc(route.source)}</small></div>`; }).join('')}</div>`;
 }
-function configure() { if(!job) return newJob(); openModal(`${modalHeading('Your production crew.','Route models by role and choose optional checkpoints.')}<form id="configure-form">${modelFields(job)}<div class="modal-footer"><button class="secondary-button" type="button" data-action="close">Cancel</button><button class="primary-button" type="submit">Save configuration ${icon('check')}</button></div><div id="form-error" class="form-error" role="alert"></div></form>`,true); }
-async function inspectFile(file) {
-  const found = files.find(f=>f.path===file);
-  const type=found?.type || '';
-  if (/^(image|video|audio)\//.test(type)) {
-    const url=artifact(file);
-    openModal(`${modalHeading(esc(file.split('/').at(-1)),esc(file))}${type.startsWith('image')?`<img class="media-preview" src="${url}" alt="${esc(file)}">`:type.startsWith('video')?`<video class="real-video" src="${url}" controls preload="metadata"></video>`:`<audio class="real-audio" src="${url}" controls></audio>`}<div class="modal-footer"><span>${job.status==='complete'?'Verified delivery':'Working artifact · qualification pending'}</span><a class="secondary-button" href="${artifact(file,true)}" download>${icon('download')}Download</a></div>`,true); return;
-  }
-  openModal(`${modalHeading(esc(file.split('/').at(-1)),'Reading the actual file…')}<div class="file-loading">Loading…</div>`,true);
-  try { const result=await api(`/api/jobs/${job.id}/file?path=${encodeURIComponent(file)}`); if(!$('.file-loading'))return; $('.file-loading').outerHTML=`<div class="file-location">${icon('folder')}${esc(file)}</div><div class="code-view">${result.text.split('\n').map((line,i)=>`<div><span>${i+1}</span><code>${esc(line)||' '}</code></div>`).join('')}</div><div class="modal-footer"><span>Read-only artifact</span><a class="secondary-button" href="${artifact(file,true)}" download>${icon('download')}Download</a></div>`; } catch(error) { if($('.file-loading'))$('.file-loading').textContent=error.message; }
-}
-async function settings() { const settings=await api('/api/settings');workspaceSettings=settings;openModal(`${modalHeading('Workspace settings','Local execution using your installed CLI accounts.')}<form id="settings-form"><div class="setting-block"><h3>New video defaults</h3><div class="form-grid"><label>Orientation<select name="defaultFormat"><option value="landscape" ${settings.defaultFormat==='landscape'?'selected':''}>Landscape · 16:9</option><option value="vertical" ${settings.defaultFormat==='vertical'?'selected':''}>Portrait · 9:16</option></select></label><label>Target duration (seconds)<input name="defaultDuration" type="number" min="10" max="3600" value="${settings.defaultDuration}" required></label></div><p class="model-caveat">Each new video can override these defaults. Existing jobs keep their chosen orientation.</p></div><div class="setting-block"><label class="field-label" for="concurrency">Simultaneous video jobs</label><select name="concurrency" id="concurrency">${[1,2,3].map(n=>`<option value="${n}" ${n===settings.concurrency?'selected':''}>${n}${n===1?' · recommended for local rendering':''}</option>`).join('')}</select><p class="model-caveat">Additional threads queue automatically. Each active job can run up to four CLI processes, including its orchestrator. Higher concurrency uses more CPU, memory, and provider quota.</p></div><div class="setting-block"><h3>Existing CLI logins</h3><p>${providers.map(p=>`${esc(p.name)}: ${p.installed?esc(p.version):esc(p.error)}`).join('<br>')}</p><button type="button" class="secondary-button" data-action="refresh-providers">${icon('retry')}Recheck providers</button></div><div class="setting-block"><h3>Local persistence</h3><p>Threads, messages, configuration, and full event logs are saved in <code>.video/ui/</code>. Videos and thumbnails stay in their job folders. Restarted runs are marked interrupted; continue them explicitly.</p></div><div class="modal-footer"><button type="button" class="secondary-button" data-action="close">Close</button><button type="submit" class="primary-button">Save settings</button></div></form>`); }
-function readConfig(form) { const data=new FormData(form); return {provider:data.get('provider'),main:data.get('main').trim(),sub:data.get('sub').trim(),directorModel:data.get('directorModel').trim(),reviewerModel:data.get('reviewerModel').trim(),gateScript:data.has('gateScript'),gatePrototype:data.has('gatePrototype')}; }
-async function control(action) { await api(`/api/jobs/${job.id}/control`,{method:'POST',data:{action,feedback:$('#gate-feedback')?.value || ''}});await refresh();if(['approve','revise'].includes(action))toast(action==='approve'?'Checkpoint approved. Production queued to continue.':'Revision feedback sent.'); }
-async function measurements() {
-  const data=await api(`/api/jobs/${job.id}/file?path=${encodeURIComponent(`${job.jobPath}/review/delivery.json`)}`);let report;try{report=JSON.parse(data.text);}catch{return inspectFile(`${job.jobPath}/review/delivery.json`);}
-  openModal(`${modalHeading('Measurements & review limits','Read from the actual delivery report.')}<div class="measurement-content"><h3>Soundtrack measurements</h3><pre>${esc(JSON.stringify(report.soundtrack || 'Not recorded in this report',null,2))}</pre><h3>Headphone checks</h3><pre>${esc(JSON.stringify(report.headphoneChecks || 'Not recorded in this report',null,2))}</pre><h3>Limitations and findings</h3><pre>${esc(JSON.stringify({limitations:report.limitations,advisoryFindings:report.advisoryFindings,findings:report.findings},null,2))}</pre><p class="muted">Measurements do not establish subjective audio quality.</p></div>`,true);
-}
-
-document.addEventListener('click',async e=>{
-  if(e.target.classList.contains('modal-backdrop'))return closeModal();
-  const button=e.target.closest('[data-action]');if(!button)return;
-  try{
-    switch(button.dataset.action){
-      case 'new':newJob();break;
-      case 'close':closeModal();break;
-      case 'select':selected=button.dataset.id;tab='thread';job=null;document.body.classList.remove('sidebar-open');await refresh();break;
-      case 'tab':tab=button.dataset.tab;render();break;
-      case 'inspector-tab':inspectorTab=button.dataset.tab;render();break;
-      case 'file':await inspectFile(button.dataset.file);break;
-      case 'refresh':await refresh();break;
-      case 'configure':configure();break;
-      case 'settings':await settings();break;
-      case 'usage':await showUsage();break;
-      case 'refresh-usage':await showUsage(true);break;
-      case 'pause':case 'resume':case 'approve':case 'revise':await control(button.dataset.action);break;
-      case 'cancel':openModal(`${modalHeading('Cancel this run?','The current CLI processes and their tool processes will stop.')}<p class="muted">The thread, logs, and artifacts are kept. You can continue later from the saved state.</p><div class="modal-footer"><button class="secondary-button" data-action="close">Keep running</button><button class="danger-button" data-action="confirm-cancel">Cancel run</button></div>`);break;
-      case 'confirm-cancel':await control('cancel');closeModal();break;
-      case 'gate':tab='thread';render();$('.gate-card')?.scrollIntoView({block:'center'});break;
-      case 'sidebar':document.body.classList.toggle('sidebar-open');break;
-      case 'inspector':document.body.classList.toggle('inspector-open');break;
-      case 'refresh-providers':button.disabled=true;providers=await api('/api/providers?refresh=1');await settings();toast('Provider status refreshed.');break;
-      case 'measurements':await measurements();break;
-    }
-  }catch(error){toast(error.message);button.disabled=false;}
-});
-document.addEventListener('submit',async e=>{
-  if(!['new-job-form','configure-form','message-form','settings-form'].includes(e.target.id))return;
-  e.preventDefault();const form=e.target,button=$('button[type=submit]',form);if(button)button.disabled=true;
-  try{
-    const data=new FormData(form);
-    if(form.id==='new-job-form'){
-      const input={...readConfig(form),title:data.get('title'),prompt:data.get('prompt'),duration:Number(data.get('duration')),format:data.get('format'),audioPath:data.get('audioPath') || '',inputScript:data.get('inputScript') || ''};
-      for(const [field,target] of [['audioFile','audioPath'],['scriptFile','inputScript']]){const file=data.get(field);if(file?.size){button.textContent='Uploading…';const uploaded=await api(`/api/uploads?name=${encodeURIComponent(file.name)}`,{method:'POST',raw:file});input[target]=uploaded.path;}}
-      button.textContent='Starting…';const created=await api('/api/jobs',{method:'POST',data:input});selected=created.id;tab='thread';closeModal();await refresh();
-    }else if(form.id==='configure-form'){await api(`/api/jobs/${job.id}`,{method:'PATCH',data:readConfig(form)});closeModal();await refresh();toast('Configuration saved. New agents will use these models.');}
-    else if(form.id==='settings-form'){workspaceSettings=await api('/api/settings',{method:'PATCH',data:{concurrency:Number(data.get('concurrency')),defaultFormat:data.get('defaultFormat'),defaultDuration:Number(data.get('defaultDuration'))}});closeModal();toast('Workspace settings saved.');}
-    else{const input=$('#message-input');if(!input.value.trim())return;await api(`/api/jobs/${job.id}/messages`,{method:'POST',data:{text:input.value}});input.value='';await refresh();toast('Feedback saved for the agent’s next poll.');}
-  }catch(error){const target=$('#form-error',form);if(target)target.textContent=error.message;else toast(error.message);if(button)button.textContent=form.id==='new-job-form'?'Start video':'Save';}
-  finally{if(button)button.disabled=false;}
-});
-document.addEventListener('change',e=>{if(e.target.name==='provider'){const models=providers.find(p=>p.name===e.target.value)?.models || [];$('#model-options').innerHTML=models.map(m=>`<option value="${esc(m)}">`).join('');}});
-document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){if($('.modal'))closeModal();else document.body.classList.remove('sidebar-open','inspector-open');}
-  if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.target.id==='message-input'){e.preventDefault();$('#message-form').requestSubmit();}
-  if($('.modal')&&e.key==='Tab'){const items=[...$('.modal').querySelectorAll('button,input,textarea,select,summary,a[href]')].filter(item=>!item.disabled&&item.getClientRects().length);const first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}
-  if(!e.target.matches('input,textarea,select,[contenteditable]')&&!$('.modal')&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key.toLowerCase()==='n'){e.preventDefault();newJob();}
-});
-render();
-loadUsage().catch(()=>{});
-setInterval(()=>{if(!document.hidden)loadUsage().catch(()=>{});},60000);
-refresh().catch(error=>{loading=false;toast(error.message);render();});
-api('/api/settings').then(result=>{workspaceSettings=result;}).catch(error=>toast(error.message));
-api('/api/providers').then(result=>{providers=result;}).catch(error=>toast(error.message));
-const stream=new EventSource('/api/stream');
-stream.addEventListener('connected',()=>{connected=true;const label=$('.connection-label');if(label){label.classList.add('connected');label.innerHTML='<span class="tiny-dot"></span>Connected';}scheduleRefresh();});
-stream.addEventListener('change',scheduleRefresh);
-stream.onerror=()=>{connected=false;const label=$('.connection-label');if(label){label.classList.remove('connected');label.innerHTML='<span class="tiny-dot"></span>Reconnecting…';}};
-setInterval(()=>{if(job?.status==='running'&&$('#elapsed'))$('#elapsed').textContent=elapsed(job);},1000);
-
-function count(value) { return new Intl.NumberFormat().format(Math.round(value || 0)); }
 function jobUsage() {
-  const usage=job.usage;
-  const quota=usageState.find(p=>p.name===job.provider);
-  return `<section class="usage-section"><div class="section-label">JOB TOKENS<button class="text-button" data-action="usage">All providers ${icon('arrow')}</button></div><div class="usage-total">${usage?.reports?count(usage.total):'—'}<small>${usage?.reports?'reported tokens':'Waiting for provider usage'}</small></div>${usage?.reports?`<div class="token-breakdown"><span>Input<strong>${count(usage.input)}</strong></span><span>Output<strong>${count(usage.output)}</strong></span><span>Cached input<strong>${count(usage.cached)}</strong></span></div>`:''}${usage?.costReported?`<div class="usage-cost">CLI-reported estimate <strong>$${usage.reportedCostUSD.toFixed(4)}</strong></div>`:''}<div class="provider-quota-current">${quota?.windows?.length?quota.windows.map(w=>`<div class="quota-mini"><span>${quotaWindow(w)}</span><strong>${typeof w.remainingPercent==='number'?w.remainingPercent.toFixed(0)+'% left':typeof w.remainingTokens==='number'?count(w.remainingTokens)+' tokens left':'Status only'}</strong></div>`).join(''):'<p class="inspector-note">Provider balance: '+(quota?'not exposed by this CLI/login':'checking…')+'</p>'}</div><p class="usage-note">Includes orchestrator and tracked sub-agents. Cached tokens are a subset of input. Counts update when the CLI reports them.</p></section>`;
+  const usage = state.job.usage, quota = state.usage.find(p => p.name === state.job.provider);
+  return `<section class="usage-section"><div class="section-label">TOKENS<button class="text-button" data-action="usage">All providers ${icon('arrow')}</button></div><div class="usage-total">${usage?.reports ? count(usage.total) : '—'}<small>${usage?.reports ? 'reported by the CLI, all agents' : 'Waiting for provider usage'}</small></div>${usage?.reports ? `<div class="token-breakdown"><span>Input<strong>${count(usage.input)}</strong></span><span>Output<strong>${count(usage.output)}</strong></span><span>Cached<strong>${count(usage.cached)}</strong></span></div>` : ''}${usage?.costReported ? `<div class="usage-cost">CLI-reported estimate <strong>$${usage.reportedCostUSD.toFixed(4)}</strong></div>` : ''}${quota?.windows?.length ? quota.windows.map(w => `<div class="quota-mini"><span>${quotaWindow(w)}</span><strong>${typeof w.remainingPercent === 'number' ? w.remainingPercent.toFixed(0) + '% left' : 'Status only'}</strong></div>`).join('') : ''}</section>`;
 }
 function quotaWindow(window) {
-  const minutes=window.windowMinutes;
-  return esc(window.label || 'Account')+(minutes?` · ${minutes>=1440?(minutes/1440).toFixed(0)+' day':minutes>=60?(minutes/60).toFixed(1).replace('.0','')+' hour':minutes+' min'}`:window.kind?' · '+esc(window.kind):'');
+  const minutes = window.windowMinutes;
+  return esc(window.label || 'Account') + (minutes ? ` · ${minutes >= 1440 ? (minutes / 1440).toFixed(0) + ' day' : minutes >= 60 ? (minutes / 60).toFixed(1).replace('.0', '') + ' hour' : minutes + ' min'}` : window.kind ? ' · ' + esc(window.kind) : '');
+}
+
+// ---------- modals ----------
+let onModalClose = null;
+function openModal(content, wide = false, onClose = null) { lastFocus = document.activeElement; onModalClose = onClose; $('#overlay').innerHTML = `<div class="modal-backdrop"><section class="modal ${wide ? 'wide-modal' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">${content}</section></div>`; ($('textarea,input,select', $('.modal')) || $('.modal')).focus(); }
+function closeModal() { $('#overlay').innerHTML = ''; onModalClose?.(); onModalClose = null; if (lastFocus?.isConnected) lastFocus.focus(); }
+const modalHeading = (title, description) => `<div class="modal-heading"><div><h2 id="modal-title">${title}</h2><p>${description}</p></div><button class="icon-button" data-action="close" aria-label="Close dialog">${icon('close')}</button></div>`;
+function modelFields(j = {}) {
+  const provider = j.provider || state.providers.find(p => p.installed)?.name || 'Codex';
+  const models = state.providers.find(p => p.name === provider)?.models || [];
+  return `<div class="field-label">CLI provider</div><div class="provider-options">${names.map(name => { const p = state.providers.find(item => item.name === name); return `<label class="provider-option"><input type="radio" name="provider" value="${name}" ${name === provider ? 'checked' : ''} ${(p && !p.installed) || (j.agents?.length && name !== j.provider) ? 'disabled' : ''}><span class="provider-option-content"><span class="provider-large">${marks[name]}</span>${name}<span class="provider-radio"></span></span></label>`; }).join('')}</div><div class="provider-install-note">${state.providers.length ? state.providers.map(p => `${p.name}: ${p.installed ? p.version || 'installed' : 'not available'}`).map(esc).join(' · ') : 'Checking installed CLIs…'}</div>
+  <div class="form-grid"><label>Main model<input type="text" name="main" list="model-options" placeholder="CLI default" value="${esc(j.main || '')}" maxlength="120"><small>Orchestrator; every role inherits it unless set below</small></label><label>Sub-agent (builder) model<input type="text" name="sub" list="model-options" placeholder="Repo pin or main model" value="${esc(j.sub || '')}" maxlength="120"><small>Delegated scene builders</small></label></div><datalist id="model-options">${models.map(m => `<option value="${esc(m)}">`).join('')}</datalist>
+  <details class="advanced-options" data-key="overrides"><summary>Creative and reviewer overrides ${icon('down')}</summary><div class="form-grid"><label>Creative roles<input name="directorModel" list="model-options" placeholder="Repo pin or main model" value="${esc(j.directorModel || '')}" maxlength="120"><small>Writer, director, thumbnail maker</small></label><label>Independent reviewers<input name="reviewerModel" list="model-options" placeholder="Repo pin or main model" value="${esc(j.reviewerModel || '')}" maxlength="120"><small>Script, film and thumbnail reviewers</small></label></div></details>
+  <div class="field-label">What each role will run on</div><div id="routing-preview">${routingTable({ provider, ...j }, state.providers.find(p => p.name === 'Claude')?.pins || {})}</div>
+  <div class="model-caveat">Uses your existing CLI login. Model IDs are passed straight to the CLI (OpenCode uses provider/model).${j.agents?.length ? ' The provider is fixed for this thread; model changes apply to agents started afterwards.' : ''}</div><div class="form-divider"></div><div class="new-gates"><label><input type="checkbox" name="gateScript" ${j.gateScript ? 'checked' : ''}>Pause for me after script review</label><label><input type="checkbox" name="gatePrototype" ${j.gatePrototype ? 'checked' : ''}>Pause for me after prototype review</label></div>`;
+}
+function updateRoutingPreview(form) { const preview = $('#routing-preview', form); if (preview) preview.innerHTML = routingTable(readConfig(form), state.providers.find(p => p.name === 'Claude')?.pins || {}); }
+function newJob() {
+  const base = state.job || {};
+  openModal(`${modalHeading('What are we making?', 'One prompt. One thread. The entire production.')}<form id="new-job-form"><label class="field-label" for="new-prompt">Describe your video</label><textarea id="new-prompt" name="prompt" rows="4" placeholder="A 3-minute explainer about why batteries degrade. Make it visual and accessible…" required maxlength="20000"></textarea><div class="form-grid"><label>Title (optional)<input name="title" placeholder="Name this thread" maxlength="150"></label><label>Target duration (seconds)<input name="duration" type="number" value="${state.settings.defaultDuration}" min="10" max="3600" required></label></div><div class="form-grid"><label>Format<select name="format"><option value="landscape" ${state.settings.defaultFormat === 'landscape' ? 'selected' : ''}>Landscape · 16:9</option><option value="vertical" ${state.settings.defaultFormat === 'vertical' ? 'selected' : ''}>Portrait · 9:16</option></select></label><div></div></div><details class="advanced-options input-options"><summary>Use an existing script or recording ${icon('down')}</summary><div class="form-grid"><label>Script file<input type="file" name="scriptFile" accept=".md,.txt"><input name="inputScript" placeholder="Or repository-relative path"></label><label>Recording<input type="file" name="audioFile" accept="audio/*,.webm,.mp4"><input name="audioPath" placeholder="Or repository-relative path"></label></div><p class="model-caveat">A supplied recording is kept unchanged. Without one, the agent generates narration from the reviewed script. Uploads stay inside this repository (250 MB per file).</p></details><div class="form-divider"></div>${modelFields({ provider: base.provider, main: base.main || '', sub: base.sub || '', directorModel: base.directorModel || '', reviewerModel: base.reviewerModel || '' })}<div class="modal-footer"><span>${icon('terminal')}Runs real CLI agents and production tools</span><button class="primary-button" type="submit">Start video ${icon('arrow')}</button></div><div id="form-error" class="form-error" role="alert"></div></form>`, true);
+}
+function configure() { if (!state.job) return newJob(); openModal(`${modalHeading('Your production crew.', 'Route models by role and choose your checkpoints.')}<form id="configure-form">${modelFields(state.job)}<div class="modal-footer"><button class="secondary-button" type="button" data-action="close">Cancel</button><button class="primary-button" type="submit">Save configuration ${icon('check')}</button></div><div id="form-error" class="form-error" role="alert"></div></form>`, true); }
+async function inspectFile(file) {
+  const type = state.files.find(f => f.path === file)?.type || (/\.(png|jpe?g|svg)$/i.test(file) ? 'image/' : /\.(mp4|webm)$/i.test(file) ? 'video/' : /\.(wav|mp3)$/i.test(file) ? 'audio/' : '');
+  if (/^(image|video|audio)\//.test(type)) {
+    const url = artifact(file);
+    openModal(`${modalHeading(esc(file.split('/').at(-1)), esc(file))}${type.startsWith('image') ? `<img class="media-preview" src="${url}" alt="${esc(file)}">` : type.startsWith('video') ? `<video class="real-video" src="${url}" controls preload="metadata"></video>` : `<audio class="real-audio" src="${url}" controls></audio>`}<div class="modal-footer"><span>${state.job.status === 'complete' ? 'Verified delivery' : 'Working artifact · qualification pending'}</span><a class="secondary-button" href="${artifact(file, true)}" download>${icon('download')}Download</a></div>`, true); return;
+  }
+  openModal(`${modalHeading(esc(file.split('/').at(-1)), 'Reading the actual file…')}<div class="file-loading">Loading…</div>`, true);
+  try { const result = await api(`/api/jobs/${state.job.id}/file?path=${encodeURIComponent(file)}`); if (!$('.file-loading')) return; $('.file-loading').outerHTML = `<div class="file-location">${icon('folder')}${esc(file)}</div><div class="code-view">${result.text.split('\n').map((line, i) => `<div><span>${i + 1}</span><code>${esc(line) || ' '}</code></div>`).join('')}</div><div class="modal-footer"><span>Read-only artifact</span><a class="secondary-button" href="${artifact(file, true)}" download>${icon('download')}Download</a></div>`; } catch (error) { if ($('.file-loading')) $('.file-loading').textContent = error.message; }
+}
+async function settings() { const s = await api('/api/settings'); state.settings = s; openModal(`${modalHeading('Workspace settings', 'Local execution using your installed CLI accounts.')}<form id="settings-form"><div class="setting-block"><h3>New video defaults</h3><div class="form-grid"><label>Orientation<select name="defaultFormat"><option value="landscape" ${s.defaultFormat === 'landscape' ? 'selected' : ''}>Landscape · 16:9</option><option value="vertical" ${s.defaultFormat === 'vertical' ? 'selected' : ''}>Portrait · 9:16</option></select></label><label>Target duration (seconds)<input name="defaultDuration" type="number" min="10" max="3600" value="${s.defaultDuration}" required></label></div></div><div class="setting-block"><label class="field-label" for="concurrency">Simultaneous video jobs</label><select name="concurrency" id="concurrency">${[1, 2, 3].map(n => `<option value="${n}" ${n === s.concurrency ? 'selected' : ''}>${n}${n === 1 ? ' · recommended for local rendering' : ''}</option>`).join('')}</select><p class="model-caveat">Additional threads queue automatically. Each active job runs up to four CLI processes, including its orchestrator.</p></div><div class="setting-block"><h3>Existing CLI logins</h3><p>${state.providers.map(p => `${esc(p.name)}: ${p.installed ? esc(p.version) : esc(p.error)}`).join('<br>')}</p><button type="button" class="secondary-button" data-action="refresh-providers">${icon('retry')}Recheck providers</button></div><div class="setting-block"><h3>Local persistence</h3><p>Threads and full event logs are saved in <code>.video/ui/</code>. Videos and thumbnails stay in their job folders. Restarted runs are marked interrupted; continue them explicitly.</p></div><div class="modal-footer"><button type="button" class="secondary-button" data-action="close">Close</button><button type="submit" class="primary-button">Save settings</button></div></form>`); }
+function readConfig(form) { const data = new FormData(form); return { provider: data.get('provider'), main: (data.get('main') || '').trim(), sub: (data.get('sub') || '').trim(), directorModel: (data.get('directorModel') || '').trim(), reviewerModel: (data.get('reviewerModel') || '').trim(), gateScript: data.has('gateScript'), gatePrototype: data.has('gatePrototype') }; }
+async function control(action, extra = {}) { const job = await api(`/api/jobs/${state.job.id}/control`, { method: 'POST', data: { action, ...extra } }); state.jobs.set(job.id, job); if (state.job?.id === job.id) state.job = job; schedule(); return job; }
+async function measurements() {
+  const data = await api(`/api/jobs/${state.job.id}/file?path=${encodeURIComponent(`${state.job.jobPath}/review/delivery.json`)}`); let report; try { report = JSON.parse(data.text); } catch { return inspectFile(`${state.job.jobPath}/review/delivery.json`); }
+  openModal(`${modalHeading('Measurements & review limits', 'Read from the actual delivery report.')}<div class="measurement-content"><h3>Soundtrack measurements</h3><pre>${esc(JSON.stringify(report.soundtrack || 'Not recorded in this report', null, 2))}</pre><h3>Headphone checks</h3><pre>${esc(JSON.stringify(report.headphoneChecks || 'Not recorded in this report', null, 2))}</pre><h3>Limitations and findings</h3><pre>${esc(JSON.stringify({ limitations: report.limitations, advisoryFindings: report.advisoryFindings, findings: report.findings }, null, 2))}</pre><p class="muted">Measurements do not establish subjective audio quality.</p></div>`, true);
 }
 function usageContent() {
-  return `${modalHeading('Tokens & provider limits.','Job usage and account quota are tracked separately.')}<div class="usage-providers">${usageState.map(p=>`<div class="usage-provider"><div class="usage-provider-heading"><span class="provider-large">${marks[p.name]}</span><h3>${p.name}</h3><span class="subtle-tag">${p.usage?.reports?count(p.usage.total)+' TOKENS TRACKED':'NO JOB USAGE YET'}</span></div>${p.windows?.length?p.windows.map(w=>`<div class="quota-window"><div><span>${quotaWindow(w)}</span><strong>${typeof w.remainingPercent==='number'?w.remainingPercent.toFixed(1).replace('.0','')+'% remaining':typeof w.remainingTokens==='number'?count(w.remainingTokens)+' tokens remaining':'Status only'}</strong></div>${typeof w.remainingPercent==='number'?`<div class="quota-track"><span style="width:${Math.max(0,Math.min(100,w.remainingPercent))}%"></span></div>`:''}${w.resetsAt?`<small>Resets ${new Date(w.resetsAt).toLocaleString()}</small>`:''}</div>`).join(''):`<p class="quota-unavailable">${esc(p.detail || 'Remaining balance not exposed by this CLI.')}</p>`}<small class="quota-source">${p.source?esc(p.source)+' · ':''}${p.checkedAt?'Checked '+new Date(p.checkedAt).toLocaleTimeString():'Account quota not available'}</small></div>`).join('')}</div>${job?`<div class="job-usage-detail"><h3>This job · ${esc(job.title)}</h3><div class="usage-job-table"><div><strong>Agent</strong><strong>Input</strong><strong>Output</strong><strong>Total</strong></div>${job.agents.map(a=>`<div><span>${esc(roleName(a.role))}<small>${esc(a.actualModel || a.model || 'Provider default')}</small></span><span>${a.usage?.reports?count(a.usage.input):'—'}</span><span>${a.usage?.reports?count(a.usage.output):'—'}</span><strong>${a.usage?.reports?count(a.usage.total):'—'}</strong></div>`).join('') || '<p class="muted">No sessions yet.</p>'}</div>${job.agents.filter(a=>a.context?.remaining!==null&&a.context?.remaining!==undefined).map(a=>`<div class="context-window"><span>${esc(roleName(a.role))} · last-request context estimate</span><strong>${count(a.context.remaining)} / ${count(a.context.limit)} tokens available</strong><small>Based on the last reported request. This is not account quota and changes with compaction.</small></div>`).join('')}</div>`:''}<div class="info-note">${icon('info')}Quota percentages use provider-reported windows, not an inferred token allowance. CLI-reported costs are estimates, not billing records. Unknown balances stay unknown.</div><div class="modal-footer"><button class="secondary-button" data-action="refresh-usage">${icon('retry')}Refresh limits</button><button class="primary-button" data-action="close">Done</button></div>`;
+  return `${modalHeading('Tokens & provider limits.', 'Job usage and account quota are tracked separately.')}<div class="usage-providers">${state.usage.map(p => `<div class="usage-provider"><div class="usage-provider-heading"><span class="provider-large">${marks[p.name]}</span><h3>${p.name}</h3><span class="subtle-tag">${p.usage?.reports ? count(p.usage.total) + ' TOKENS TRACKED' : 'NO JOB USAGE YET'}</span></div>${p.windows?.length ? p.windows.map(w => `<div class="quota-window"><div><span>${quotaWindow(w)}</span><strong>${typeof w.remainingPercent === 'number' ? w.remainingPercent.toFixed(1).replace('.0', '') + '% remaining' : 'Status only'}</strong></div>${typeof w.remainingPercent === 'number' ? `<div class="quota-track"><span style="width:${Math.max(0, Math.min(100, w.remainingPercent))}%"></span></div>` : ''}${w.resetsAt ? `<small>Resets ${new Date(w.resetsAt).toLocaleString()}</small>` : ''}</div>`).join('') : `<p class="quota-unavailable">${esc(p.detail || 'Remaining balance not exposed by this CLI.')}</p>`}<small class="quota-source">${p.source ? esc(p.source) + ' · ' : ''}${p.checkedAt ? 'Checked ' + new Date(p.checkedAt).toLocaleTimeString() : 'Account quota not available'}</small></div>`).join('')}</div>${state.job ? `<div class="job-usage-detail"><h3>This job · ${esc(state.job.title)}</h3><div class="usage-job-table"><div><strong>Agent</strong><strong>Input</strong><strong>Output</strong><strong>Total</strong></div>${state.job.agents.map(a => `<div><span>${esc(roleLabel(a.role))}<small>${esc(a.scene || a.actualModel || a.model || 'CLI default')}</small></span><span>${a.usage?.reports ? count(a.usage.input) : '—'}</span><span>${a.usage?.reports ? count(a.usage.output) : '—'}</span><strong>${a.usage?.reports ? count(a.usage.total) : '—'}</strong></div>`).join('') || '<p class="muted">No sessions yet.</p>'}</div></div>` : ''}<div class="info-note">${icon('info')}Quota percentages use provider-reported windows. CLI-reported costs are estimates, not billing records. Unknown balances stay unknown.</div><div class="modal-footer"><button class="secondary-button" data-action="refresh-usage">${icon('retry')}Refresh limits</button><button class="primary-button" data-action="close">Done</button></div>`;
 }
-async function loadUsage(refresh=false) {
-  usageState=await api('/api/usage'+(refresh?'?refresh=1':''));
-  if($('.usage-providers')) $('.modal').innerHTML=usageContent();
-  if(job&&tab!=='outputs')render();
-}
-async function showUsage(refresh=false) {
-  openModal(`${modalHeading('Tokens & provider limits.','Reading quota from the providers that expose it.')}<div class="usage-loading">${icon('clock')}Checking provider limits…</div>`,true);
-  try{await loadUsage(refresh);if($('.usage-loading'))$('.modal').innerHTML=usageContent();}catch(error){if($('.usage-loading'))$('.usage-loading').textContent=error.message;}
-}
+async function loadUsage(refresh = false) { state.usage = await api('/api/usage' + (refresh ? '?refresh=1' : '')); if ($('.usage-providers')) $('.modal').innerHTML = usageContent(); schedule(); }
+async function showUsage(refresh = false) { openModal(`${modalHeading('Tokens & provider limits.', 'Reading quota from the providers that expose it.')}<div class="usage-loading">${icon('clock')}Checking provider limits…</div>`, true); try { await loadUsage(refresh); if ($('.usage-loading')) $('.modal').innerHTML = usageContent(); } catch (error) { if ($('.usage-loading')) $('.usage-loading').textContent = error.message; } }
+function confirm(title, text, action, label) { openModal(`${modalHeading(title, text)}<div class="modal-footer"><button class="secondary-button" data-action="close">Keep it</button><button class="danger-button" data-action="${action}">${label}</button></div>`); }
+
+// ---------- events ----------
+document.addEventListener('click', async e => {
+  if (e.target.classList.contains('modal-backdrop')) return closeModal();
+  const button = e.target.closest('[data-action]'); if (!button) return;
+  const action = button.dataset.action;
+  try {
+    switch (action) {
+      case 'new': newJob(); break;
+      case 'close': closeModal(); break;
+      case 'select': state.selected = button.dataset.id; state.tab = 'thread'; state.files = []; document.body.classList.remove('sidebar-open'); await loadDetail(); break;
+      case 'toggle-archived': state.showArchived = !state.showArchived; schedule(); break;
+      case 'tab': state.tab = button.dataset.tab; if (['files', 'outputs'].includes(state.tab)) await loadFiles(); schedule(); break;
+      case 'inspector-tab': state.inspectorTab = button.dataset.tab; schedule(); break;
+      case 'file': await inspectFile(button.dataset.file); break;
+      case 'agent': await openAgent(button.dataset.id); break;
+      case 'filter': state.activityFilter = button.dataset.filter; schedule(); break;
+      case 'older': { const older = await api(`/api/jobs/${state.job.id}/events?before=${state.events[0].seq}&limit=500`); state.events = [...older, ...state.events]; state.olderLoaded = older.length < 500; schedule(); break; }
+      case 'full-output': { const full = await api(`/api/jobs/${state.job.id}/events/${button.dataset.id}`); openModal(`${modalHeading('Full tool output', esc(full.text?.slice(0, 160) || ''))}<pre class="pre">${esc(full.output)}</pre>`, true); break; }
+      case 'refresh-files': await loadFiles(); break;
+      case 'configure': configure(); break;
+      case 'settings': await settings(); break;
+      case 'usage': await showUsage(); break;
+      case 'refresh-usage': await showUsage(true); break;
+      case 'pause': await control('pause'); toast('Pausing: agents finish their current tool call, then wait.'); break;
+      case 'resume': await control('resume'); break;
+      case 'approve': case 'revise': await control(action, { feedback: $('#gate-feedback')?.value || '' }); toast(action === 'approve' ? 'Approved. Production continues.' : 'Change request sent.'); break;
+      case 'answer': await control('answer', { answer: $('#gate-answer')?.value || '' }); toast('Answer sent.'); break;
+      case 'answer-option': await control('answer', { answer: button.dataset.answer }); toast('Answer sent.'); break;
+      case 'cancel': confirm('Cancel this run?', 'The CLI processes stop. The thread, logs and artifacts are kept; you can continue later.', 'confirm-cancel', 'Cancel run'); break;
+      case 'confirm-cancel': await control('cancel'); closeModal(); break;
+      case 'archive': case 'unarchive': await control(action); toast(action === 'archive' ? 'Thread archived.' : 'Thread restored.'); break;
+      case 'delete': confirm('Delete this thread?', 'Removes the thread and its event log from the UI. The job and script folders on disk are kept.', 'confirm-delete', 'Delete thread'); break;
+      case 'confirm-delete': await api(`/api/jobs/${state.job.id}`, { method: 'DELETE' }); closeModal(); state.jobs.delete(state.selected); state.selected = null; await loadJobs(); break;
+      case 'gate': state.tab = 'thread'; schedule(); requestAnimationFrame(() => $('.gate-card')?.scrollIntoView({ block: 'center' })); break;
+      case 'sidebar': document.body.classList.toggle('sidebar-open'); break;
+      case 'inspector': document.body.classList.toggle('inspector-open'); break;
+      case 'refresh-providers': button.disabled = true; state.providers = await api('/api/providers?refresh=1'); await settings(); toast('Provider status refreshed.'); break;
+      case 'measurements': await measurements(); break;
+    }
+  } catch (error) { toast(error.message); button.disabled = false; }
+});
+document.addEventListener('submit', async e => {
+  if (!['new-job-form', 'configure-form', 'message-form', 'settings-form'].includes(e.target.id)) return;
+  e.preventDefault(); const form = e.target, button = $('button[type=submit]', form); if (button) button.disabled = true;
+  try {
+    const data = new FormData(form);
+    if (form.id === 'new-job-form') {
+      const input = { ...readConfig(form), title: data.get('title'), prompt: data.get('prompt'), duration: Number(data.get('duration')), format: data.get('format'), audioPath: data.get('audioPath') || '', inputScript: data.get('inputScript') || '' };
+      for (const [field, target] of [['audioFile', 'audioPath'], ['scriptFile', 'inputScript']]) { const file = data.get(field); if (file?.size) { button.textContent = 'Uploading…'; input[target] = (await api(`/api/uploads?name=${encodeURIComponent(file.name)}`, { method: 'POST', raw: file })).path; } }
+      button.textContent = 'Starting…'; const created = await api('/api/jobs', { method: 'POST', data: input }); state.selected = created.id; state.tab = 'thread'; closeModal(); await loadJobs();
+    } else if (form.id === 'configure-form') { await api(`/api/jobs/${state.job.id}`, { method: 'PATCH', data: readConfig(form) }); closeModal(); await loadDetail(); toast('Saved. New agents will use these models.'); }
+    else if (form.id === 'settings-form') { state.settings = await api('/api/settings', { method: 'PATCH', data: { concurrency: Number(data.get('concurrency')), defaultFormat: data.get('defaultFormat'), defaultDuration: Number(data.get('defaultDuration')) } }); closeModal(); toast('Workspace settings saved.'); }
+    else { const input = $('#message-input'); if (!input.value.trim()) return; await api(`/api/jobs/${state.job.id}/messages`, { method: 'POST', data: { text: input.value } }); input.value = ''; toast('Queued for the orchestrator’s next feedback check.'); }
+  } catch (error) { const target = $('#form-error', form); if (target) target.textContent = error.message; else toast(error.message); if (button) button.textContent = form.id === 'new-job-form' ? 'Start video' : 'Save'; }
+  finally { if (button) button.disabled = false; }
+});
+document.addEventListener('change', e => {
+  if (e.target.name === 'provider') { const models = state.providers.find(p => p.name === e.target.value)?.models || []; const list = $('#model-options'); if (list) list.innerHTML = models.map(m => `<option value="${esc(m)}">`).join(''); }
+  if (e.target.id === 'activity-agent') { state.activityAgent = e.target.value; schedule(); }
+  if (e.target.form && ['new-job-form', 'configure-form'].includes(e.target.form.id)) updateRoutingPreview(e.target.form);
+});
+document.addEventListener('input', e => { if (e.target.form && ['new-job-form', 'configure-form'].includes(e.target.form.id) && ['main', 'sub', 'directorModel', 'reviewerModel'].includes(e.target.name)) updateRoutingPreview(e.target.form); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if ($('.modal')) closeModal(); else document.body.classList.remove('sidebar-open', 'inspector-open'); }
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.target.id === 'message-input') { e.preventDefault(); $('#message-form').requestSubmit(); }
+  if ($('.modal') && e.key === 'Tab') { const items = [...$('.modal').querySelectorAll('button,input,textarea,select,summary,a[href]')].filter(item => !item.disabled && item.getClientRects().length); const first = items[0], last = items.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } }
+  if (!e.target.matches('input,textarea,select,[contenteditable]') && !$('.modal') && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newJob(); }
+});
+
+// ---------- start ----------
+render();
+api('/api/settings').then(result => { state.settings = result; }).catch(error => toast(error.message));
+api('/api/providers').then(result => { state.providers = result; schedule(); }).catch(error => toast(error.message));
+loadUsage().catch(() => {});
+setInterval(() => { if (!document.hidden) loadUsage().catch(() => {}); }, 60000);
+const stream = new EventSource('/api/stream');
+// Every (re)connection reloads the full picture, so nothing is lost while disconnected.
+stream.addEventListener('connected', () => { state.connected = true; loadJobs().catch(error => { state.loading = false; toast(error.message); schedule(); }); });
+stream.addEventListener('update', event => applyUpdate(JSON.parse(event.data)));
+stream.onerror = () => { state.connected = false; schedule(); };

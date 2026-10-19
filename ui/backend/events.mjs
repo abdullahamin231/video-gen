@@ -3,13 +3,46 @@ import path from 'node:path';
 export function redact(text) {
   return String(text ?? '').replace(/\b(sk-[A-Za-z0-9_-]{16,}|Bearer\s+[A-Za-z0-9._-]{16,})/g, '[redacted]').replace(/((?:api[_-]?key|access[_-]?token|authorization|password)\s*[=:]\s*)[^\s,}"']+/gi, '$1[redacted]').slice(0, 32000);
 }
+
+// `npm run video -- render --job jobs/x` (also inside `bash -lc '…'`) → { command: 'render', job: 'jobs/x' }.
+export function pipelineCommand(command) {
+  const text = String(command || '');
+  if (/\bhyperframes\s+tts\b/.test(text)) return { command: 'tts', job: '' };
+  const match = /(?:npm\s+(?:-s\s+|--silent\s+)?run\s+(?:-s\s+)?video\s+--|node\s+(?:\S*\/)?scripts\/video\.mjs)\s+([a-z][a-z-]*)/.exec(text);
+  if (!match) return null;
+  return { command: match[1], job: /--job\s+['"]?([^\s'"]+)/.exec(text)?.[1]?.replace(/\/$/, '') || '' };
+}
+
+// The STATE and DO lines that `next` printed: what the pipeline actually told the agent to do.
+export function parseNext(output) {
+  const text = String(output || '');
+  const state = /^STATE:\s*(.+)$/m.exec(text)?.[1]?.trim();
+  if (!state) return null;
+  const actions = [...text.matchAll(/^(DO|THEN):\s*(.+)$/gm)].map(match => ({ kind: match[1], text: match[2].trim() }));
+  // `video-builder: "Read /abs/jobs/x/briefs/build-a.md and follow it exactly."` → { role: 'builder', brief: 'jobs/x/briefs/build-a.md' }
+  const spawns = [...text.matchAll(/video-([a-z-]+):\s*"Read\s+(\S+?)\s+and follow it exactly/g)]
+    .map(match => ({ role: match[1], brief: match[2].replace(/^.*?(?=jobs\/)/, '') }));
+  return { state, actions, spawns };
+}
+
+// The first repository path a shell command touches, so reads through `cat`/`sed` still show a file.
+export function fileFromCommand(command) {
+  const match = /(?:^|[\s'"=(])((?:jobs|library|docs|lib|scripts)\/[^\s'"`;|&<>()]+\.[a-zA-Z0-9]{1,6})\b/.exec(String(command || ''));
+  return match?.[1] || '';
+}
+
 function toolEvent(name, input, status, output = '', key = '') {
   const file = input?.file_path || input?.filePath || input?.path || input?.filename || '';
   const command = input?.command || input?.cmd || '';
-  const operation = /write|edit|patch/i.test(name) ? 'editing' : /read|view|open/i.test(name) ? 'reading' : '';
-  return { type: status === 'failed' ? 'error' : 'tool', name, text: redact(command || name), file: typeof file === 'string' ? file : '', operation, status, output: redact(output), toolId: key };
+  const operation = /write|edit|patch|file (add|update|delete)/i.test(name) ? 'editing' : /read|view|open|glob|grep/i.test(name) ? 'reading' : command ? 'running' : '';
+  const item = { type: 'tool', name, text: redact(command || name), file: typeof file === 'string' && file ? file : fileFromCommand(command), operation, status, output: redact(output), toolId: key };
+  const pipeline = pipelineCommand(command);
+  if (pipeline) item.pipeline = pipeline;
+  return item;
 }
 
+// Provider stream → normalized events. A failed tool call is recoverable (status "failed");
+// only provider/runner failures are type "error".
 export function normalize(provider, raw) {
   const result = [];
   if (provider === 'Codex') {
@@ -36,7 +69,7 @@ export function normalize(provider, raw) {
       if (block.type === 'tool_use') result.push(toolEvent(block.name, block.input, 'running', '', block.id));
     }
     if (raw.type === 'user') for (const block of raw.message?.content || []) {
-      if (block.type === 'tool_result') result.push({ type: block.is_error ? 'error' : 'tool', text: block.is_error ? 'Tool failed' : 'Tool completed', toolId: block.tool_use_id, status: block.is_error ? 'failed' : 'completed', output: redact(typeof block.content === 'string' ? block.content : JSON.stringify(block.content)) });
+      if (block.type === 'tool_result') result.push({ type: 'tool', text: block.is_error ? 'Tool failed' : 'Tool completed', toolId: block.tool_use_id, status: block.is_error ? 'failed' : 'completed', output: redact(typeof block.content === 'string' ? block.content : JSON.stringify(block.content)) });
     }
     if (raw.type === 'result') {
       if (raw.session_id) result.push({ type: 'session', sessionId: raw.session_id });
@@ -63,4 +96,21 @@ export function normalize(provider, raw) {
 export function normalizeFile(root, file) {
   if (!file) return '';
   return path.isAbsolute(file) ? path.relative(root, file).split(path.sep).join('/') : file.replace(/^\.\//, '');
+}
+
+// What a delegated agent is for, read from the brief it was given.
+export function describeTask(role, prompt) {
+  const brief = /Read\s+[`'"]?([^\s`'"]+\.md)[`'"]?\s+and follow it/i.exec(String(prompt || ''))?.[1] || '';
+  const name = path.basename(brief, '.md');
+  let scene = '', task = '', stage = '';
+  let match;
+  if (name === 'director') task = 'Plan the film';
+  else if (name === 'director-revision') task = 'Revise the concept after review';
+  else if (name === 'repair-director') task = 'Repair the director’s scenes';
+  else if ((match = /^direct-(.+)$/.exec(name))) { scene = match[1]; task = `Direct and build from “${scene}”`; }
+  else if ((match = /^build-(.+)$/.exec(name))) { scene = match[1]; task = `Build scene “${scene}”`; }
+  else if ((match = /^repair-(.+)$/.exec(name))) { scene = match[1]; task = `Repair scene “${scene}”`; }
+  else if ((match = /^review-(prototype|final)-(.+)$/.exec(name))) { stage = match[1]; task = `Review ${stage}: ${match[2].replace(/-/g, ' ')}`; scene = ''; }
+  if (!task) task = { 'script-writer': 'Research and write the script', 'script-reviewer': 'Independent script review', 'thumbnail-maker': 'Design the thumbnail', 'thumbnail-reviewer': 'Independent thumbnail review', orchestrator: 'Orchestrate the production' }[role] || `${role} task`;
+  return { brief, scene, task, stage };
 }

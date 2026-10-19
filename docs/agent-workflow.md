@@ -22,6 +22,11 @@ no current pack → review-pack; missing reviews → reviewers; failed reviews �
 unsaved assets (before any review pack) → save-all; prototype accepted → build the remaining scenes; final pass → deliver. Querying the same failed pack does not consume another round.
 Review counters are excluded from render fingerprints. Persisted completion is requalified before `next` reports done.
 
+`status [--json]` (`lib/film.mjs jobProgress`) is `next`'s read-only twin for the job UI: it applies the same checks in
+the same order but writes nothing (no briefs, acceptance receipts or review-round counters). It reports every step as
+done/current/repair/blocked/pending with its detail, every scene (owner, timing, built, check and review problems) and
+each reviewer's verdict. A change to `nextStep`'s order must be mirrored in `jobProgress`.
+
 ## Frame and format
 
 `lib/format.mjs` owns the frame: `landscape` 1920×1080 (default) or `vertical` 1080×1920 (`--resolution

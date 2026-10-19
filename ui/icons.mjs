@@ -17,5 +17,10 @@ const paths = {
   retry: 'M3 11a9 9 0 1 1 2 7M3 4v7h7', menu: 'M4 6h16M4 12h16M4 18h16',
   branch: 'M6 3v12a3 3 0 1 0 3 3H6M18 3v4a5 5 0 0 1-5 5H6M8 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0M20 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
   copy: 'M8 8h13v13H8zM16 8V3H3v13h5', volume: 'm11 5-6 4H2v6h3l6 4zM15 8a5 5 0 0 1 0 8M18 5a9 9 0 0 1 0 14',
+  users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  layers: 'm12 2 10 5-10 5L2 7zM2 17l10 5 10-5M2 12l10 5 10-5',
+  question: 'M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+  archive: 'M3 4h18v4H3zM5 8v12h14V8M10 12h4', trash: 'M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15',
+  x: 'M18 6 6 18M6 6l12 12', star: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z',
 };
 export const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name] || paths.file}"/></svg>`;

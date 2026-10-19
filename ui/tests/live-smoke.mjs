@@ -18,7 +18,7 @@ try{
     const timer=setTimeout(()=>{void app.runner.control(job,'cancel');},90000);
     try{
       const result=await app.runner.runAgent(job,{role:'orchestrator',prompt:'This is ONLY a read-only connectivity check of the local CLI runner. Do not create a video, modify files, run shell commands, or spawn agents. Call the video_runner feedback MCP tool once. Then respond exactly: RUNNER CONNECTION VERIFIED. Your agent identity is supplied by the MCP server. Stop after this one tool call and short response.'});
-      const bridgeCalled=job.events.some(event=>event.name?.includes('feedback')&&event.status==='completed');
+      const bridgeCalled=app.store.events(job.id).some(event=>event.name?.includes('feedback')&&event.status==='completed');
       results.push({provider,ok:bridgeCalled,response:result.result.trim().slice(-300),usage:job.usage || null,sessionSaved:Boolean(result.sessionId)});
     }catch(error){results.push({provider,ok:false,error:error.message});}
     finally{clearTimeout(timer);job.status='needs_attention';app.store.save(job);}

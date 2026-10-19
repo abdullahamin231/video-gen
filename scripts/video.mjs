@@ -10,7 +10,7 @@ import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery
 import {createReviewPack} from '../lib/review-pack.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
 import {audioEnv, audioPython} from '../lib/sfx.mjs';
-import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
+import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, jobProgress, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
 import {installKit} from '../lib/world.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {setupManim} from '../lib/manim.mjs';
@@ -45,6 +45,7 @@ function options(args) {
   const result = {};
   while (args.length) {
     const key = args.shift();
+    if (key === '--json' && (!args.length || args[0].startsWith('--'))) { result.json = true; continue; }
     if (!key.startsWith('--') || !args.length || args[0].startsWith('--')) throw new Error(`Expected --option value: ${key}`);
     result[key.slice(2)] = args.shift();
   }
@@ -299,6 +300,7 @@ start --audio <file> --script <file> [--format landscape|vertical --length 30 --
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
                                      the job is named from the script file, else its folder or title (e.g. jobs/scripts/<slug>/SCRIPT.md → <slug>); --name overrides
 next [--job jobs/<slug>]             print the single next step (state machine)
+status [--job jobs/<slug>] [--json]  read-only progress of every step, scene and review (writes nothing)
 plan-check                          validate film.json (director output)
 build [--scene <id>]                 compile shots, assemble, inspect, print motion transcript
 snapshot [--scene <id>] [--at 1.2,3] write PNG frames of the world (for agents that can view images)
@@ -363,6 +365,14 @@ try {
     } else if (command === 'next') {
       const step = await nextStep(job);
       console.log(step.text);
+    } else if (command === 'status') {
+      const progress = await jobProgress(job);
+      if (opts.json) console.log(JSON.stringify(progress));
+      else {
+        console.log(`STATE: ${progress.state}`);
+        for (const s of progress.steps) console.log(`${{done: '✓', current: '▶', repair: '!', blocked: '✗', pending: '·'}[s.status] || '?'} ${s.label.padEnd(32)} ${s.detail}`);
+        if (progress.scenes.length) console.log(`\nScenes: ${progress.scenes.filter(s => s.built).length}/${progress.scenes.length} built`);
+      }
     } else if (command === 'plan-check') {
       try { await planCheck(job); console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`); }
       catch (error) { if (error instanceof SpecError) { printSpecError(error); console.error('\nFix film.json and run plan-check again.'); process.exitCode = 1; } else throw error; }
