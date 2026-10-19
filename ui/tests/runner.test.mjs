@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, symlink, rm, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, symlink, rm, stat, access } from 'node:fs/promises';
 import { spawn, execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -269,6 +269,59 @@ test('API streams deltas, authorizes bridge tools, rejects cross-origin writes, 
   assert.equal((await post(url, `/api/jobs/${job.id}/messages`, { text: 'Make it shorter' })).status, 201);
   assert.equal((await fetch(url + `/api/jobs/${job.id}`, { method: 'DELETE', headers: { 'X-Video-Client': '1' } })).status, 200);
   assert.equal((await fetch(url + `/api/jobs/${job.id}`)).status, 404);
+});
+
+test('deleting a thread removes its artifacts, uploads and thumbnail archive, and keeps the library', async t => {
+  const folder = await workspace();
+  const app = await createApp({ root, directory: path.join(folder, 'state'), runnerFactory: options => fakeRunner(options) });
+  const url = await app.start(0); t.after(() => app.close());
+  const upload = '.video/ui/uploads/11111111-1111-1111-1111-111111111111';
+  const latest = path.join(root, '.video/latest.json'), previousLatest = await readFile(latest, 'utf8').catch(() => null);
+  const write = async (file, text = 'x') => { await mkdir(path.dirname(path.join(root, file)), { recursive: true }); await writeFile(path.join(root, file), text); };
+  const present = async file => access(path.join(root, file)).then(() => true, () => false);
+  const mine = app.store.create({ ...defaults, audioPath: `${upload}/take.wav` });
+  mine.status = 'complete'; app.store.save(mine); app.store.flush();
+  const sharer = app.store.create({ ...defaults, title: 'Shares the upload', audioPath: `${upload}/take.wav` });
+  sharer.status = 'complete'; app.store.save(sharer); app.store.flush();
+  await write(`${mine.jobPath}/renders/video.mp4`, 'video'); await write(`${mine.jobPath}/shots/a.json`, '{}');
+  await write(`${mine.scriptPath}/SCRIPT.md`, 'script'); await write(`library/thumbnails/${mine.slug}/thumbnail.png`, 'png');
+  await write(`${upload}/take.wav`, 'wav'); await write('library/keep-me-bundle.json', 'shared'); await writeFile(latest, JSON.stringify({ job: mine.jobPath }));
+  const del = async id => assert.equal((await fetch(`${url}/api/jobs/${id}`, { method: 'DELETE', headers: { 'X-Video-Client': '1' } })).status, 200);
+  let running = null;
+  try {
+    await del(mine.id);
+    for (const gone of [mine.jobPath, mine.scriptPath, `library/thumbnails/${mine.slug}`, '.video/latest.json']) assert.equal(await present(gone), false, `${gone} should be deleted`);
+    assert.equal(await present(`${upload}/take.wav`), true, 'an upload another thread still uses is kept');
+    assert.equal(await present('library/keep-me-bundle.json'), true, 'reusable library work is kept');
+    assert.throws(() => app.store.get(mine.id), /Thread not found/);
+    await del(sharer.id);
+    assert.equal(await present(upload), false, 'the upload goes with its last thread');
+    assert.equal(await present('library/keep-me-bundle.json'), true);
+    running = app.store.create(defaults); running.status = 'running'; app.store.save(running);
+    await assert.rejects(app.runner.remove(running), /Cancel the run/);
+  } finally {
+    if (previousLatest === null) await rm(latest, { force: true }); else await writeFile(latest, previousLatest);
+    for (const item of [mine, sharer, running]) { if (!item) continue; await rm(path.join(root, item.jobPath), { recursive: true, force: true }); await rm(path.join(root, item.scriptPath), { recursive: true, force: true }); await rm(path.join(root, 'library/thumbnails', item.slug), { recursive: true, force: true }); }
+    await rm(path.join(root, 'library/keep-me-bundle.json'), { force: true }); await rm(path.join(root, upload), { recursive: true, force: true });
+  }
+});
+
+test('a thread deleted while its status is being read does not come back', async () => {
+  const folder = await workspace();
+  let release; const blocked = new Promise(resolve => { release = resolve; });
+  const status = { version: 1, job: 'jobs/x', state: 'plan', current: 'plan', steps: [{ id: 'plan', label: 'Plan', status: 'current', detail: 'x' }], scenes: [], reviews: {}, checks: {}, next: null };
+  const store = new Store(path.join(folder, 'state'));
+  const runner = new Runner({ root, store, statusCommand: async () => { await blocked; return { stdout: JSON.stringify(status), stderr: '', code: 0 }; } });
+  const job = store.create(defaults); job.status = 'complete'; store.save(job); store.flush();
+  // A real job on disk, so the runner really does call the (blocked) status command.
+  await mkdir(path.join(root, job.jobPath), { recursive: true }); await writeFile(path.join(root, job.jobPath, 'job.json'), '{}');
+  const reading = runner.refresh(job, { force: true });
+  await new Promise(resolve => setImmediate(resolve));
+  await runner.remove(job);
+  release(); await reading;
+  assert.throws(() => store.get(job.id), /Thread not found/);
+  assert.equal(new Store(folder).all().length, 0, 'the snapshot stayed deleted');
+  await rm(path.join(root, job.jobPath), { recursive: true, force: true });
 });
 
 test('pipeline status is read-only and matches the state machine for an unprepared job', async () => {

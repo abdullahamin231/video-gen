@@ -140,7 +140,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
         const job = store.get(match[1]); const operation = match[2];
         if (!operation && req.method === 'GET') return json(res, 200, detail(store, job));
         if (!operation && req.method === 'PATCH') { Object.assign(job, config(await body(req), job)); store.event(job, { type: 'configuration', text: 'Model routing and checkpoint preferences updated', source: 'user' }); store.save(job); return json(res, 200, detail(store, job)); }
-        if (!operation && req.method === 'DELETE') { runner.remove(job); return json(res, 200, { removed: job.id }); }
+        if (!operation && req.method === 'DELETE') { await runner.remove(job); return json(res, 200, { removed: job.id }); }
         if (operation === 'files' && req.method === 'GET') return json(res, 200, await listFiles(root, job));
         if (operation === 'events' && req.method === 'GET') {
           if (match[3]) { const event = await store.fullEvent(job.id, match[3]); if (!event) throw fail('Event not found', 404); return json(res, 200, event); }

@@ -324,9 +324,18 @@ function footerActions() {
     : s === 'gate' ? `<button class="secondary-button" data-action="gate">${icon('question')}Answer the agent</button>`
     : ['paused', 'failed', 'interrupted', 'needs_attention', 'cancelled'].includes(s) ? `<button class="secondary-button" data-action="resume">${icon('play')}Continue run</button>`
     : s === 'complete' ? `<button class="secondary-button" data-action="tab" data-tab="outputs">${icon('grid')}View outputs</button>` : '<span class="muted">Waiting for a runner slot</span>';
-  const secondary = !['complete', 'cancelled'].includes(s) ? '<button class="cancel-run" data-action="cancel">Cancel run</button>'
+  // Anything that is not running, queued or waiting on you can be archived or deleted outright.
+  const active = ['running', 'queued', 'gate'].includes(s);
+  const secondary = active ? '<button class="cancel-run" data-action="cancel">Cancel run</button>'
     : `<div class="footer-row"><button class="cancel-run" data-action="${job.archived ? 'unarchive' : 'archive'}">${job.archived ? 'Unarchive' : 'Archive'}</button><button class="cancel-run" data-action="delete">Delete thread</button></div>`;
   return primary + secondary;
+}
+// Deletion takes the thread's whole footprint with it, so the dialog names every folder first.
+function confirmDelete() {
+  const job = state.job;
+  const items = [[`${job.jobPath}/`, 'the job: renders, shots, briefs and review evidence'], [`${job.scriptPath}/`, 'the script, research, sources and narration'],
+    [`library/thumbnails/${job.slug}/`, 'the archived thumbnail set'], ['', 'the thread, its full event log and any uploaded recording or script']];
+  openModal(`${modalHeading('Delete this thread?', 'This cannot be undone.')}<ul class="delete-list">${items.map(([folder, what]) => `<li>${icon('trash')}<span>${folder ? `<code>${esc(folder)}</code> — ` : ''}${esc(what)}</span></li>`).join('')}</ul><p class="model-caveat">Assets this film saved to the reusable library stay, so other threads can still find them.</p><div class="modal-footer"><button class="secondary-button" data-action="close">Keep it</button><button class="danger-button" data-action="confirm-delete">${icon('trash')}Delete everything</button></div>`);
 }
 function modelsPanel() {
   const job = state.job, pins = state.providers.find(p => p.name === 'Claude')?.pins || {};
@@ -373,7 +382,7 @@ async function inspectFile(file) {
   openModal(`${modalHeading(esc(file.split('/').at(-1)), 'Reading the actual file…')}<div class="file-loading">Loading…</div>`, true);
   try { const result = await api(`/api/jobs/${state.job.id}/file?path=${encodeURIComponent(file)}`); if (!$('.file-loading')) return; $('.file-loading').outerHTML = `<div class="file-location">${icon('folder')}${esc(file)}</div><div class="code-view">${result.text.split('\n').map((line, i) => `<div><span>${i + 1}</span><code>${esc(line) || ' '}</code></div>`).join('')}</div><div class="modal-footer"><span>Read-only artifact</span><a class="secondary-button" href="${artifact(file, true)}" download>${icon('download')}Download</a></div>`; } catch (error) { if ($('.file-loading')) $('.file-loading').textContent = error.message; }
 }
-async function settings() { const s = await api('/api/settings'); state.settings = s; openModal(`${modalHeading('Workspace settings', 'Local execution using your installed CLI accounts.')}<form id="settings-form"><div class="setting-block"><h3>New video defaults</h3><div class="form-grid"><label>Orientation<select name="defaultFormat"><option value="landscape" ${s.defaultFormat === 'landscape' ? 'selected' : ''}>Landscape · 16:9</option><option value="vertical" ${s.defaultFormat === 'vertical' ? 'selected' : ''}>Portrait · 9:16</option></select></label><label>Target duration (seconds)<input name="defaultDuration" type="number" min="10" max="3600" value="${s.defaultDuration}" required></label></div></div><div class="setting-block"><label class="field-label" for="concurrency">Simultaneous video jobs</label><select name="concurrency" id="concurrency">${[1, 2, 3].map(n => `<option value="${n}" ${n === s.concurrency ? 'selected' : ''}>${n}${n === 1 ? ' · recommended for local rendering' : ''}</option>`).join('')}</select><p class="model-caveat">Additional threads queue automatically. Each active job runs up to four CLI processes, including its orchestrator.</p></div><div class="setting-block"><h3>Existing CLI logins</h3><p>${state.providers.map(p => `${esc(p.name)}: ${p.installed ? esc(p.version) : esc(p.error)}`).join('<br>')}</p><button type="button" class="secondary-button" data-action="refresh-providers">${icon('retry')}Recheck providers</button></div><div class="setting-block"><h3>Local persistence</h3><p>Threads and full event logs are saved in <code>.video/ui/</code>. Videos and thumbnails stay in their job folders. Restarted runs are marked interrupted; continue them explicitly.</p></div><div class="modal-footer"><button type="button" class="secondary-button" data-action="close">Close</button><button type="submit" class="primary-button">Save settings</button></div></form>`); }
+async function settings() { const s = await api('/api/settings'); state.settings = s; openModal(`${modalHeading('Workspace settings', 'Local execution using your installed CLI accounts.')}<form id="settings-form"><div class="setting-block"><h3>New video defaults</h3><div class="form-grid"><label>Orientation<select name="defaultFormat"><option value="landscape" ${s.defaultFormat === 'landscape' ? 'selected' : ''}>Landscape · 16:9</option><option value="vertical" ${s.defaultFormat === 'vertical' ? 'selected' : ''}>Portrait · 9:16</option></select></label><label>Target duration (seconds)<input name="defaultDuration" type="number" min="10" max="3600" value="${s.defaultDuration}" required></label></div></div><div class="setting-block"><label class="field-label" for="concurrency">Simultaneous video jobs</label><select name="concurrency" id="concurrency">${[1, 2, 3].map(n => `<option value="${n}" ${n === s.concurrency ? 'selected' : ''}>${n}${n === 1 ? ' · recommended for local rendering' : ''}</option>`).join('')}</select><p class="model-caveat">Additional threads queue automatically. Each active job runs up to four CLI processes, including its orchestrator.</p></div><div class="setting-block"><h3>Existing CLI logins</h3><p>${state.providers.map(p => `${esc(p.name)}: ${p.installed ? esc(p.version) : esc(p.error)}`).join('<br>')}</p><button type="button" class="secondary-button" data-action="refresh-providers">${icon('retry')}Recheck providers</button></div><div class="setting-block"><h3>Local persistence</h3><p>Threads and full event logs are saved in <code>.video/ui/</code>. Videos, thumbnails and scripts stay in their job folders until you delete the thread, which removes them too. Restarted runs are marked interrupted; continue them explicitly.</p></div><div class="modal-footer"><button type="button" class="secondary-button" data-action="close">Close</button><button type="submit" class="primary-button">Save settings</button></div></form>`); }
 function readConfig(form) { const data = new FormData(form); return { provider: data.get('provider'), main: (data.get('main') || '').trim(), sub: (data.get('sub') || '').trim(), directorModel: (data.get('directorModel') || '').trim(), reviewerModel: (data.get('reviewerModel') || '').trim(), gateScript: data.has('gateScript'), gatePrototype: data.has('gatePrototype') }; }
 async function control(action, extra = {}) { const job = await api(`/api/jobs/${state.job.id}/control`, { method: 'POST', data: { action, ...extra } }); state.jobs.set(job.id, job); if (state.job?.id === job.id) state.job = job; schedule(); return job; }
 async function measurements() {
@@ -418,8 +427,15 @@ document.addEventListener('click', async e => {
       case 'cancel': confirm('Cancel this run?', 'The CLI processes stop. The thread, logs and artifacts are kept; you can continue later.', 'confirm-cancel', 'Cancel run'); break;
       case 'confirm-cancel': await control('cancel'); closeModal(); break;
       case 'archive': case 'unarchive': await control(action); toast(action === 'archive' ? 'Thread archived.' : 'Thread restored.'); break;
-      case 'delete': confirm('Delete this thread?', 'Removes the thread and its event log from the UI. The job and script folders on disk are kept.', 'confirm-delete', 'Delete thread'); break;
-      case 'confirm-delete': await api(`/api/jobs/${state.job.id}`, { method: 'DELETE' }); closeModal(); state.jobs.delete(state.selected); state.selected = null; await loadJobs(); break;
+      case 'delete': confirmDelete(); break;
+      case 'confirm-delete': {
+        const id = state.job.id;
+        await api(`/api/jobs/${id}`, { method: 'DELETE' });
+        closeModal(); state.jobs.delete(id); if (state.selected === id) state.selected = null;
+        state.job = null; state.files = []; state.events = []; state.messages = [];
+        await loadJobs(); toast('Thread deleted, with its job, script, uploads and thumbnail archive.');
+        break;
+      }
       case 'gate': state.tab = 'thread'; schedule(); requestAnimationFrame(() => $('.gate-card')?.scrollIntoView({ block: 'center' })); break;
       case 'sidebar': document.body.classList.toggle('sidebar-open'); break;
       case 'inspector': document.body.classList.toggle('inspector-open'); break;

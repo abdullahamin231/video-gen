@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm, glob, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, glob, stat, access } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -94,11 +94,21 @@ try {
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(await page.$eval('video', video => video.dataset.marker), 'kept', 'video element was replaced by a live update');
 
+  // Deleting a thread takes its whole footprint with it: the dialog names every folder first.
+  await click(page, '[data-action=tab][data-tab=thread]');
+  await click(page, '[data-action=delete]'); await page.waitForSelector('.delete-list');
+  assert((await page.$eval('.delete-list', node => node.textContent)).includes(job.jobPath), 'the dialog names the job folder');
+  await page.screenshot({ path: path.join(shots, 'delete.png') });
+  await click(page, '[data-action=confirm-delete]'); await page.waitForSelector('.welcome', { timeout: 10000 });
+  const onDisk = file => access(path.join(root, file)).then(() => true, () => false);
+  assert.equal(await onDisk(job.jobPath), false, 'the job folder was deleted'); assert.equal(await onDisk(job.scriptPath), false, 'the script folder was deleted');
+  assert.equal(app.store.all().length, 0, 'the thread record was deleted');
+
   await page.setViewport({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await click(page, '[data-action=sidebar]'); await page.waitForSelector('.sidebar-open .sidebar'); await click(page, '.new-job'); await page.waitForSelector('#new-job-form'); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false); await click(page, '[data-action=close]');
   await page.screenshot({ path: path.join(shots, 'mobile.png') });
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ passed: true, checks: ['create thread via fixture CLI', 'routing preview', 'agent tree + drawer', 'progress phases + pipeline state', 'activity filters', 'model settings', 'file inspector', 'feedback', 'agent question + answer', 'token counts + quotas', 'video survives live updates', 'mobile layout'], runtimeErrors: errors, screenshots: '.video/ui-qa/' }));
+  console.log(JSON.stringify({ passed: true, checks: ['create thread via fixture CLI', 'routing preview', 'agent tree + drawer', 'progress phases + pipeline state', 'activity filters', 'model settings', 'file inspector', 'feedback', 'agent question + answer', 'token counts + quotas', 'video survives live updates', 'delete thread removes its artifacts', 'mobile layout'], runtimeErrors: errors, screenshots: '.video/ui-qa/' }));
 } finally {
   await browser.close(); await app.close();
   for (const job of app.store.all()) { await rm(path.join(root, job.scriptPath), { recursive: true, force: true }); await rm(path.join(root, job.jobPath), { recursive: true, force: true }); }

@@ -13,6 +13,10 @@
 
 /* ---- Live job tracking (progress, agents, health) ---- */
 :root{--amber:#f0c36b;--red:#ff8b7b;--ok:#c4f58b;--wait:#8fb8ff}
+.delete-list{list-style:none;margin:4px 0 16px;padding:0;display:flex;flex-direction:column;gap:9px}
+.delete-list li{display:flex;gap:9px;align-items:flex-start;font-size:11px;color:#bdbdbd;line-height:1.55}
+.delete-list .icon{width:13px;height:13px;color:#8e8e8e;margin-top:2px}
+.delete-list code{font-family:Mono;color:var(--text)}
 .sidebar-archive{margin:10px 6px 14px;display:flex;gap:7px;align-items:center;color:var(--muted);font-size:11px}
 .mini-progress{display:block;height:2px;background:#2e2e2e;border-radius:2px;margin-top:6px;overflow:hidden}
 .mini-progress>span{display:block;height:100%;background:var(--accent)}

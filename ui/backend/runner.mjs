@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, access } from 'node:fs/promises';
+import { mkdir, readFile, readdir, access, rm, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { executable, invocation, capture, agentPins } from './providers.mjs';
 import { normalize, normalizeFile, redact, parseNext, describeTask } from './events.mjs';
-import { listFiles, jobFile, readJson } from './files.mjs';
+import { listFiles, jobFile, readJson, inside } from './files.mjs';
 import { orchestratorPrompt } from './prompt.mjs';
 import { UsageService, applyUsage, totalUsage } from './usage.mjs';
 import { computeProgress, computeHealth, scriptDisposition } from './progress.mjs';
@@ -18,6 +18,16 @@ const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 function signal(child, name) { try { process.kill(process.platform === 'win32' ? child.pid : -child.pid, name); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
 function pngSize(bytes) { return bytes.subarray(0, 8).equals(PNG) ? { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) } : null; }
 const exists = file => access(file).then(() => true, () => false);
+// Delete a thread's folder, but never anything outside the repository and never the repository itself.
+async function removeFolder(root, folder) {
+  if (typeof folder !== 'string' || !folder || path.isAbsolute(folder)) return;
+  const target = path.resolve(root, folder);
+  if (target === path.resolve(root) || !inside(root, target)) return;
+  const info = await lstat(target).catch(() => null);
+  if (!info) return; // nothing there
+  if (info.isSymbolicLink()) return rm(target, { force: true }); // the link itself, never what it points at
+  await rm(target, { recursive: true, force: true });
+}
 export function modelFor(job, role, pins = {}) { return routeModel(job, role, pins).model; }
 
 // Which pipeline step a delegated agent works on: what `status` said when it was launched, refined by its brief.
@@ -416,6 +426,8 @@ export class Runner {
     return this.recompute(job);
   }
   async recompute(job, files) {
+    // A status read that was in flight when the thread was deleted must not write it back.
+    if (this.store.jobs.get(job.id) !== job) return;
     files ||= await listFiles(this.root, job).catch(() => []);
     const scriptReviewFile = files.find(file => file.path === `${job.scriptPath}/review.md`);
     const scriptReviewText = scriptReviewFile ? await readFile(path.join(this.root, scriptReviewFile.path), 'utf8').catch(() => '') : '';
@@ -495,11 +507,33 @@ export class Runner {
     void this.refresh(job, { force: true }).catch(() => {});
     return job;
   }
-  remove(job) {
+  // Everything this thread made goes with it: the job and script folders, its uploaded inputs,
+  // its archived thumbnail, and a pipeline pointer that would otherwise name a deleted job.
+  // Reusable bundles in the library stay, because other films search for them there.
+  // Disk first, the record last: a failed delete leaves the thread intact and retryable.
+  async remove(job) {
     if (this.runningJobs.has(job.id) || [...this.processes.values()].some(item => item.job.id === job.id)) throw new Error('Cancel the run before deleting the thread');
     if (['running', 'queued', 'gate'].includes(job.status)) throw new Error('Cancel the run before deleting the thread');
+    for (const folder of [job.jobPath, job.scriptPath, `library/thumbnails/${job.slug}`, ...this.uploadsOf(job)]) await removeFolder(this.root, folder);
+    const latest = await readJson(path.join(this.root, '.video/latest.json')).catch(() => null);
+    if (latest?.job === job.jobPath) await rm(path.join(this.root, '.video/latest.json'), { force: true });
     this.files.delete(job.id); this.status.delete(job.id);
     this.store.remove(job.id);
+  }
+  // Uploaded inputs sit in .video/ui/uploads/<id>/; only remove the ones no other thread still points at.
+  uploadsOf(job) {
+    const shared = new Set();
+    for (const other of this.store.all()) {
+      if (other.id === job.id) continue;
+      for (const input of [other.audioPath, other.inputScript]) if (typeof input === 'string') shared.add(input.replace(/\/[^/]*$/, ''));
+    }
+    const mine = [];
+    for (const input of [job.audioPath, job.inputScript]) {
+      if (typeof input !== 'string') continue;
+      const folder = input.replace(/\/[^/]*$/, '');
+      if (/^\.video\/ui\/uploads\/[0-9a-f-]{36}$/.test(folder) && !shared.has(folder)) mine.push(folder);
+    }
+    return [...new Set(mine)];
   }
   async shutdown() {
     this.closed = true; clearInterval(this.timer);
