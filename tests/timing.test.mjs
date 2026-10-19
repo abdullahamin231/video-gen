@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {extractNarration, normalizeWords, reconcile, resolveCue, compilePlan, browserCues} from '../lib/timing.mjs';
+import {extractNarration, normalizeWords, reconcile, resolveCue, compilePlan, browserCues, jobNameFor} from '../lib/timing.mjs';
 const wordsFor = text => text.split(' ').map((text,i) => ({id:`w${i}`,text,start:i*.5,end:i*.5+.4}));
 test('extracts only blockquote narration from rich script', () => {
   assert.equal(extractNarration('# Title\n> “Run locally.”\n* Visual: a tower\n> "Then compare."'), 'Run locally.\n\nThen compare.');
@@ -62,4 +62,11 @@ test('low match needs recorded review, not silent speech correction', () => {
   assert.throws(()=>compilePlan(plan(),a,2),/Low script match/);
   a.review={approved:true,note:'Listened: speaker says different; preserve actual speech.'};
   assert.equal(compilePlan(plan(),a,2).scenes.length,1);
+});
+test('names a job from its script, not a generic file name', () => {
+  assert.equal(jobNameFor('inputs/scripts/Can 9 year old GPU beats.md', ''), 'can-9-year-old-gpu-beats');
+  assert.equal(jobNameFor('jobs/scripts/tech-news-roundup-19-10-26/SCRIPT.md', 'Opening words'), 'tech-news-roundup-19-10-26');
+  assert.equal(jobNameFor('drafts/script.md', '# Why Agent Harnesses Matter\n> "Run it."'), 'why-agent-harnesses-matter');
+  assert.equal(jobNameFor('script.md', '> "Freezers in French supermarkets switched to defrost."'), 'freezers-in-french-supermarkets-switched');
+  assert.equal(jobNameFor('script.md', ''), 'film');
 });

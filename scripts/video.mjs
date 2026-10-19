@@ -4,7 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues} from '../lib/timing.mjs';
+import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues, jobNameFor} from '../lib/timing.mjs';
 import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies, saveToLibrary, saveAll} from '../lib/library.mjs';
 import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
@@ -155,10 +155,9 @@ async function resolveInput(given, label) {
   throw new Error(`${label} not found: ${given}. Files in ${path.relative(ROOT, dir) || '.'}: ${entries.join(', ') || '(none)'}`);
 }
 const normalizedName = name => name.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}.]/gu, '');
-function slugFrom(file) { return path.basename(file, path.extname(file)).normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'film'; }
 async function start(opts) {
   const audio = await resolveInput(opts.audio || '', 'Audio'), script = await resolveInput(opts.script || '', 'Script');
-  let name = opts.name || slugFrom(script);
+  let name = opts.name || jobNameFor(script, await readFile(script, 'utf8'));
   if (!/^[a-z0-9]/.test(name)) name = 'film-' + name;
   let candidate = name, i = 2;
   while (await exists(path.join(ROOT, 'jobs', candidate))) candidate = `${name}-${i++}`;
@@ -298,6 +297,7 @@ Agents: run \`next\` and do exactly what it prints, until it says done.
 
 start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug --music <track>]   create a job
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
+                                     the job is named from the script file, else its folder or title (e.g. jobs/scripts/<slug>/SCRIPT.md → <slug>); --name overrides
 next [--job jobs/<slug>]             print the single next step (state machine)
 plan-check                          validate film.json (director output)
 build [--scene <id>]                 compile shots, assemble, inspect, print motion transcript

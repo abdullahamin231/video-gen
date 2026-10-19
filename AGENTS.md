@@ -19,6 +19,10 @@ sub-agents do the creative work from self-contained brief files. This works the 
    long-form when the defaults say otherwise. Defaults come from `video.config.json`; never edit it unless asked.
    Add `--music "<track>"` when the user supplies a music track; otherwise the director picks a licensed one.
 
+   The job is named after the script: its file name, else its `#` title, else its folder (`jobs/scripts/<slug>/SCRIPT.md`
+   becomes `<slug>`). Generic names such as `script` or `SCRIPT` are never used alone. Pass `--name <slug>` only when the
+   user asks for a particular name.
+
 2. Run:
 
    ```bash
