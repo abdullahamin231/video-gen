@@ -1,0 +1,21 @@
+const paths = {
+  plus: 'M12 5v14M5 12h14', arrow: 'M7 17 17 7M7 7h10v10', send: 'm5 12 7-7 7 7M12 5v14',
+  chevron: 'm9 5 7 7-7 7', down: 'm6 9 6 6 6-6', close: 'm6 6 12 12M6 18 18 6',
+  check: 'm5 12 4 4L19 6', clock: 'M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
+  file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h5',
+  folder: 'M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  film: 'M4 3h16v18H4zM4 7h16M4 17h16M8 3v4M16 3v4M8 17v4M16 17v4',
+  chat: 'M21 11a8 8 0 0 1-8 8H7l-4 3V11a9 9 0 0 1 18 0',
+  pulse: 'M2 12h4l3-8 6 16 3-8h4', pause: 'M8 5v14M16 5v14', play: 'm9 5 11 7-11 7z',
+  sliders: 'M4 7h6M14 7h6M4 17h10M18 17h2M10 4v6M14 14v6',
+  terminal: 'm4 5 6 7-6 7M13 19h7', download: 'M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5',
+  image: 'M3 3h18v18H3zM3 17l6-7 5 5 3-3 4 5M16 7h.01',
+  info: 'M12 11v6M12 7h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+  search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+  grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+  bolt: 'm13 2-9 12h7l-1 8 10-12h-7z', warning: 'm12 3 10 18H2zM12 9v5M12 17h.01',
+  retry: 'M3 11a9 9 0 1 1 2 7M3 4v7h7', menu: 'M4 6h16M4 12h16M4 18h16',
+  branch: 'M6 3v12a3 3 0 1 0 3 3H6M18 3v4a5 5 0 0 1-5 5H6M8 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0M20 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
+  copy: 'M8 8h13v13H8zM16 8V3H3v13h5', volume: 'm11 5-6 4H2v6h3l6 4zM15 8a5 5 0 0 1 0 8M18 5a9 9 0 0 1 0 14',
+};
+export const icon = (name, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name] || paths.file}"/></svg>`;
