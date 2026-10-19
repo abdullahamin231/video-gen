@@ -70,12 +70,13 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
   const filmDone = pipeline?.state === 'done';
   const makers = running(agents, 'thumbnail-maker'), thumbReviewers = running(agents, 'thumbnail-reviewer');
   const png = has(`${thumb}/thumbnail.png`), source = files.some(file => file.path.startsWith(`${thumb}/`) && /\.(svg|psd|ora|afdesign)$/.test(file.path));
+  const preview = files.some(file => file.path.startsWith(`${thumb}/`) && file.path.endsWith('.png') && /320x180|feed|preview/i.test(file.path));
   const review = job.thumbnailReview;
   const archivedSet = archived.length > 0;
   const thumbnail = [
     stepFrom('thumbnail-brief', 'Thumbnail brief', has(`${thumb}/BRIEF.md`) ? 'done' : filmDone ? 'current' : 'pending', has(`${thumb}/BRIEF.md`) ? `${thumb}/BRIEF.md` : '', { file: `${thumb}/BRIEF.md` }),
-    stepFrom('thumbnail-art', 'Artwork, editable source and feed preview', makers.length ? 'current' : png && source && has(`${thumb}/thumbnail-320x180.png`) ? 'done' : has(`${thumb}/BRIEF.md`) ? 'current' : 'pending',
-      [png && '1280×720 PNG', source && 'editable source', has(`${thumb}/thumbnail-320x180.png`) && 'feed preview'].filter(Boolean).join(' · '), { agents: ids(agents.filter(a => a.role === 'thumbnail-maker')), file: png ? `${thumb}/thumbnail.png` : '' }),
+    stepFrom('thumbnail-art', 'Artwork, editable source and feed preview', makers.length ? 'current' : png && source && preview ? 'done' : has(`${thumb}/BRIEF.md`) ? 'current' : 'pending',
+      [png && '1280×720 PNG', source && 'editable source', preview && 'feed preview'].filter(Boolean).join(' · '), { agents: ids(agents.filter(a => a.role === 'thumbnail-maker')), file: png ? `${thumb}/thumbnail.png` : '' }),
     stepFrom('thumbnail-review', 'Independent thumbnail review', thumbReviewers.length ? 'current' : review?.status === 'pass' ? 'done' : review?.status ? 'repair' : png ? 'current' : 'pending',
       thumbReviewers.length ? 'Fresh reviewer at work' : review?.status ? `${review.status}${review.findings ? ` · ${review.findings} finding(s)` : ''}` : '', { agents: ids(agents.filter(a => a.role === 'thumbnail-reviewer')), file: review ? `${thumb}/REVIEW.json` : '' }),
     stepFrom('thumbnail-archive', 'Archived to library/thumbnails', archivedSet ? 'done' : review?.status === 'pass' ? 'current' : 'pending', archivedSet ? `library/thumbnails/${job.slug}/` : ''),
@@ -142,4 +143,3 @@ export function computeHealth(job, events, now = Date.now()) {
       : { queued: 'Waiting for a runner slot', paused: 'Paused at the next step', cancelled: 'Cancelled' }[job.status] || 'Idle');
   return { level, headline, items, lastEventAt: last?.at || null };
 }
-
