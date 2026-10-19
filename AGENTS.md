@@ -1,7 +1,7 @@
 # Make the completed video
 
 The user asks: **"Create a video given the audio `<audio path>` and script `<script path>`."**
-You deliver a finished, independently reviewed MP4. The user never runs commands, writes JSON, or approves steps.
+You deliver a finished, independently reviewed MP4 **and a finished thumbnail**. The user never runs commands, writes JSON, or approves steps.
 
 You are the **orchestrator**. The pipeline knows the state of the job and prints the single next step. Specialised
 sub-agents do the creative work from self-contained brief files. This works the same in any harness.
@@ -26,6 +26,8 @@ sub-agents do the creative work from self-contained brief files. This works the 
    ```
 
 3. Do exactly what it prints, then run `next` again. Repeat until it prints `STATE: done`.
+4. Finish the thumbnail workflow below before delivering the video to the user. `STATE: done` qualifies the MP4;
+   the user request is complete only when its thumbnail is also saved and checked.
 
 `next` prints one of two kinds of step:
 
@@ -38,12 +40,43 @@ sub-agents do the creative work from self-contained brief files. This works the 
   The step names a role (`video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
   that name, use it: it pins the role's model (see "Models per role" below). Otherwise use any fresh sub-agent.
 
-When it prints `STATE: done`, give the user the MP4 path and a short verification note from `review/delivery.json`
+When it prints `STATE: done`, complete the thumbnail workflow, then give the user the MP4 and thumbnail paths and a short verification note from `review/delivery.json`
 (its limitations and advisory findings), the soundtrack's measurements (`soundtrack`: integrated LUFS and peaks,
 measured on the MP4) and the five `headphoneChecks` timestamps with what to listen for. Nobody in this pipeline can
 hear: never say the film sounds good, only what was measured. Do not run `preview` or open HyperFrames Studio: it rewrites job files and
 makes the delivered job look stale. The final MP4 is the deliverable.
 If it prints `STATE: blocked`, report honestly; never call an unqualified draft complete.
+
+## Thumbnail at the end of every video
+
+Every request to create a video also includes a thumbnail unless the user explicitly opts out. Make it after the
+film is finished, using its actual script, title and visuals. This is an orchestrator completion step after the
+existing CLI loop; do not assume a thumbnail CLI command exists or change a qualified film to make a still.
+
+Read [docs/kaiexplains-thumbnail-study.md](docs/kaiexplains-thumbnail-study.md) before designing it, including its
+visual evidence. Adapt the contrast, hierarchy and simplicity with original or licensed assets and our own identity.
+Reference thumbnails are research material, not production artwork or evidence of a proven CTR formula.
+
+- Write `jobs/<slug>/thumbnail/BRIEF.md`: exact video title, short image headline, subject, layout, background,
+  accent colors, how the image complements the title, and the payoff location in the finished video. Source every
+  factual or numerical visual claim to the job's research; preserve attribution, forecast and proposal caveats.
+- Use one central promise, a few large uppercase words, a strong subject silhouette and sparse background detail.
+  The usual starting point is near-black, white/yellow headline text and restrained red/blue offsets. Let the title
+  name the topic or mechanism while the image conveys its question, consequence or supported outcome. Choose a
+  different treatment when the material calls for it. Avoid unsupported verdicts, misleading charts and invented numbers.
+- Keep text, labels, shapes, outlines and shadows editable in a layered SVG or equivalent source, with fonts and
+  provenance saved locally. Use image generation only where the concept benefits from raster artwork.
+- Export `jobs/<slug>/thumbnail/thumbnail.png` at 1280×720 (16:9), plus the editable source and a 320×180 feed-size
+  preview. Keep all artifacts inside the repository. Import outside assets with `npm run video -- asset` and save
+  original reusable work with `npm run video -- save`, using the explicit `--job` path.
+- Inspect the full-size export and feed-size preview. Commission a fresh reviewer sub-agent that did not make
+  the thumbnail to read the brief, title, script/research and images, then check legibility, image/title relationship,
+  viewer expectation, factual promise and payoff. Save its report in the thumbnail directory; resolve blockers
+  and have the reviewer re-check before delivery. Do not modify the film's qualified review evidence.
+
+Deliver the PNG alongside the MP4, with the editable source linked when useful. A thumbnail-only request for an
+existing job uses this same workflow without rebuilding or re-delivering its video. If the video is unfinished,
+record the intended script payoff and the missing rendered verification honestly; do not claim the film passed.
 
 ## Rules for the orchestrator
 
@@ -125,6 +158,7 @@ script. Never use TTS when the user supplied a recording.
 - [docs/tts.md](docs/tts.md) — generating narration with HyperFrames TTS when there is no recording.
 - [docs/sound.md](docs/sound.md) — music, sound effects, the mix and its measurements; the sound library.
 - [docs/agent-workflow.md](docs/agent-workflow.md) — what each pipeline stage does, for maintainers.
+- [docs/kaiexplains-thumbnail-study.md](docs/kaiexplains-thumbnail-study.md) — thumbnail/title reference and visual evidence.
 - `npm run video -- help` — all commands. `npm test` — pipeline tests.
 
 Jobs live in `jobs/<slug>/` and scripts in `jobs/scripts/<slug>/` (script, research, sources, narration), both ignored by Git. Reusable work belongs in `library/` and the kit (`lib/kit/kit.js`).

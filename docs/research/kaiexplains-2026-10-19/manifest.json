@@ -1,0 +1,242 @@
+{
+  "captured_at": "2026-10-19T06:50:42.836880+00:00",
+  "channel_url": "https://www.youtube.com/@kaiexplainsYT/videos",
+  "channel_id": "UCgUfJoPtkt7-RiiuYh4vmGA",
+  "selection": "First 18 videos returned from the channel videos tab; current title and thumbnail snapshots, not historical performance evidence.",
+  "entries": [
+    {
+      "number": 1,
+      "id": "h_KqS4GtU3I",
+      "title": "How I Got Frontier Performance on 16GB VRAM (Qwen 3.8 27B)",
+      "url": "https://www.youtube.com/watch?v=h_KqS4GtU3I",
+      "thumbnail_url": "https://i.ytimg.com/vi/h_KqS4GtU3I/hq720_custom_1.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA_HIKqyj1jSFd_eYZkNSJK-uw-6g",
+      "file": "01-h_KqS4GtU3I.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "907f825856f3f753df2224fb4e0c618bdb5f6c32b9cafc0ff3c73fc50d168d55"
+    },
+    {
+      "number": 2,
+      "id": "6tihP50zlcE",
+      "title": "Every Way to Get 512GB of VRAM for Local AI (at Full Context)",
+      "url": "https://www.youtube.com/watch?v=6tihP50zlcE",
+      "thumbnail_url": "https://i.ytimg.com/vi/6tihP50zlcE/hq720_custom_1.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCI-rNk6Q54JiMHQS5SJW8fIw3KyQ",
+      "file": "02-6tihP50zlcE.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "61b496e3739c08b2d82473ff3b3781324edd10b0c4eda63911297740e5408702"
+    },
+    {
+      "number": 3,
+      "id": "L7noXCBSObc",
+      "title": "Qwen 3.8 27B Just Hit 200 Token/s on Mac M5 (Lithos Metal)",
+      "url": "https://www.youtube.com/watch?v=L7noXCBSObc",
+      "thumbnail_url": "https://i.ytimg.com/vi/L7noXCBSObc/hq720_custom_1.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBeW1dGVCgYpv0IjpH8ma3f6oSPog",
+      "file": "03-L7noXCBSObc.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "254eec853f07e3bf5baae8c0cd532381ba2bc53836285fe068cd3a8a09ff7a0d"
+    },
+    {
+      "number": 4,
+      "id": "Y226-wwfCSw",
+      "title": "Local AI Hardware Just Got Way More Expensive Than You Think",
+      "url": "https://www.youtube.com/watch?v=Y226-wwfCSw",
+      "thumbnail_url": "https://i.ytimg.com/vi/Y226-wwfCSw/hq720_custom_2.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCiX5tSOVal0ydgqyT1RP-w7klSYw",
+      "file": "04-Y226-wwfCSw.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "6ded16768a55953192a49985267b5ce2e5a889ac69fe4aef903cee24a92dddf7"
+    },
+    {
+      "number": 5,
+      "id": "x_qmqqp6d7s",
+      "title": "Why Your Mac Is Slow at Local AI (And It's Not the Chip)",
+      "url": "https://www.youtube.com/watch?v=x_qmqqp6d7s",
+      "thumbnail_url": "https://i.ytimg.com/vi/x_qmqqp6d7s/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLApJQnhMCHcMTavVvd-F75xQRaOpg",
+      "file": "05-x_qmqqp6d7s.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "63b6573549127414395502515c908f8c21df201d3909d8576b803e4aa4c9e03a"
+    },
+    {
+      "number": 6,
+      "id": "eckOsa0kBkY",
+      "title": "Can 9 year old GPU beats today's latest GPUs?",
+      "url": "https://www.youtube.com/watch?v=eckOsa0kBkY",
+      "thumbnail_url": "https://i.ytimg.com/vi/eckOsa0kBkY/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBS11kO1jmzTwiOwgE-ljwELKZXOg",
+      "file": "06-eckOsa0kBkY.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "c85dd9eaf955f2d18d37021c21a62810a7c0d0957be9039fda39303953dcc365"
+    },
+    {
+      "number": 7,
+      "id": "IMVjEsKX5UQ",
+      "title": "Don't Buy a GPU Instead Build This 32GB Free AI Server Instead",
+      "url": "https://www.youtube.com/watch?v=IMVjEsKX5UQ",
+      "thumbnail_url": "https://i.ytimg.com/vi/IMVjEsKX5UQ/hq720_custom_1.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAJf5B9dI6TCwELUmGypcKbamFKCg",
+      "file": "07-IMVjEsKX5UQ.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "d6246934077cec374e966a74d4b223d734a2c7b2c3455f36221f5175ac593707"
+    },
+    {
+      "number": 8,
+      "id": "aQKGejbv-Rs",
+      "title": "Don't Buy a RTX Spark Laptop For Local AI Until You See This",
+      "url": "https://www.youtube.com/watch?v=aQKGejbv-Rs",
+      "thumbnail_url": "https://i.ytimg.com/vi/aQKGejbv-Rs/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDKItJvvZVmOKdXoDpmi4io1X8IrQ",
+      "file": "08-aQKGejbv-Rs.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "745220f3409d7533fe25dcd63298088fb681e44074ba17df92baa71723ac049d"
+    },
+    {
+      "number": 9,
+      "id": "NA9D49kQFuU",
+      "title": "Every Ways to Get 128GB VRAM for Local AI at Full Context",
+      "url": "https://www.youtube.com/watch?v=NA9D49kQFuU",
+      "thumbnail_url": "https://i.ytimg.com/vi/NA9D49kQFuU/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLClV1ztX9PQjyGLb59csTIy9bQdpQ",
+      "file": "09-NA9D49kQFuU.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "c7ccd25837a5b334b23bbfd7af7196c1b6a5aea31f5fd8e9caf4d6ad17488b30"
+    },
+    {
+      "number": 10,
+      "id": "hl6VOfzky5E",
+      "title": "Software Costs Millions to Make but Claude Cracked It in Seconds. (Pt - 1)",
+      "url": "https://www.youtube.com/watch?v=hl6VOfzky5E",
+      "thumbnail_url": "https://i.ytimg.com/vi/hl6VOfzky5E/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDhUmnXsVs4rolryStSBhkEH-qtSw",
+      "file": "10-hl6VOfzky5E.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "b44a2f344218add1f8982e2f9b98a628e6d89ae6de5021f501889d5d8dcabe7c"
+    },
+    {
+      "number": 11,
+      "id": "SxLUx8-hN1o",
+      "title": "Do Claude Get Quietly Nerfed After Launch..(We Have Proof)",
+      "url": "https://www.youtube.com/watch?v=SxLUx8-hN1o",
+      "thumbnail_url": "https://i.ytimg.com/vi/SxLUx8-hN1o/hq720_custom_1.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCg3AjarpENe_nZEXFVFqFN1AQLrQ",
+      "file": "11-SxLUx8-hN1o.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "4691e9105499fc5b1b8a34ba69852da54a53edfaab9410ca134bae675999490d"
+    },
+    {
+      "number": 12,
+      "id": "i9mRnbdDYxk",
+      "title": "Is 16GB All You Need for Serious Local LLM?",
+      "url": "https://www.youtube.com/watch?v=i9mRnbdDYxk",
+      "thumbnail_url": "https://i.ytimg.com/vi/i9mRnbdDYxk/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLCgR-beGOWM7o4GizxU33CLu7FGpA",
+      "file": "12-i9mRnbdDYxk.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "36b96555d15542902beccf4f3aa3832e6774d2c257ac52af88befaa54c8fbce5"
+    },
+    {
+      "number": 13,
+      "id": "9-iiHFQyzuM",
+      "title": "The End of AI Hallucinations? Meta's New Fix (CLM's)",
+      "url": "https://www.youtube.com/watch?v=9-iiHFQyzuM",
+      "thumbnail_url": "https://i.ytimg.com/vi/9-iiHFQyzuM/hq720_custom_1.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDoVsvwn-qf6550BUSbOUXWsGeHCQ",
+      "file": "13-9-iiHFQyzuM.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "61df4e8e4fe35886a76d1b1a2381f403257d6c5f88440b21fada73cdbccb1900"
+    },
+    {
+      "number": 14,
+      "id": "ZsnFX5mEJ4s",
+      "title": "OpenRouter is Quietly Giving Nerfed AI Model (STOP Using Wrong Endpoint)",
+      "url": "https://www.youtube.com/watch?v=ZsnFX5mEJ4s",
+      "thumbnail_url": "https://i.ytimg.com/vi/ZsnFX5mEJ4s/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDXAQRL6i3__k7q00viY_EH17o9kA",
+      "file": "14-ZsnFX5mEJ4s.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "6ff0c37e04aa18ddb0e4cd22f9598eceff34374b61559fe9109f858a384d172d"
+    },
+    {
+      "number": 15,
+      "id": "uJcPjrEgppk",
+      "title": "Deepseek & Huawei Made Local AI Run Without NVIDIA's CUDA (And Why it's Hard)",
+      "url": "https://www.youtube.com/watch?v=uJcPjrEgppk",
+      "thumbnail_url": "https://i.ytimg.com/vi/uJcPjrEgppk/hq720_custom_2.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLAR7TjdmA5MS6px-ZuPMq0LOZJApA",
+      "file": "15-uJcPjrEgppk.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "4eea2658a90b910e3fc2ab16fcf30c964c089c6b27d2343c0164ebf99d0dbdc8"
+    },
+    {
+      "number": 16,
+      "id": "uavLRbbfM94",
+      "title": "Every Ways to Get 32GB VRAM for Local AI at Full Context",
+      "url": "https://www.youtube.com/watch?v=uavLRbbfM94",
+      "thumbnail_url": "https://i.ytimg.com/vi/uavLRbbfM94/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBeR9XVscfbHjVqih-mrRmUD9FQvQ",
+      "file": "16-uavLRbbfM94.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "ab116a8f3fe39ada4f927ab4cd2b0f37f3d77b14425f28389184065fc02658c5"
+    },
+    {
+      "number": 17,
+      "id": "m0VHx73SAG0",
+      "title": "The New Way to Run 125B Models 6× Faster Than llama.cpp (Strata)",
+      "url": "https://www.youtube.com/watch?v=m0VHx73SAG0",
+      "thumbnail_url": "https://i.ytimg.com/vi/m0VHx73SAG0/hq720.jpg?sqp=-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBBvZMbAmnosuAr_1b-m8nfcgzc6Q",
+      "file": "17-m0VHx73SAG0.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "fa3695b03c18ca635939cdeeb7f6d7419c524ea2011219d6553c88e52043c2bc"
+    },
+    {
+      "number": 18,
+      "id": "RlRC_6hbBHc",
+      "title": "Xiaomi & DeepSeek Just Solved the Biggest Bottleneck in Your Local AI",
+      "url": "https://www.youtube.com/watch?v=RlRC_6hbBHc",
+      "thumbnail_url": "https://i.ytimg.com/vi/RlRC_6hbBHc/hq720_custom_2.jpg?sqp=COz41tYG-oaymwEcCNAFEJQDSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLDN72cRECAFkMBwfcM5CBPPxOzoWg",
+      "file": "18-RlRC_6hbBHc.jpg",
+      "dimensions": [
+        720,
+        404
+      ],
+      "sha256": "7805a37d5f5dd19286682128a20dff89221923a5d44c3cb88bcf1642d6635943"
+    }
+  ]
+}
