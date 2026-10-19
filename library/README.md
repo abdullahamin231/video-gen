@@ -76,6 +76,20 @@ timeline, caller-supplied targets, and cue-derived times. Avoid wall clocks,
 unseeded randomness, global timeline clearing, and remote assets. Installation
 does not yet resolve dependency graphs or remap DOM IDs.
 
+## Finished thumbnails
+
+Store completed thumbnail sets in `library/thumbnails/<job>/`, including the
+PNG export, editable source, feed preview, generator, brief, review and local
+fonts or references to them. Preserve earlier versions when updating a set.
+These are job-specific archives; do not publish finished thumbnails as reusable
+asset bundles at the library root or use `save` for their final SVG/PNG exports.
+Separately reusable fonts, illustrations and components still use the normal
+asset-library commands.
+
+Older thumbnail bundles have been moved under `library/thumbnails/` with their
+contents and provenance intact. Their original bundle metadata is historical;
+use their files directly from the archive rather than their former library IDs.
+
 ## Every film saves its assets
 
 Nothing a film brings in or makes is lost. Search first, then save:

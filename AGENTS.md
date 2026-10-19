@@ -67,8 +67,12 @@ Reference thumbnails are research material, not production artwork or evidence o
 - Keep text, labels, shapes, outlines and shadows editable in a layered SVG or equivalent source, with fonts and
   provenance saved locally. Use image generation only where the concept benefits from raster artwork.
 - Export `jobs/<slug>/thumbnail/thumbnail.png` at 1280×720 (16:9), plus the editable source and a 320×180 feed-size
-  preview. Keep all artifacts inside the repository. Import outside assets with `npm run video -- asset` and save
-  original reusable work with `npm run video -- save`, using the explicit `--job` path.
+  preview. Keep all artifacts inside the repository. Import outside assets with `npm run video -- asset`, using
+  the explicit `--job` path. Archive the completed thumbnail directory, including its source, generator, fonts or
+  font references, brief and review, at `library/thumbnails/<slug>/`. Preserve earlier versions when updating it.
+  Finished thumbnails belong only under `library/thumbnails/`, never directly among the reusable asset bundles
+  at the library root. Do not publish finished thumbnails with `npm run video -- save`; separately reusable
+  fonts, illustrations and components may still use the normal asset-library commands.
 - Inspect the full-size export and feed-size preview. Commission a fresh reviewer sub-agent that did not make
   the thumbnail to read the brief, title, script/research and images, then check legibility, image/title relationship,
   viewer expectation, factual promise and payoff. Save its report in the thumbnail directory; resolve blockers
@@ -90,7 +94,8 @@ record the intended script payoff and the missing rendered verification honestly
   the pipeline mixes them and never processes the narration beyond one master gain.
 - Keep every asset inside the repository, never in `/tmp` or a scratch directory. Agents bring images and fonts in with
   `npm run video -- asset` (saved to the job's `assets/` and to `library/`) and save what they make with
-  `npm run video -- save`. When `next` prints `save-all`, run it: it saves anything still missing from `library/`.
+  `npm run video -- save`. Finished thumbnail sets are archived separately under `library/thumbnails/<slug>/`.
+  When `next` prints `save-all`, run it: it saves anything still missing from `library/`.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.
 - If your harness truly cannot spawn sub-agents, you may follow director and builder briefs yourself in sequence,
   but reviews must come from sub-agents; without them the film cannot be delivered.
