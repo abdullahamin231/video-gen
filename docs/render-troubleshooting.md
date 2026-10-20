@@ -5,6 +5,18 @@ Use this guide to recover an existing video job. Run commands from the repositor
 its angle brackets. Keep using the repository wrapper; do not invoke HyperFrames directly, upgrade it during
 recovery, or edit `node_modules`.
 
+## How a render runs by default
+
+- **Two capture workers.** `render` asks HyperFrames for 2 workers and turns off its low-memory mode, which
+  otherwise pins machines with 8 GB of RAM or less to one. If that render fails, it is retried once with the
+  renderer's own low-memory defaults. Set another count with `--workers <n|auto>` or `VIDEO_RENDER_WORKERS`;
+  `--workers 1` keeps low-memory mode.
+- **Prototype renders stop at the prototype.** Until the prototype is accepted, only the scenes up to it exist and
+  review covers at most 15 s of them. Frames are captured to the end of the prototype scene and its review interval
+  (through a temporary `index.cut.html`, which is not a production source); the rest of the picture holds the last
+  frame, so the MP4 keeps the film's full length for the mix, verification and review pack. If the short render
+  fails, the whole film is rendered instead. Once the prototype is accepted, every render covers the whole film.
+
 ## Start with the saved state
 
 ```bash
