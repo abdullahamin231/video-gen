@@ -178,3 +178,5 @@
 .role-model input{padding:7px 9px;font-size:12px}
 .role-model .role-route{grid-column:2;font-family:Mono;font-size:9px;color:var(--accent);overflow-wrap:anywhere}
 @media (max-width:640px){.role-model{grid-template-columns:1fr}.role-model .role-route{grid-column:1}}
+.duration-hint{display:flex;align-items:center;gap:6px;font-size:10px;color:#8a8a8a;line-height:1.6;margin:8px 0 4px}.duration-hint .icon{width:12px;height:12px}.duration-hint.found{color:var(--accent)}
+.duration-hint.missing{color:#ff8a7a}

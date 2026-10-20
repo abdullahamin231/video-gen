@@ -28,7 +28,7 @@ const click = async (page, selector) => { await page.waitForSelector(selector); 
 try {
   const page = await browser.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.setViewport({ width: 1440, height: 1000 });
   await page.goto(url, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('.welcome');
-  await click(page, '.new-job'); await page.select('select[name=format]', 'vertical'); await page.type('#new-prompt', 'A test fixture video about power grids.'); await page.type('input[name=title]', 'Browser integration fixture');
+  await click(page, '.new-job'); await page.select('select[name=format]', 'vertical'); await page.type('#new-prompt', 'A test fixture video about power grids.'); assert(/No length found/.test(await page.$eval('#duration-hint', node => node.textContent)), 'a prompt without a length is flagged'); await page.type('#new-prompt', ' Make it 2 minutes.'); assert((await page.$eval('#duration-hint', node => node.textContent)).includes('2 min'), 'the hint shows the length read from the prompt'); await page.type('input[name=title]', 'Browser integration fixture');
   await page.type('input[name=main]', 'fixture-main'); await page.type('input[name="model:builder"]', 'fixture-builder');
   assert((await page.$eval('.role-route[data-role=builder]', node => node.textContent)).includes('fixture-builder'), 'role row shows the chosen model');
   assert(/weak default|repo pin/.test(await page.$eval('.role-route[data-role=director]', node => node.textContent)), 'unset roles show their default');

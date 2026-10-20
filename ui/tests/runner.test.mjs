@@ -16,7 +16,7 @@ import { routeModel } from '../shared/routing.mjs';
 import { orchestratorPrompt } from '../backend/prompt.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const defaults = { title: 'Runner integration', prompt: 'A test fixture only', provider: 'Codex', main: '', models: {}, format: 'landscape', duration: 60, gateScript: false, gatePrototype: false };
+const defaults = { title: 'Runner integration', prompt: 'A one-minute test fixture only', provider: 'Codex', main: '', models: {}, format: 'landscape', duration: 60, gateScript: false, gatePrototype: false };
 const testFolders = [];
 after(async () => { for (const folder of testFolders) await rm(folder, { recursive: true, force: true }); });
 async function workspace() {
@@ -276,7 +276,10 @@ test('API streams deltas, authorizes bridge tools, rejects cross-origin writes, 
   assert.equal((await post(url, '/api/jobs', defaults, { Origin: 'https://evil.example' })).status, 403);
   assert.equal((await fetch(url + '/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(defaults) })).status, 403);
   const sse = await fetch(url + '/api/stream'); const reader = sse.body.getReader(); assert.match(new TextDecoder().decode((await reader.read()).value), /connected/);
+  // The target duration must be in the prompt; a separate duration field is ignored.
+  const missing = await post(url, '/api/jobs', { ...defaults, prompt: 'A test fixture with no length', duration: 60 }); assert.equal(missing.status, 400); assert.match((await missing.json()).error, /how long/);
   const response = await post(url, '/api/jobs', defaults); assert.equal(response.status, 201); const created = await response.json(); const job = app.store.get(created.id);
+  assert.equal(job.duration, 60);
   let streamed = '';
   while (!streamed.includes('"events":[{')) streamed += new TextDecoder().decode((await reader.read()).value);
   await reader.cancel();

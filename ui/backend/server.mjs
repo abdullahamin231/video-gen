@@ -11,12 +11,14 @@ import { providerNames, discoverProviders } from './providers.mjs';
 import { jobFile, listFiles, inside, parseRange } from './files.mjs';
 import { redact } from './events.mjs';
 import { DELEGATE_ROLES } from '../shared/routing.mjs';
+import { durationFromPrompt } from '../shared/duration.mjs';
 
 const staticFiles = new Map([
   ['/', ['ui/index.html', 'text/html']], ['/app.mjs', ['ui/app.mjs', 'text/javascript']],
   ['/styles.css', ['ui/styles.css', 'text/css']],
   ['/icons.mjs', ['ui/icons.mjs', 'text/javascript']],
   ['/shared/routing.mjs', ['ui/shared/routing.mjs', 'text/javascript']],
+  ['/shared/duration.mjs', ['ui/shared/duration.mjs', 'text/javascript']],
   ...['400', '500', '600'].map(weight => [`/fonts/inter-${weight}.woff2`, [`node_modules/@fontsource/inter/files/inter-latin-${weight}-normal.woff2`, 'font/woff2']]),
   ['/fonts/mono.woff2', ['node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2', 'font/woff2']],
 ]);
@@ -136,9 +138,11 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
           const input = await body(req);
           if (!string(input.prompt, 20000) || !input.prompt.trim()) throw fail('Describe the video you want');
           if (!['landscape', 'vertical'].includes(input.format)) throw fail('Choose landscape or vertical');
-          if (!Number.isInteger(input.duration) || input.duration < 10 || input.duration > 3600) throw fail('Target duration must be 10–3600 seconds');
+          // The duration is read from the prompt itself; there is no separate field to fill in.
+          const target = durationFromPrompt(input.prompt);
+          if (target.error) throw fail(target.error);
           const title = string(input.title, 150) && input.title.trim() ? input.title.trim() : input.prompt.replace(/\s+/g, ' ').trim().slice(0, 65);
-          const job = await runner.create({ ...config(input), title, prompt: input.prompt.trim(), duration: input.duration, format: input.format, audioPath: await validateInput(input.audioPath, true), inputScript: await validateInput(input.inputScript, false) });
+          const job = await runner.create({ ...config(input), title, prompt: input.prompt.trim(), duration: target.seconds, format: input.format, audioPath: await validateInput(input.audioPath, true), inputScript: await validateInput(input.inputScript, false) });
           return json(res, 201, detail(store, job));
         }
       }
