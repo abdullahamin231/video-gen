@@ -274,11 +274,10 @@ test('progress never passes a missing verdict, rejected or outdated script revie
   assert(computeHealth(job, []).items.some(item => item.text.includes('status timed out')));
   const thumbnail = `${job.jobPath}/thumbnail`;
   const art = names => computeProgress(job, { files: names.map(name => ({ path: `${thumbnail}/${name}` })) }).phases[2].steps[1];
-  assert.notEqual(art(['BRIEF.md', 'thumbnail.png', 'source.svg']).status, 'done');
-  // The preview's file name is the maker's choice; a finished maker with every artifact present is done.
-  assert.equal(art(['BRIEF.md', 'thumbnail.png', 'source.svg', 'preview-320x180.png']).status, 'done');
+  assert.notEqual(art(['BRIEF.md', 'thumbnail.png']).status, 'done');
+  // The PNG and its editable source are enough; a feed-size preview is optional.
+  assert.equal(art(['BRIEF.md', 'thumbnail.png', 'source.svg']).status, 'done');
   assert.match(art(['BRIEF.md', 'thumbnail.png', 'source.svg', 'preview-320x180.png']).detail, /feed preview/);
-  assert.equal(art(['BRIEF.md', 'thumbnail.png', 'source.svg', 'thumbnail-320x180.png']).status, 'done');
   store.flush();
 });
 

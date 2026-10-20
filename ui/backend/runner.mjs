@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, access, rm, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { executable, invocation, capture, agentPins } from './providers.mjs';
 import { normalize, normalizeFile, redact, parseNext, describeTask } from './events.mjs';
-import { listFiles, jobFile, readJson, inside } from './files.mjs';
+import { listFiles, folderFiles, jobFile, readJson, inside } from './files.mjs';
 import { orchestratorPrompt, roleNote } from './prompt.mjs';
 import { CodexRollouts, applyRolloutUsage } from './codex-usage.mjs';
 import { UsageService, applyUsage, totalUsage } from './usage.mjs';
@@ -422,10 +422,10 @@ export class Runner {
     const png = await jobFile(this.root, job, `${thumb}/thumbnail.png`).catch(() => fail('Missing thumbnail/thumbnail.png'));
     const size = pngSize(await readFile(png.path));
     if (size?.width !== 1280 || size?.height !== 720) fail('Thumbnail must be a real 1280×720 PNG');
-    const files = (await listFiles(this.root, job)).filter(file => file.path.startsWith(`${thumb}/`));
+    const files = await folderFiles(this.root, thumb);
     let preview = '';
-    for (const file of files.filter(item => item.path.endsWith('.png'))) { const dims = pngSize(await readFile(path.join(this.root, file.path))); if (dims?.width === 320 && dims?.height === 180) { preview = file.path; break; } }
-    if (!preview) fail('Missing the 320×180 feed-size thumbnail preview');
+    // A small feed-size preview is optional; when one exists it is shown with the outputs.
+    for (const file of files.filter(item => item.path.endsWith('.png') && item.path !== `${thumb}/thumbnail.png`)) { const dims = pngSize(await readFile(path.join(this.root, file.path))); if (dims && dims.width < 1280) { preview = file.path; break; } }
     const review = await readJson(path.join(this.root, `${thumb}/REVIEW.json`)).catch(() => null);
     const reviewer = job.agents.find(agent => agent.id === review?.reviewerAgentId && agent.role === 'thumbnail-reviewer' && agent.status === 'finished');
     if (review?.status !== 'pass' || !reviewer || !Array.isArray(review.inspectedFiles) || !review.inspectedFiles.length) fail('A fresh, finished thumbnail reviewer must independently pass the actual thumbnail in thumbnail/REVIEW.json');
@@ -477,6 +477,10 @@ export class Runner {
     // A status read that was in flight when the thread was deleted must not write it back.
     if (this.store.jobs.get(job.id) !== job) return;
     files ||= await listFiles(this.root, job).catch(() => []);
+    // The key files are what the Files tab shows; progress also needs every thumbnail file and saved source.
+    const seen = new Set(files.map(file => file.path));
+    for (const folder of [`${job.jobPath}/thumbnail`, `${job.scriptPath}/sources`])
+      for (const file of await folderFiles(this.root, folder).catch(() => [])) if (!seen.has(file.path)) { seen.add(file.path); files = [...files, file]; }
     const scriptReviewFile = files.find(file => file.path === `${job.scriptPath}/review.md`);
     const scriptReviewText = scriptReviewFile ? await readFile(path.join(this.root, scriptReviewFile.path), 'utf8').catch(() => '') : '';
     job.scriptReview = scriptReviewFile ? {

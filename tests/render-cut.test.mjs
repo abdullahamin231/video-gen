@@ -45,6 +45,10 @@ test('the short composition stops at the cut and is not a production source', as
   await writeRoot(dir, manifest, timing, film, {file: 'index.cut.html', end: 12});
   assert.doesNotMatch(await readFile(path.join(dir, 'index.cut.html'), 'utf8'), /host-later/);
   assert.equal(await sourceFingerprint(dir), before);
+  // The thumbnail is made after delivery; it must not make the delivered film look stale.
+  await mkdir(path.join(dir, 'thumbnail'));
+  await writeFile(path.join(dir, 'thumbnail/BRIEF.md'), 'thumbnail brief');
+  assert.equal(await sourceFingerprint(dir), before);
 });
 
 test('the captured part is held to the film\'s full length', {skip: spawnSync('ffmpeg', ['-version']).status !== 0 && 'ffmpeg is not installed'}, async t => {

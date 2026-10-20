@@ -79,14 +79,13 @@ Reference thumbnails are research material, not production artwork or evidence o
   different treatment when the material calls for it. Avoid unsupported verdicts, misleading charts and invented numbers.
 - Keep text, labels, shapes, outlines and shadows editable in a layered SVG or equivalent source, with fonts and
   provenance saved locally. Use image generation only where the concept benefits from raster artwork.
-- Export `jobs/<slug>/thumbnail/thumbnail.png` at 1280×720 (16:9), plus the editable source and a 320×180 feed-size
-  preview. Keep all artifacts inside the repository. Import outside assets with `npm run video -- asset`, using
+- Export `jobs/<slug>/thumbnail/thumbnail.png` at 1280×720 (16:9), plus the editable source. Keep all artifacts inside the repository. Import outside assets with `npm run video -- asset`, using
   the explicit `--job` path. Archive the completed thumbnail directory, including its source, generator, fonts or
   font references, brief and review, at `library/thumbnails/<slug>/`. Preserve earlier versions when updating it.
   Finished thumbnails belong only under `library/thumbnails/`, never directly among the reusable asset bundles
   at the library root. Do not publish finished thumbnails with `npm run video -- save`; separately reusable
   fonts, illustrations and components may still use the normal asset-library commands.
-- Inspect the full-size export and feed-size preview. Commission a fresh reviewer sub-agent that did not make
+- Inspect the export at full size and viewed small, as it appears in a feed. Commission a fresh reviewer sub-agent that did not make
   the thumbnail to read the brief, title, script/research and images, then check legibility, image/title relationship,
   viewer expectation, factual promise and payoff. Save its report in the thumbnail directory; resolve blockers
   and have the reviewer re-check before delivery. Do not modify the film's qualified review evidence.

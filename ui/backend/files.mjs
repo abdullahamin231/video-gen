@@ -1,4 +1,4 @@
-import { realpath, stat, readFile } from 'node:fs/promises';
+import { realpath, stat, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 export const types = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.md': 'text/plain', '.json': 'application/json', '.txt': 'text/plain', '.html': 'text/plain', '.js': 'text/plain', '.mjs': 'text/plain', '.css': 'text/plain', '.py': 'text/plain' };
@@ -30,7 +30,6 @@ const keyFiles = [
   ['job', 'renders/video.mp4', 'Final video'],
   ['job', 'thumbnail/BRIEF.md', 'Thumbnail brief'],
   ['job', 'thumbnail/thumbnail.png', 'Thumbnail'],
-  ['job', 'thumbnail/preview-320x180.png', 'Thumbnail feed preview'],
   ['job', 'thumbnail/thumbnail.svg', 'Thumbnail source'],
   ['job', 'thumbnail/REVIEW.json', 'Thumbnail review'],
 ];
@@ -48,6 +47,20 @@ export async function listFiles(root, job) {
   // The job copies the script's VISUALS.md into inputs/visuals.md; show one of them.
   const files = found.filter(Boolean);
   return files.some(file => file.label === 'Visual plan') ? files.filter(file => file.label !== 'Visual plan (script writer)') : files;
+}
+
+// Every file under one repository folder (recursively), for checks that must see all of it, not just the key files.
+export async function folderFiles(root, folder) {
+  const out = [];
+  async function walk(rel) {
+    for (const entry of await readdir(path.join(root, rel), { withFileTypes: true }).catch(() => [])) {
+      const child = path.posix.join(rel, entry.name);
+      if (entry.isDirectory()) await walk(child);
+      else if (entry.isFile()) { const info = await stat(path.join(root, child)); out.push({ path: child, size: info.size, modified: info.mtimeMs, type: types[path.extname(child).toLowerCase()] || 'application/octet-stream' }); }
+    }
+  }
+  if (folder) await walk(folder);
+  return out;
 }
 
 export async function readJson(filename) { try { return JSON.parse(await readFile(filename, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } }
