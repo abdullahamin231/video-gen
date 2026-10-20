@@ -362,7 +362,7 @@ function modelFields(j = {}) {
   const provider = j.provider || state.providers.find(p => p.installed)?.name || 'Codex';
   const models = state.providers.find(p => p.name === provider)?.models || [];
   return `<div class="field-label">CLI provider</div><div class="provider-options">${names.map(name => { const p = state.providers.find(item => item.name === name); return `<label class="provider-option"><input type="radio" name="provider" value="${name}" ${name === provider ? 'checked' : ''} ${(p && !p.installed) || (j.agents?.length && name !== j.provider) ? 'disabled' : ''}><span class="provider-option-content"><span class="provider-large">${marks[name]}</span>${name}<span class="provider-radio"></span></span></label>`; }).join('')}</div><div class="provider-install-note">${state.providers.length ? state.providers.map(p => `${p.name}: ${p.installed ? p.version || 'installed' : 'not available'}`).map(esc).join(' · ') : 'Checking installed CLIs…'}</div>
-  <div class="field-label" style="margin-top:14px">Model for each role</div><div class="role-models">${roleRows({ provider, ...j })}</div><datalist id="model-options">${models.map(m => `<option value="${esc(m)}">`).join('')}</datalist>
+  <div class="field-label" style="margin-top:14px">Model for each role</div><div class="role-models" data-provider="${esc(provider)}">${roleRows({ provider, ...j })}</div><datalist id="model-options">${models.map(m => `<option value="${esc(m)}">`).join('')}</datalist>
   <div class="model-caveat">Uses your existing CLI login. Model IDs are passed straight to the CLI (OpenCode and Pi use provider/model).${j.agents?.length ? ' The provider is fixed for this thread; model changes apply to agents started afterwards.' : ''}</div><div class="form-divider"></div><div class="new-gates"><label><input type="checkbox" name="gateScript" ${j.gateScript ? 'checked' : ''}>Pause for me after script review</label><label><input type="checkbox" name="gatePrototype" ${j.gatePrototype ? 'checked' : ''}>Pause for me after prototype review</label></div>`;
 }
 // One editable row per role. A blank field shows, as its placeholder, what the role falls back to.
@@ -373,6 +373,16 @@ function roleRows(job) {
     const fallback = routeModel({ ...job, main: item.role === 'orchestrator' ? '' : job.main, models: { ...models, [item.role]: '' } }, item.role, pins), route = routeModel({ ...job, models }, item.role, pins);
     return `<label class="role-model"><span class="role-name"><strong>${esc(item.label)}</strong><small>${esc(item.hint)}</small></span><input type="text" name="${name}" list="model-options" placeholder="${esc(fallback.model || 'CLI default')}" value="${esc(value)}" maxlength="120" aria-label="${esc(item.label)} model"><small class="role-route" data-role="${item.role}">${esc(route.model || 'CLI default')} · ${esc(route.source)}</small></label>`;
   }).join('');
+}
+// Model IDs belong to one harness. Switching keeps what you typed for each harness and shows the new one's own choices (blank: its defaults).
+const typedModels = new WeakMap();
+function switchRoleModels(form, provider) {
+  const rows = form && $('.role-models', form); if (!rows) return;
+  const memory = typedModels.get(form) || {}; typedModels.set(form, memory);
+  const inputs = [...rows.querySelectorAll('input')];
+  memory[rows.dataset.provider] = Object.fromEntries(inputs.map(input => [input.name, input.value]));
+  for (const input of inputs) input.value = memory[provider]?.[input.name] || '';
+  rows.dataset.provider = provider;
 }
 function updateRoutingPreview(form) {
   const job = readConfig(form), pins = state.providers.find(p => p.name === 'Claude')?.pins || {};
@@ -475,7 +485,7 @@ document.addEventListener('submit', async e => {
   finally { if (button) button.disabled = false; }
 });
 document.addEventListener('change', e => {
-  if (e.target.name === 'provider') { const models = state.providers.find(p => p.name === e.target.value)?.models || []; const list = $('#model-options'); if (list) list.innerHTML = models.map(m => `<option value="${esc(m)}">`).join(''); }
+  if (e.target.name === 'provider') { const models = state.providers.find(p => p.name === e.target.value)?.models || []; const list = $('#model-options'); if (list) list.innerHTML = models.map(m => `<option value="${esc(m)}">`).join(''); switchRoleModels(e.target.form, e.target.value); }
   if (e.target.id === 'activity-agent') { state.activityAgent = e.target.value; schedule(); }
   if (e.target.form && ['new-job-form', 'configure-form'].includes(e.target.form.id)) updateRoutingPreview(e.target.form);
 });

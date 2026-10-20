@@ -32,6 +32,15 @@ try {
   await page.type('input[name=main]', 'fixture-main'); await page.type('input[name="model:builder"]', 'fixture-builder');
   assert((await page.$eval('.role-route[data-role=builder]', node => node.textContent)).includes('fixture-builder'), 'role row shows the chosen model');
   assert(/strong default|repo pin/.test(await page.$eval('.role-route[data-role=director]', node => node.textContent)), 'unset roles show their default');
+  // Model IDs belong to one harness: switching clears this harness's choices and switching back restores them.
+  const chooseProvider = name => page.$eval(`input[name=provider][value=${name}]`, node => { node.checked = true; node.dispatchEvent(new Event('change', { bubbles: true })); });
+  const firstProvider = await page.$eval('input[name=provider]:checked', node => node.value), otherProvider = firstProvider === 'OpenCode' ? 'Codex' : 'OpenCode';
+  await chooseProvider(otherProvider);
+  assert.equal(await page.$eval('input[name=main]', node => node.value), '', 'another harness starts without this one\'s orchestrator model');
+  assert((await page.$eval('.role-route[data-role=orchestrator]', node => node.textContent)).includes(`${otherProvider} weak default`), 'orchestrator falls back to the new harness default');
+  await chooseProvider(firstProvider);
+  assert.equal(await page.$eval('input[name=main]', node => node.value), 'fixture-main', 'switching back restores the typed model');
+  assert.equal(await page.$eval('input[name="model:builder"]', node => node.value), 'fixture-builder');
   await page.$eval('.role-models', node => node.scrollIntoView()); await page.screenshot({ path: path.join(shots, 'role-models.png') });
   await click(page, '#new-job-form button[type=submit]');
   await page.waitForSelector('.status-badge.needs_attention', { timeout: 20000 });
