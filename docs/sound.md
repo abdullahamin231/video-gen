@@ -36,7 +36,7 @@ music track. Agents cannot hear, so every step is measured and never judged by f
 ## Tools
 
 ```bash
-npm run video -- setup-audio      # checks ffmpeg/ffprobe, installs librosa (beat analysis, plots) in ~/.cache/video-gen/audio-env
+npm run video -- setup-audio      # checks ffmpeg/ffprobe, installs librosa (beat analysis, plots) in .cache/video-gen/audio-env (inside the repository)
 ```
 
 If ffmpeg is missing, install it (`sudo apt install ffmpeg` or the platform's package) before anything else.

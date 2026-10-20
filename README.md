@@ -66,7 +66,8 @@ becomes `--length 30`. Keys starting with `_` are comments; unknown keys are rej
 |---|---|---|
 | `VG_ALLOW_WEB_IMAGES` | unset | Unset: `asset --src <url>` accepts only `.svg` files from the web. Set to `1` (or `true`/`yes`) to also let agents download `.png`, `.jpg`, `.jpeg`, `.webp` and `.gif` images from URLs. Local files and fonts are unaffected. |
 | `VG_LIBRARY` | `library/` | Shared library location. |
-| `VG_MANIM_ENV` | `~/.cache/video-gen/manim-env` | ManimCE environment. |
+| `VG_CACHE` | `.cache/video-gen` (in the repository) | Where the TTS, audio and Manim environments live. Never `~/.cache`: sandboxed agents can only write inside the repository. |
+| `VG_MANIM_ENV` | `.cache/video-gen/manim-env` | ManimCE environment. |
 
 Agents run in the same shell as you, so setting the variable in your environment is what enables raster downloads for
 their `asset` calls. Leave it unset to keep web imports to SVG.

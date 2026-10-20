@@ -14,3 +14,4 @@ outputs/
 jobs/
 library/
 !library/README.md
+.cache/

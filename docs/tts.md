@@ -7,11 +7,13 @@ The voice is Kokoro, run locally by `npx hyperframes tts`. This is the one allow
 
 ## One-time setup
 
-Kokoro needs a Python environment with `kokoro-onnx` and `soundfile`. Keep it out of the system Python:
+Kokoro needs a Python environment with `kokoro-onnx` and `soundfile`. Keep it out of the system Python, in the
+repository's `.cache/video-gen` (never `~/.cache`: sandboxed agents can only write inside the repository). Run these
+from the repository root, and skip them when `.cache/video-gen/tts-env/bin/python` already exists:
 
 ```bash
-python3 -m venv ~/.cache/video-gen/tts-env
-~/.cache/video-gen/tts-env/bin/pip install -q kokoro-onnx soundfile
+python3 -m venv .cache/video-gen/tts-env
+.cache/video-gen/tts-env/bin/pip install -q --no-cache-dir kokoro-onnx soundfile
 ```
 
 Every `tts` call needs `HYPERFRAMES_PYTHON` pointing at that interpreter. The first call downloads the voice data
@@ -43,7 +45,7 @@ Run from the repository root, with `<slug>` the script's folder under `jobs/scri
 2. Synthesise each paragraph:
 
    ```bash
-   export HYPERFRAMES_PYTHON=~/.cache/video-gen/tts-env/bin/python
+   export HYPERFRAMES_PYTHON="$PWD/.cache/video-gen/tts-env/bin/python"
    for f in $S/tts/p*.txt; do
      npx --no-install hyperframes tts "$f" -v am_michael -s 1.15 -o "${f%.txt}.wav" > "${f%.txt}.log" 2>&1 || echo "FAILED $f"
    done
