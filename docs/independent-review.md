@@ -111,7 +111,7 @@ violate a delivery requirement, such as a nonessential label that could be
 simplified or a sound effect that could make an already clear action more
 tactile. Do not downgrade a known requirement violation to obtain a pass.
 Do not reject stylistic differences solely because a reviewer prefers another
-look: the design theme is the director's choice. Do reject a film that does not
+look: the design theme is a creative choice made in the visual plan (or by the director). Do reject a film that does not
 hold to its own declared theme (film.json `theme`, summarised in STORYBOARD.md).
 
 Review active passages in intervals of approximately 3 s. Check whether

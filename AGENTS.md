@@ -17,7 +17,8 @@ sub-agents do the creative work from self-contained brief files. This works the 
    Add `--length 30` (and `--start <s>`) only when the user asks for an excerpt ("first 30 seconds" → `--length 30`).
    Add `--format vertical` when the user asks for a reel, short, TikTok or vertical video, and `--format landscape` for
    long-form when the defaults say otherwise. Defaults come from `video.config.json`; never edit it unless asked.
-   Add `--music "<track>"` when the user supplies a music track; otherwise the director picks a licensed one.
+   Add `--music "<track>"` when the user supplies a music track; otherwise the director brings in a licensed one
+   matching the visual plan's music section.
    A `VISUALS.md` beside the script (the script writer's visual plan) is carried into the job automatically
    (`--visuals <file>` names another one). Without one, `next` first has a `script-writer` write it.
 
@@ -60,7 +61,8 @@ film is finished, using its actual script, title and visuals. This is an orchest
 existing CLI loop; do not assume a thumbnail CLI command exists or change a qualified film to make a still.
 
 Start from the "## Thumbnail" section of the job's visual plan (`jobs/<slug>/inputs/visuals.md`), written by the
-script writer: it holds the headline, subject, layout and payoff the maker carries out.
+script writer: it holds the headline, subject, layout and payoff the maker carries out. A job planned before visual
+plans existed has none: then derive them from the finished film, its script and `film.json`.
 Read [docs/kaiexplains-thumbnail-study.md](docs/kaiexplains-thumbnail-study.md) before designing it, including its
 visual evidence. Adapt the contrast, hierarchy and simplicity with original or licensed assets and our own identity.
 Reference thumbnails are research material, not production artwork or evidence of a proven CTR formula.
@@ -179,7 +181,7 @@ script. Never use TTS when the user supplied a recording.
 ## References
 
 - [docs/SCENE_SPEC.md](docs/SCENE_SPEC.md) — the scene language (objects, verbs, cues, camera, components, hooks, Manim).
-- [docs/quality.md](docs/quality.md) — the full creative and review standard (one design theme per film, chosen by the director).
+- [docs/quality.md](docs/quality.md) — the full creative and review standard (one design theme per film, chosen in the visual plan).
 - [docs/independent-review.md](docs/independent-review.md) — review roles, evidence and report schema.
 - [docs/tts.md](docs/tts.md) — generating narration with HyperFrames TTS when there is no recording.
 - [docs/sound.md](docs/sound.md) — music, sound effects, the mix and its measurements; the sound library.

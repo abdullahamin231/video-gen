@@ -20,8 +20,9 @@ makes the film better (and says why in the shot's `notes`).
 2. **The film is true.** Show only numbers and claims that the narration or script supports. An explanatory value that
    is not spoken (an axis scale, an illustrative count) is allowed only when the object says why (`"numbers"`).
 3. **The film renders the same way every time.** No randomness, clocks or timers; every motion is tied to a cue.
-4. **The film has one design theme.** The director chooses it, declares it in `film.json` `theme`, and every scene
-   is made in it. Which theme is entirely the director's choice; that there is exactly one is not negotiable.
+4. **The film has one design theme.** The script writer chooses it in the visual plan (`VISUALS.md`), the director
+   declares it in `film.json` `theme`, and every scene is made in it. Which theme is a creative choice (the director's,
+   for a film without a visual plan); that there is exactly one is not negotiable.
 
 ## Design: one theme, chosen for this film
 
@@ -171,20 +172,34 @@ measurement, and nobody claims the film "sounds good". The full process, fields 
 
 ## Working method
 
+### Script writer (the visual plan)
+
+The script writer makes the film's creative decisions in `VISUALS.md` (see the script-writing skill's
+`references/visuals.md`): it invents at least two whole-film concepts and picks the strongest, chooses the design
+theme, splits the script into scenes by idea, picks the prototype, and writes each scene's stage, events at exact
+words, payoff, assets and handoff concretely enough to build without guessing.
+
 ### Director
 
-1. Read the whole script and word table. Find the argument, the surprises and the concrete things it names.
-2. Choose the design theme (above). Collect the assets the theme needs (product images, logos, fonts) into `assets/`.
-3. Invent at least two whole-film concepts (different worlds and metaphors, not colour changes); pick the strongest.
-4. Split the recording into scenes by idea. Pick the most demanding 10–15 s scene as the prototype. Write each scene's
-   idea, mechanism, visible states, payoff and handoff so a builder can make it.
-5. Build the prototype and the scenes before it yourself, look at the frames, and fix what looks weak before review.
+With a visual plan, the director carries it out rather than replacing it:
+
+1. Read the visual plan, the script and the word table.
+2. Transcribe the plan into `film.json`: its concept, alternatives, theme, subjects, prototype and scenes, keeping the
+   plan's scene ids and wording. Record any change the recording or toolset forces in `"departures"`.
+3. Collect the assets the plan names (product images, logos, fonts) into `assets/`, and the music it describes.
+4. Build the prototype and the scenes before it, look at the frames, and fix what looks weak before review.
+
+Without a visual plan (jobs planned before visual plans existed), the director makes those creative decisions itself:
+choose the theme, invent at least two whole-film concepts and pick the strongest, split the recording into scenes and
+write each scene's idea, mechanism, visible states, payoff and handoff so a builder can make it.
 
 ### Builders
 
-Builders have full creative authority over their scene inside the theme: layout, mechanism, motion and tools. They
-keep the narrated idea, the spoken timing, the theme, and the subjects the next scene needs. Departures from the plan
-are recorded in `notes`.
+Builders build their scene from the visual plan's section for it (quoted in their brief), inside the theme. They
+choose the implementation (exact layout, sizes, tools, timing offsets) and depart from the plan only where it cannot
+be built as written or does not work. They keep the narrated idea, the spoken timing, the theme, and the subjects the
+next scene needs. Departures from the plan are recorded in `notes`. Without a visual plan, builders have full creative
+authority over their scene inside the theme.
 
 ### Prototype gate
 

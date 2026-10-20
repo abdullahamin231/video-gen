@@ -19,6 +19,9 @@ Sticker graphics on near-black.
 {"name": "Stickers", "description": "Sticker graphics", "bg": "#101010", "colors": {"white": "#f0f0f0"}}
 \`\`\`
 
+## Prototype
+\`comparison\` — the hardest passage.
+
 ## Scenes
 
 ### opening — the shelf appears
@@ -29,8 +32,8 @@ Sticker graphics on near-black.
 - Payoff: The shelf holds for one second.
 
 ### \`comparison\`
-- Starts at: "comparison"
-- Idea: Two products.
+- **Starts at:** "comparison"
+- **Idea**: Two products.
 - Events:
   1. "comparison" → a yellow tag reading $3,999 swings onto the left box
 - Payoff: The tags sit side by side.
@@ -60,6 +63,9 @@ test('the visual plan is read by scene id and checked for its required sections'
   const errors = visualPlanErrors('# Visual plan: X\n\n## Concept\nA.\n\n## Scenes\n\n### opening\n- Idea: x\n');
   assert.ok(errors.some(e => /## Theme/.test(e)));
   assert.ok(errors.some(e => /opening.*Starts at/.test(e)));
+  const bad = visualPlanErrors(PLAN.replace('"bg": "#101010",', '"bg": #101010,').replace('### opening — the shelf appears', '### Opening: the shelf'));
+  assert.ok(bad.some(e => /Theme.*JSON does not parse/.test(e)));
+  assert.ok(bad.some(e => /"Opening".*kebab-case/.test(e)));
 });
 
 test('a VISUALS.md beside the script is found', async t => {
@@ -98,4 +104,12 @@ test('with a visual plan the director transcribes it and builders get their scen
 test('jobs planned before visual plans existed keep going', async t => {
   const dir = await job(t, {plan: null, film: {version: 2}});
   assert.equal((await nextStep(dir)).state, 'plan');
+  await writeFile(path.join(dir, 'film.json'), '{ not json');
+  assert.equal((await nextStep(dir)).state, 'plan');
+});
+
+test('the activity feed recognises the script writer spawn', async () => {
+  const {parseNext} = await import('../ui/backend/events.mjs');
+  const parsed = parseNext('STATE: visuals\n      script-writer: "Read /r/jobs/x/briefs/visuals.md and follow it exactly."\n      video-builder: "Read /r/jobs/x/briefs/build-a.md and follow it exactly."');
+  assert.deepEqual(parsed.spawns, [{role: 'script-writer', brief: 'jobs/x/briefs/visuals.md'}, {role: 'builder', brief: 'jobs/x/briefs/build-a.md'}]);
 });

@@ -26,7 +26,8 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
   // 1. Script and narration.
   const script = [];
   const scriptExists = has(`${scriptDir}/SCRIPT.md`);
-  const writers = running(agents, 'script-writer'), reviewers = running(agents, 'script-reviewer');
+  // A writer sent by `next` for the visual plan (briefs/visuals.md) belongs to the film's "visuals" step, not the script.
+  const writers = running(agents, 'script-writer').filter(agent => !/\/briefs\/visuals\.md$/.test(agent.brief || '')), reviewers = running(agents, 'script-reviewer');
   if (job.inputScript) script.push(stepFrom('script', 'Script supplied', scriptExists || prepared ? 'done' : 'current', scriptExists ? `${scriptDir}/SCRIPT.md` : `Copying ${job.inputScript}`, { file: `${scriptDir}/SCRIPT.md` }));
   else script.push(stepFrom('script', 'Research and write the script', writers.length ? 'current' : scriptExists ? 'done' : job.status === 'running' ? 'current' : 'pending',
     writers.length ? 'Script writer at work' : scriptExists ? `${files.filter(f => f.path.startsWith(`${scriptDir}/sources/`)).length} saved sources` : 'Not started', { file: `${scriptDir}/SCRIPT.md`, agents: ids(agents.filter(a => a.role === 'script-writer')) }));
