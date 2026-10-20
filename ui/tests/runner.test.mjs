@@ -416,6 +416,11 @@ test('the same work asked for twice while it runs waits for the running agent in
   // Different briefs are different work and run side by side.
   await runner.tool(job, agent.id, 'delegate_parallel', { tasks: ['a', 'b'].map(scene => ({ role: 'builder', prompt: `Read jobs/fixture/briefs/build-${scene}.md and follow it exactly.` })) });
   assert.equal(job.agents.filter(item => item.role === 'builder').length, 2);
+  // A director revision never resumes the earlier director session.
+  const plan = await runner.tool(job, agent.id, 'delegate', { role: 'director', prompt: 'Read jobs/fixture/briefs/director.md and follow it exactly.' });
+  const revision = await runner.tool(job, agent.id, 'delegate', { role: 'director', prompt: 'Read jobs/fixture/briefs/director-revision.md and follow it exactly.', agentId: plan.agentId });
+  assert.notEqual(revision.agentId, plan.agentId); assert.match(revision.note, /fresh director/);
+  assert.equal(job.agents.filter(item => item.role === 'director').length, 2);
   void store;
 });
 

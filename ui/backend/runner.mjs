@@ -354,6 +354,10 @@ export class Runner {
   }
   async delegate(job, parent, args, track = true) {
     if (!DELEGATE_ROLES.includes(args.role)) throw new Error('Unsupported agent role');
+    // Director briefs (plan, revision, repair) are self-contained. Resuming one re-sends its whole earlier run with
+    // every request (a revision reached 195K tokens per request), so a director always starts fresh.
+    let resumeIgnored = false;
+    if (args.agentId && args.role === 'director') { args = { ...args, agentId: undefined }; resumeIgnored = true; }
     if (args.agentId && /reviewer$/.test(args.role)) throw new Error('Reviewers must be fresh agents; do not resume one');
     if (track) { parent.status = 'waiting'; parent.waitingFor = 'agents'; this.store.save(job); }
     // The same work asked for again while it is still running (an orchestrator whose call was cut off, then resumed)
@@ -369,7 +373,8 @@ export class Runner {
       const promise = this.runAgent(job, { role: args.role, prompt: args.prompt, agentId: args.agentId, parentId: parent.id });
       const entry = { promise, task: describeTask(args.role, args.prompt).task, agentId: args.agentId || '' };
       this.inflight.set(key, entry);
-      try { return await promise; } finally { if (this.inflight.get(key) === entry) this.inflight.delete(key); }
+      try { const result = await promise; return resumeIgnored ? { ...result, note: 'Started a fresh director: directors are never resumed.' } : result; }
+      finally { if (this.inflight.get(key) === entry) this.inflight.delete(key); }
     } finally { if (track && parent.status === 'waiting') { parent.status = 'running'; delete parent.waitingFor; this.store.save(job); } }
   }
   // One running agent per brief; roles that work without a brief (script writer, reviewers, thumbnail) one at a time each.
