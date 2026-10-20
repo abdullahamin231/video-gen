@@ -115,13 +115,38 @@ surfaces, line weight, shapes, typography, what each colour means, motion person
 ...
 
 ## Thumbnail
-- Headline: <2–4 large uppercase words>
-- Subject: <the one central image and its silhouette>
+- Title: <the video's title: specific, names the thing (model, device, company, number), tells the viewer what they get>
+- Headline: <2–4 large uppercase words: a verdict, warning or accusation the video answers (see "Title and thumbnail")>
+- Subject: <the one central image and its silhouette; the thing being judged, big (its logo, the device)>
 - Layout and colours: <placement, background, accent colours, in the film's theme>
 - Relationship to the title: <what the image adds that the title does not say>
 - Payoff in the video: <scene id and the words where the promise is paid off>
 - Sourcing: <the research line behind any number or claim it shows>
 ````
+
+## Title and thumbnail
+
+People choose what to watch from the thumbnail and title together, at the size of a thumbnail on a phone. The channel we
+model (`docs/kaiexplains-thumbnail-study.md`) splits the work: the **title** is specific
+and measured ("OpenRouter is Quietly Giving Nerfed AI Model (STOP Using Wrong Endpoint)"), and the **headline** on
+the image is the gut reaction to it, in two to four words: "OPENROUTER IS LYING", "LOCAL AI IS DEAD", "USELESS",
+"DON'T OVERPAY", "CLAUDE GET NERFED". Half of that channel's headlines play on fear of loss or of being cheated.
+
+- **Make the headline a verdict, a warning or an accusation**, not a description. "TRY BEFORE BUYING" describes;
+  "DON'T BUY THIS YET" warns. "BEYOND NEPTUNE" describes; "NEPTUNE ISN'T THE END" corrects. Statements, not
+  questions: none of the reference headlines uses a question mark.
+- **Use the fear the viewer already has** when the topic has one (wasting money, being lied to, being left behind,
+  a tool getting worse), and name who or what it is about. For news, the threat itself is the headline.
+- **Tie it to the title and to the opening.** The headline is the title's claim with the hedges removed, and the
+  film's cold open voices that same fear or belief in the first thirty seconds, then the film settles it. A viewer who
+  clicked on "OPENROUTER IS LYING" must hear about it at once.
+- **It must be defensible from the film.** Strong is fine; false is not. An accusation against a named company or
+  person needs the evidence in the research and the film's own conclusion behind it ("IS LYING" when the film shows
+  the provider serving something else than advertised; not when the film concludes the rumour is wrong). When the film
+  overturns the belief, headline the real finding instead ("IT'S NOT THE MODEL"). A number on the image comes from
+  `research.md`.
+- **One idea, big.** The thing being judged fills a third of the frame; the headline is the largest text; red marks
+  the bad thing, yellow the key word. Nothing else needs reading.
 
 ## Scenes
 

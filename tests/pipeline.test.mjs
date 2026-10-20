@@ -95,7 +95,7 @@ test('CLI qualifies real encoded media only after prototype and final independen
   await writeFile(path.join(job,'review/render-source.json'),JSON.stringify({version:1,
     sourceHash:await sourceFingerprint(job),videoSha256:await fileHash(path.join(job,'renders/video.mp4'))}));
   for(const stage of ['prototype','final']) {
-    const packResult=spawnSync(process.execPath,[path.join(ROOT,'scripts/video.mjs'),'review-pack','--job',job,'--stage',stage],{encoding:'utf8'});
+    const packResult=spawnSync(process.execPath,[path.join(ROOT,'scripts/video.mjs'),'review-pack','--job',job,'--stage',stage,'--from','render'],{encoding:'utf8'});
     assert.equal(packResult.status,0,packResult.error?.message || packResult.stderr);
     const dispatch=JSON.parse(packResult.stdout);
     assert.equal(dispatch.briefs.length,3);

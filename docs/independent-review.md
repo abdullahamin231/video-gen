@@ -62,13 +62,18 @@ IDs or submit director-authored opinions under reviewer identities.
 Review the demanding 10–15 s prototype before extending the film. Use the same
 three roles at that gate. Review the whole film again after assembly; a good
 prototype does not approve an unseen second half. The final review must cover
-the exact rendered MP4 offered for delivery.
+the exact sources that are rendered for delivery.
 
-Prepare a frozen evidence pack for each render. Include the MP4 and its SHA-256,
-source fingerprint, duration, contact sheet sampled at least once per second,
-ordered frames with explicit video timestamps, phone-scale frames, and denser
-samples around changes of state, cue starts, and handoffs. Supply reviewable
-short clips or playback when the available tools support them. Keep source
+Nothing is rendered before the final review. Reviews look at the built HTML: the
+browser seeks the same seek-safe timeline the renderer captures, so a frame from
+the pack is the frame the MP4 will hold at that time. Prepare a frozen evidence pack for each
+build. Include the source fingerprint, duration, contact sheet sampled at least once per second,
+ordered frames stamped with their film time, phone-scale frames, and denser
+samples around changes of state, cue starts, and handoffs. Once the final reviews
+pass, the film is rendered once from exactly those sources (the render's source
+receipt must match the pack), and delivery checks that the rendered narration
+matches the recording and that the pixel checks pass. Older packs made from an MP4
+(`review-pack --from render`) also carry the MP4's SHA-256 and short clips. Keep source
 audio, script, alignment, cues, storyboard, and subject contracts available to
 the roles that need them; do not leak these into the visual first pass.
 
@@ -145,15 +150,15 @@ return the specific counterevidence to that reviewer for reconsideration; do
 not edit its verdict or unilaterally dismiss it in a summary report. Keep the
 original finding and the follow-up disposition as review history.
 
-Repair the responsible mechanism, composition, timing, or asset. Reassemble,
-run technical checks, render again, and prepare a fresh evidence pack. Recheck
+Repair the responsible mechanism, composition, timing, or asset. Rebuild,
+run technical checks, and prepare a fresh evidence pack. Recheck
 the affected interval plus adjacent handoffs. Because final qualification is
-bound to the exact MP4 and source fingerprint, all three roles must issue
+bound to the exact source fingerprint (and through it, to the one render), all three roles must issue
 current final reports; prior reports remain history and cannot qualify changed
 output. Reviewers can use prior findings to target attention, but must account
 for the full new artifact, including unintended regressions.
 
-Use an explicit repair budget, normally three render-and-review rounds per
+Use an explicit repair budget, normally three repair-and-review rounds per
 mechanism. A repeated defect should trigger a different mechanism or construction,
 not decorative additions to the same weak scene. If the budget is exhausted,
 retain the draft and findings, report the job as incomplete, and state the
@@ -170,7 +175,7 @@ and reference the exact delivered artifact in `review/REPORT.md`.
 ## Commands and machine-readable contract
 
 The host runs the commands and commissions the reviewers itself. For example,
-after a draft render, select the demanding prototype interval:
+after the prototype builds, select the demanding prototype interval:
 
 ```bash
 npm run video -- review-pack --job jobs/example --stage prototype --start 8 --end 20
@@ -187,12 +192,13 @@ They cannot replace image/video inspection. Without visual input a reviewer reco
 and verdict `incomplete`. The blind visual role reads diagnostics only after saving its observations of the images.
 `next` dispatches reviewers and repairs automatically.
 The command prepares dispatch material; the host's agent tools execute the
-reviews. Use `--stage final` for the whole film after its final draft render.
+reviews. Use `--stage final` for the whole film once every scene builds.
 The prototype is normally 10–15 s; a shorter film can use its whole duration.
-Interval arguments are video seconds, not word-count timing estimates. Sample
-the actual encoded render, not a different Studio state.
+Interval arguments are film seconds, not word-count timing estimates. Sample
+the built film itself, never a Studio state (Studio stamps ids into the job's HTML).
 
-The pack contains its interval, scenes, `sourceHash`, `videoSha256`, and
+The pack contains its interval, scenes, `source` (`html`, or absent for a pack made from an MP4), `sourceHash`,
+`videoSha256` (`null` for an html pack), and
 `evidence` entries with `path`, `sha256`, `kind`, `start`, and `end`. The kinds
 are `frames`, `contact-sheet`, `clip`, `audio`, `verification`, `motion`, `checks` and
 `sound`; each individual PNG frame is a `frames` entry. `sound` entries are the film's sound plan
@@ -306,8 +312,8 @@ and exits unsuccessfully while the gate is unmet. The host must read and act
 on findings, not merely retry the status command. Repeat submission for all
 three roles. Preserve the accepted prototype evidence when expanding the film.
 
-`render` remains available for drafts and writes a source receipt for the
-encoded result. After the final pack and all three current reviews pass, run:
+After the final pack and all three current reviews pass (and, when the person asked to see the film, their approval),
+`next` asks for one `render`, which writes a source receipt for the encoded result. Then run:
 
 ```bash
 npm run video -- deliver --job jobs/example

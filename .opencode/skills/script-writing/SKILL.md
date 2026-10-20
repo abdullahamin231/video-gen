@@ -137,8 +137,9 @@ Read the draft once per pass, each time looking for one thing only:
 6. **Truth pass.** Every factual claim, including comparisons and causal explanations, is supported by the saved sources
    and accurately represented in `research.md`. Check context, scope and attribution as well as numbers, names and quotes.
    Hedge exactly as much as the source hedges.
-   Anecdotes stay anecdotes. No invented personal experience: "I" statements about doing things come only from creator
-   notes.
+   Anecdotes stay anecdotes. The narrator speaks as "I" for opinions and reactions, but never invents an experience:
+   "I" statements about doing things ("I bought", "I tested") come only from creator notes. Without notes, the opening
+   scene belongs to the viewer ("you") or to a real person from the sources.
 
 ### 6. Write the visual plan
 

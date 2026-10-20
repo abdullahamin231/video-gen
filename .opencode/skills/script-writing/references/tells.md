@@ -57,8 +57,11 @@ Rule numbers in brackets refer to the `unslop` editing rules these come from.
 - **Performed fairness or enthusiasm.** "I want to be fair here", "I like this one a lot", "a line I keep thinking
   about", "Here's a rule I'd steal".
 - **Scripted reactions.** "Here's the detail that bothered me most", "this one surprised me", "and this is where it
-  gets wild". Show the reaction by what you dwell on.
-- **Engineered twists.** "So the answer is just X, right? Well..." / "That's where I'd have stopped, except...".
+  gets wild": a label for a feeling, which fits any video. A reaction that paints this situation ("I've microwaved meals
+  faster than that") is personality, not a tell; keep one or two where they land, mostly in the opening.
+- **Engineered twists.** "So the answer is just X, right? Well..." / "That's where I'd have stopped, except...": a
+  doubt staged to fake suspense. The opening's turn is different when the belief it overturns is real (people in the
+  sources actually hold it) and the video actually overturns it; see the cold open in `craft.md`.
 - **Number dumps.** Exact figures in every paragraph (52.8 to 66.5, 268 thousand versus 72 thousand). Round, keep the
   ones that matter, put the rest on screen.
 - **Strained metaphor.** An extended image that distorts the subject or takes more explanation than the subject itself.

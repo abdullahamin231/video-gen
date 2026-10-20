@@ -1,8 +1,9 @@
 {
-  "_help": "Defaults for new jobs; flags on `npm run video -- start` override them. format: landscape (16:9 long-form) or vertical (9:16 reels and shorts). length: seconds, or null for the whole recording; with supplied audio it trims longer recordings, for a generated script it is the target duration. verticalMaxSeconds: vertical jobs longer than this get a warning. fps: 24, 30 or 60. channelTheme: the design theme every film starts from (film.json theme format), or null to let each film choose freely.",
+  "_help": "Defaults for new jobs; flags on `npm run video -- start` override them. format: landscape (16:9 long-form) or vertical (9:16 reels and shorts). length: seconds, or null for the whole recording; with supplied audio it trims longer recordings, for a generated script it is the target duration. verticalMaxSeconds: vertical jobs longer than this get a warning. fps: 24, 30 or 60. channelTheme: the design theme every film starts from (film.json theme format), or null to let each film choose freely. thumbnails: how many thumbnail variants to make (1–6); you pick one or regenerate any with feedback (start --thumbnails overrides it).",
   "format": "landscape",
   "length": null,
   "verticalMaxSeconds": 90,
   "fps": 30,
-  "channelTheme": "channel/theme.json"
+  "channelTheme": "channel/theme.json",
+  "thumbnails": 3
 }

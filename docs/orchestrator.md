@@ -49,6 +49,15 @@ sub-agents do the creative work from self-contained brief files. This works the 
   Reviewer sub-agents must be new agents that did not build anything.
   The step names a role (`script-writer`, `video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
   that name, use it: it pins the role's model (see "Models per role" below). Otherwise use any fresh sub-agent.
+- **`STATE: human review of the prototype/final`** — the user asked to watch the film at this stage (`start
+  --human-review prototype,final`). In the video UI, call the runner's `checkpoint` tool with that kind; the user watches
+  the built film there and the UI records their decision. Elsewhere, ask them to run `npm run video -- play --job <job>`
+  (it plays the built HTML in the browser with a scene strip; nothing is rendered or changed), then record exactly what
+  they said with `human-review --decision approve` or `--decision revise --note "12.5: <their words>"`. Never decide for
+  them and never reword a note: `next` sends each note to the scene at its moment.
+
+Nothing is rendered until the final reviews (and the user's final review, if they asked for one) pass: reviewers judge
+frames taken from the built HTML, and `next` then asks for one `render`.
 
 When it prints `STATE: done`, complete the thumbnail workflow, then give the user the MP4 and thumbnail paths and a short verification note from `review/delivery.json`
 (its limitations and advisory findings), the soundtrack's measurements (`soundtrack`: integrated LUFS and peaks,
@@ -59,40 +68,27 @@ If it prints `STATE: blocked`, report honestly; never call an unqualified draft 
 
 ## Thumbnail at the end of every video
 
-Every request to create a video also includes a thumbnail unless the user explicitly opts out. Make it after the
-film is finished, using its actual script, title and visuals. This is an orchestrator completion step after the
-existing CLI loop; do not assume a thumbnail CLI command exists or change a qualified film to make a still.
+Every request to create a video also includes a thumbnail unless the user explicitly opts out. When `next` prints
+`STATE: done`, follow `npm run video -- thumbnails --job <job>` exactly as you follow `next` (the same DO and spawn
+steps) until it prints `STATE: done`:
 
-Start from the "## Thumbnail" section of the job's visual plan (`jobs/<slug>/inputs/visuals.md`), written by the
-script writer: it holds the headline, subject, layout and payoff the maker carries out. A job planned before visual
-plans existed has none: then derive them from the finished film, its script and `film.json`.
-Read [docs/kaiexplains-thumbnail-study.md](kaiexplains-thumbnail-study.md) before designing it, including its
-visual evidence. Adapt the contrast, hierarchy and simplicity with original or licensed assets and our own identity.
-Reference thumbnails are research material, not production artwork or evidence of a proven CTR formula.
+- It makes N variants in parallel (`thumbnails` in `video.config.json`, 3 by default; `start --thumbnails N`), one
+  `thumbnail-maker` per brief, each from a different angle (the visual plan's thumbnail as written, a warning, an
+  accusation, a big number, the surprising mechanism). The briefs carry the visual plan's "## Thumbnail" section and
+  point at [docs/kaiexplains-thumbnail-study.md](kaiexplains-thumbnail-study.md). Makers export with
+  `thumbnail-export`, which renders the SVG to `thumbnail.png` (1280×720) and `preview-320x180.png`.
+- One fresh `thumbnail-reviewer` (never a maker) judges every new or changed variant at full and feed size and records
+  `pass` or `blocked` with `thumbnail-verdict`, then ranks the passing ones. A blocked variant goes back to its maker
+  with the findings, up to three times; the others stay.
+- When the user asked to pick (`start --pick-thumbnail true`; the UI's "Let me pick the thumbnail"), it says "the
+  person picks": call the runner's `checkpoint {kind: "thumbnail"}`, or show them the PNGs and record exactly what
+  they say with `thumbnail-choose --variant <id> --by you` or `thumbnail-feedback --variant <id> --note "<their
+  words>"`. Feedback sends only that variant back to a maker, then to review. Otherwise it prints the
+  `thumbnail-choose` command for the reviewer's top-ranked variant.
+- `thumbnail-choose` copies the pick into `thumbnail/` (with its review as `thumbnail/REVIEW.json`) and archives the
+  whole folder, every variant included, to `library/thumbnails/<slug>/`; an earlier archive moves to `history/`.
 
-- Write `jobs/<slug>/thumbnail/BRIEF.md`: exact video title, short image headline, subject, layout, background,
-  accent colors, how the image complements the title, and the payoff location in the finished video. Source every
-  factual or numerical visual claim to the job's research; preserve attribution, forecast and proposal caveats.
-- Use one central promise, a few large uppercase words, a strong subject silhouette and sparse background detail.
-  The usual starting point is near-black, white/yellow headline text and restrained red/blue offsets. Let the title
-  name the topic or mechanism while the image conveys its question, consequence or supported outcome. Choose a
-  different treatment when the material calls for it. Avoid unsupported verdicts, misleading charts and invented numbers.
-- Keep text, labels, shapes, outlines and shadows editable in a layered SVG or equivalent source, with fonts and
-  provenance saved locally. Use image generation only where the concept benefits from raster artwork.
-- Export `jobs/<slug>/thumbnail/thumbnail.png` at 1280×720 (16:9), plus the editable source. Keep all artifacts inside the repository. Import outside assets with `npm run video -- asset`, using
-  the explicit `--job` path. Archive the completed thumbnail directory, including its source, generator, fonts or
-  font references, brief and review, at `library/thumbnails/<slug>/`. Preserve earlier versions when updating it.
-  Finished thumbnails belong only under `library/thumbnails/`, never directly among the reusable asset bundles
-  at the library root. Do not publish finished thumbnails with `npm run video -- save`; separately reusable
-  fonts, illustrations and components may still use the normal asset-library commands.
-- Inspect the export at full size and viewed small, as it appears in a feed. Commission a fresh reviewer sub-agent that did not make
-  the thumbnail to read the brief, title, script/research and images, then check legibility, image/title relationship,
-  viewer expectation, factual promise and payoff. Save its report in the thumbnail directory; resolve blockers
-  and have the reviewer re-check before delivery. Do not modify the film's qualified review evidence.
-
-Deliver the PNG alongside the MP4, with the editable source linked when useful. A thumbnail-only request for an
-existing job uses this same workflow without rebuilding or re-delivering its video. If the video is unfinished,
-record the intended script payoff and the missing rendered verification honestly; do not claim the film passed.
+Never pick for the user, never reword their feedback, and do not change a qualified film to make a still.
 
 ## Rules for the orchestrator
 
@@ -128,7 +124,7 @@ record the intended script payoff and the missing rendered verification honestly
 | Reviewers ×3 | `briefs/review-<stage>-<role>.md` | `review/<stage>/incoming/<role>.json` | `review-submit` |
 
 The prototype scene (the most demanding 10–15 s) and its prerequisite introduction/context are built in order,
-rendered and reviewed before later scenes are built. By default the director builds them itself, in the same context
+reviewed (from the built HTML, without rendering) before later scenes are built. By default the director builds them itself, in the same context
 that planned them; it delegates later scenes with `"owner": "builder"` in film.json.
 
 Build errors mean the film is broken or untrue (invalid spec, no declared design theme, missing assets, unspoken cue
@@ -148,7 +144,7 @@ thumbnail), so every later role carries out a written design instead of inventin
 | orchestrator (main session) | weak | `next` decides every step |
 | `script-writer`, `script-reviewer` | strong | the script and the visual plan are where creative thinking pays off; the reviewer checks both |
 | `video-director`, `video-builder`, thumbnail maker | weak | transcribe the visual plan into film.json and build it; `plan-check` and `build --scene` catch broken output |
-| `video-reviewer`, thumbnail reviewer | weak | check the render against the plan and the quality standard; raise one to strong if weak reviews pass weak films |
+| `video-reviewer`, thumbnail reviewer | weak | check frames of the built film against the plan and the quality standard; raise one to strong if weak reviews pass weak films |
 
 Default models for each harness:
 

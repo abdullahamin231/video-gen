@@ -61,9 +61,12 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
     const active = film.find(step => ['current', 'repair'].includes(step.status));
     const command = commands.find(item => ['build', 'render', 'review-pack', 'save-all', 'deliver', 'mix', 'plan-check'].includes(item.command));
     if (active && command) active.running = { command: command.command, startedAt: command.startedAt, agentId: command.agentId };
-    if (job.gatePrototype) {
+    // Your film reviews are pipeline steps (prototype-human, final-human); waiting on one is your turn.
+    for (const step of film) if (/-human$/.test(step.id) && step.status === 'current') Object.assign(step, { status: 'waiting', detail: job.gate?.kind === step.id.split('-')[0] && !job.gate.decision ? 'Your turn: watch it and decide' : step.detail });
+    // Jobs started before the pipeline knew about your review keep the older checkpoint step.
+    if (job.gatePrototype && !film.some(step => step.id === 'prototype-human')) {
       const index = film.findIndex(step => step.id === 'prototype-review');
-      film.splice(index + 1, 0, gateStep(job, 'prototype', 'Your prototype checkpoint', film[index].status === 'done'));
+      if (index >= 0) film.splice(index + 1, 0, gateStep(job, 'prototype', 'Your prototype checkpoint', film[index].status === 'done'));
     }
   } else {
     const starting = commandRunning('start');
@@ -79,7 +82,25 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
   const preview = files.some(file => file.path.startsWith(`${thumb}/`) && file.path.endsWith('.png') && /320x180|feed|preview/i.test(file.path));
   const review = job.thumbnailReview;
   const archivedSet = archived.length > 0;
-  const thumbnail = [
+  const thumbs = job.thumbs, variants = thumbs?.variants || [];
+  const usingVariants = variants.some(v => v.made || v.needsWork && has(`${v.dir}/BRIEF.md`)) || files.some(file => file.path.startsWith(`${thumb}/variants/`));
+  let thumbnail;
+  if (usingVariants) {
+    const made = variants.filter(v => v.made && !v.needsWork), passed = variants.filter(v => v.review?.status === 'pass'), live = variants.filter(v => !v.failed);
+    const waiting = job.gate?.kind === 'thumbnail' && !job.gate.decision;
+    const redo = variants.filter(v => v.made && v.needsWork);
+    thumbnail = [
+      stepFrom('thumbnail-art', `${thumbs.count} thumbnail variants`, makers.length ? 'current' : made.length >= live.length ? 'done' : redo.length ? 'repair' : filmDone ? 'current' : 'pending',
+        `${made.length}/${thumbs.count} made${redo.length ? ` · ${redo.map(v => v.id).join(', ')} being made again` : ''}${variants.some(v => v.failed) ? ` · ${variants.filter(v => v.failed).map(v => v.id).join(', ')} dropped` : ''}`,
+        { agents: ids(agents.filter(a => a.role === 'thumbnail-maker')) }),
+      stepFrom('thumbnail-review', 'Independent thumbnail review', thumbReviewers.length ? 'current' : passed.length && made.every(v => v.review) ? 'done' : made.length ? 'current' : 'pending',
+        thumbReviewers.length ? 'Fresh reviewer at work' : `${passed.length} passed${made.filter(v => v.review?.status === 'blocked').length ? ` · ${made.filter(v => v.review?.status === 'blocked').length} blocked` : ''}`,
+        { agents: ids(agents.filter(a => a.role === 'thumbnail-reviewer')) }),
+      stepFrom('thumbnail-pick', thumbs.pick ? 'Your pick' : 'Pick (reviewer’s ranking)', waiting ? 'waiting' : thumbs.chosen && (!thumbs.pick || thumbs.chosen.by === 'you') ? 'done' : passed.length ? 'current' : 'pending',
+        thumbs.chosen ? `${thumbs.chosen.variant} · “${thumbs.chosen.headline}”` : waiting ? 'Your turn: pick one or ask for changes' : ''),
+      stepFrom('thumbnail-archive', 'Archived to library/thumbnails', archivedSet && thumbs.chosen ? 'done' : thumbs.chosen ? 'current' : 'pending', archivedSet && thumbs.chosen ? `library/thumbnails/${job.slug}/` : ''),
+    ];
+  } else thumbnail = [
     stepFrom('thumbnail-brief', 'Thumbnail brief', has(`${thumb}/BRIEF.md`) ? 'done' : filmDone ? 'current' : 'pending', has(`${thumb}/BRIEF.md`) ? `${thumb}/BRIEF.md` : '', { file: `${thumb}/BRIEF.md` }),
     stepFrom('thumbnail-art', 'Artwork and editable source', makers.length ? 'current' : png && source ? 'done' : has(`${thumb}/BRIEF.md`) ? 'current' : 'pending',
       [png && '1280×720 PNG', source && 'editable source', preview && 'feed preview'].filter(Boolean).join(' · '), { agents: ids(agents.filter(a => a.role === 'thumbnail-maker')), file: png ? `${thumb}/thumbnail.png` : '' }),

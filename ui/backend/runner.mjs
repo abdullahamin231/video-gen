@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, access, rm, lstat } from 'node:fs/promises';
+import { mkdir, readFile, readdir, access, rm, lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { executable, invocation, capture, agentPins } from './providers.mjs';
 import { normalize, normalizeFile, redact, parseNext, describeTask } from './events.mjs';
@@ -10,8 +10,22 @@ import { CodexRollouts, applyRolloutUsage } from './codex-usage.mjs';
 import { UsageService, applyUsage, totalUsage } from './usage.mjs';
 import { computeProgress, computeHealth, scriptDisposition } from './progress.mjs';
 import { routeModel, CLAUDE_AGENT_TYPES, DELEGATE_ROLES } from '../shared/routing.mjs';
+import { recordHumanReview, setHumanStages } from '../../lib/human.mjs';
+import { thumbnailStatus, chooseThumbnail, addThumbnailFeedback } from '../../lib/thumbnails.mjs';
 
 const LIVE = new Set(['starting', 'running', 'waiting']);
+// Checkpoints on the film itself: you watch the built HTML and approve it or leave notes at moments in it.
+export const FILM_GATES = ['prototype', 'final'];
+// How many thumbnail variants this thread makes and whether you pick (job.json thumbnails / pickThumbnail).
+async function syncThumbnailSettings(dir, job) {
+  const file = path.join(dir, 'job.json');
+  let manifest; try { manifest = JSON.parse(await readFile(file, 'utf8')); } catch { return false; }
+  const want = { pickThumbnail: job.gateThumbnail !== false, ...(job.thumbnails ? { thumbnails: job.thumbnails } : {}) };
+  if (Object.entries(want).every(([key, value]) => manifest[key] === value)) return false;
+  await writeFile(file, JSON.stringify({ ...manifest, ...want }, null, 2) + '\n');
+  return true;
+}
+export const humanStagesOf = job => FILM_GATES.filter(kind => kind === 'prototype' ? job.gatePrototype : job.gateFinal);
 const MAX_PROCESSES = 4; // per job, including the orchestrator: enough for three parallel reviewers
 const STATUS_INTERVAL = 5000;
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -327,11 +341,17 @@ export class Runner {
       } finally { if (agent.status === 'waiting') agent.status = 'running'; delete agent.waitingFor; this.store.save(job); }
     }
     if (name === 'checkpoint') {
-      if (!['script', 'prototype'].includes(args.kind) || typeof args.summary !== 'string') throw new Error('Invalid checkpoint');
+      if (!['script', 'prototype', 'final', 'thumbnail'].includes(args.kind) || typeof args.summary !== 'string') throw new Error('Invalid checkpoint');
       // A decision made while the orchestrator was not running is returned before anything else.
       if (job.gate?.kind === args.kind && job.gate.decision && !job.gate.consumed) return this.consume(job);
-      const enabled = args.kind === 'script' ? job.gateScript : job.gatePrototype;
-      if (!enabled || job.approvedGates?.includes(args.kind)) return { decision: 'continue', reason: enabled ? 'Already approved' : 'Checkpoint disabled' };
+      const enabled = { script: job.gateScript, prototype: job.gatePrototype, final: job.gateFinal, thumbnail: job.gateThumbnail !== false }[args.kind];
+      if (!enabled) {
+        // The pipeline asks only for stages the job wants; a checkpoint switched off since then stops it asking.
+        if (FILM_GATES.includes(args.kind)) await this.syncHumanReview(job);
+        return { decision: 'continue', reason: 'Checkpoint disabled' };
+      }
+      // A film review belongs to one build: the pipeline asks again only for a build you have not decided on.
+      if (!FILM_GATES.includes(args.kind) && args.kind !== 'thumbnail' && job.approvedGates?.includes(args.kind)) return { decision: 'continue', reason: 'Already approved' };
       return this.waitForHuman(job, agent, { kind: args.kind, summary: args.summary.slice(0, 5000), file: normalizeFile(this.root, args.file || '') });
     }
     if (name === 'ask') {
@@ -403,6 +423,11 @@ export class Runner {
   consume(job) {
     const gate = job.gate; gate.consumed = true;
     if (gate.kind === 'question') return { answer: gate.answer };
+    if (gate.kind === 'thumbnail') return { decision: gate.decision, variant: gate.variant,
+      instruction: `Your pick or feedback is recorded in the job. Run \`npm run video -- thumbnails --job ${job.jobPath}\` and follow it.` };
+    // Film reviews are recorded by the pipeline itself (review/human/<stage>.json); next turns notes into repairs.
+    if (FILM_GATES.includes(gate.kind)) return { decision: gate.decision, notes: gate.notes?.length || 0,
+      instruction: `Your decision is recorded in the job. Run next and follow it${gate.decision === 'revise' ? ': it sends your notes to the scenes they point at' : ''}.` };
     return gate.decision === 'approve' ? { decision: 'approve', feedback: gate.feedback || '' }
       : { decision: 'revise', feedback: gate.feedback, instruction: `Revise the ${gate.kind} using this feedback, have it independently reviewed again, then call checkpoint again.` };
   }
@@ -431,6 +456,12 @@ export class Runner {
     if (review?.status !== 'pass' || !reviewer || !Array.isArray(review.inspectedFiles) || !review.inspectedFiles.length) fail('A fresh, finished thumbnail reviewer must independently pass the actual thumbnail in thumbnail/REVIEW.json');
     if (!files.some(file => /\.(svg|psd|ora|afdesign)$/.test(file.path))) fail('Missing editable thumbnail source');
     if (!files.some(file => /BRIEF\.md$/.test(file.path))) fail('Missing thumbnail brief');
+    // The thumbnail is the picked variant (thumbnails workflow); older jobs made a single one without variants.
+    const thumbs = await thumbnailStatus(path.join(this.root, job.jobPath)).catch(() => null);
+    if (thumbs && files.some(file => file.path.startsWith(`${thumb}/variants/`))) {
+      if (!thumbs.chosen) fail('No thumbnail variant is picked: follow `npm run video -- thumbnails` until it says done');
+      if (thumbs.pick && thumbs.chosen.by !== 'you') fail('You asked to pick the thumbnail yourself; it was not picked by you');
+    }
     for (const file of files) {
       const archived = `library/thumbnails/${job.slug}/${file.path.slice(thumb.length + 1)}`;
       const target = await jobFile(this.root, job, archived).catch(() => fail(`Thumbnail archive is missing ${archived}`));
@@ -457,6 +488,10 @@ export class Runner {
     state.running = (async () => {
       try {
         if (!await exists(path.join(this.root, job.jobPath, 'job.json'))) { job.pipeline = null; return; }
+        if (job.status !== 'complete') {
+          await setHumanStages(path.join(this.root, job.jobPath), humanStagesOf(job)).catch(() => {});
+          await syncThumbnailSettings(path.join(this.root, job.jobPath), job).catch(() => {});
+        }
         const result = await this.statusCommand(job);
         const line = result.stdout.split('\n').reverse().find(text => text.startsWith('{'));
         if (!line) throw new Error((result.stderr || 'status printed nothing').split('\n').filter(text => !/DeprecationWarning|trace-deprecation/.test(text)).join(' ').slice(-400));
@@ -489,6 +524,10 @@ export class Runner {
     } : null;
     const review = await readJson(path.join(this.root, job.jobPath, 'thumbnail/REVIEW.json')).catch(() => null);
     job.thumbnailReview = review ? { status: String(review.status || ''), findings: Array.isArray(review.findings) ? review.findings.length : 0 } : null;
+    job.thumbs = await thumbnailStatus(path.join(this.root, job.jobPath)).then(status => ({ count: status.count, pick: status.pick, chosen: status.chosen,
+      ranking: status.ranking, variants: status.variants.map(v => ({ id: v.id, dir: v.dir, made: v.made, headline: v.headline, needsWork: v.needsWork, failed: v.failed,
+        review: v.review && { status: v.review.status, findings: v.review.findings }, feedback: v.feedback.filter(f => f.by === 'you').map(f => f.text), version: (v.pngSha256 || '').slice(0, 8) })) }))
+      .catch(() => null);
     const archived = await readdir(path.join(this.root, 'library/thumbnails', job.slug)).catch(() => []);
     const progress = computeProgress(job, { files, archived });
     const health = computeHealth(job, this.store.events(job.id));
@@ -523,6 +562,15 @@ export class Runner {
       }
     } finally { this.polling = false; }
   }
+  // The job's own record of which film stages wait for you (job.json humanReview) follows the thread's checkpoints.
+  async syncHumanReview(job) {
+    try {
+      const dir = path.join(this.root, job.jobPath);
+      if (await setHumanStages(dir, humanStagesOf(job))) this.markDirty(job);
+      await syncThumbnailSettings(dir, job);
+    }
+    catch (error) { this.store.event(job, { type: 'error', text: `Could not update the film checkpoints: ${error.message}`, source: 'runner' }); }
+  }
   async control(job, action, data = {}) {
     const records = [...this.processes.values()].filter(item => item.job.id === job.id);
     if (action === 'pause') {
@@ -548,11 +596,40 @@ export class Runner {
         this.decide(job, { decision: 'answer', answer: text });
       } else {
         if (job.gate.kind === 'question') throw new Error('Answer the question instead');
-        if (action === 'revise' && !text) throw new Error('Describe the changes you want');
+        const notes = Array.isArray(data.notes) ? data.notes : [];
+        if (job.gate.kind === 'thumbnail') {
+          // approve = use this variant; revise = make this one again with your words. The pipeline records both.
+          const variant = String(data.variant || '');
+          if (action === 'approve') await chooseThumbnail(path.join(this.root, job.jobPath), { variant, by: 'you' });
+          else await addThumbnailFeedback(path.join(this.root, job.jobPath), { variant, text });
+          job.gate.variant = variant;
+        } else if (FILM_GATES.includes(job.gate.kind)) {
+          // The pipeline validates the notes against the build the reviewers saw, and records them word for word.
+          const record = await recordHumanReview(path.join(this.root, job.jobPath), { stage: job.gate.kind, decision: action,
+            notes: [...notes, ...(text ? [{ text }] : [])] });
+          job.gate.notes = record.notes;
+        } else if (action === 'revise' && !text) throw new Error('Describe the changes you want');
         this.store.message(job, 'You', `${action === 'approve' ? `Approved the ${job.gate.kind} checkpoint.` : `Requested changes to the ${job.gate.kind}.`}${text ? `\n\n${text}` : ''}`, '', { deliveredAt: new Date().toISOString() });
-        if (action === 'approve') { job.approvedGates ||= []; job.approvedGates.push(job.gate.kind); }
+        if (action === 'approve' && !FILM_GATES.includes(job.gate.kind) && job.gate.kind !== 'thumbnail') { job.approvedGates ||= []; job.approvedGates.push(job.gate.kind); }
         this.decide(job, { decision: action, feedback: text });
       }
+    } else if (action === 'thumbnail-choose' || action === 'thumbnail-feedback') {
+      // Outside a checkpoint: picking another passing variant needs no agent; asking for a new version reopens the thread.
+      if (job.status === 'gate' && job.gate?.kind === 'thumbnail' && !job.gate.decision) throw new Error('Use the thumbnail checkpoint in the thread');
+      const dir = path.join(this.root, job.jobPath), variant = String(data.variant || '');
+      if (action === 'thumbnail-choose') {
+        await chooseThumbnail(dir, { variant, by: 'you' });
+        this.store.message(job, 'You', `Picked thumbnail ${variant}.`, '', { deliveredAt: new Date().toISOString() });
+        if (job.status === 'complete') job.outputs = { ...job.outputs, thumbnail: `${job.jobPath}/thumbnail/thumbnail.png` };
+      } else {
+        const text = String(data.feedback || '').trim();
+        if (records.length && !['paused'].includes(job.status)) throw new Error('Wait for the agents to finish, or send this as a message');
+        await addThumbnailFeedback(dir, { variant, text });
+        this.store.message(job, 'You', `Make thumbnail ${variant} again:\n\n${text}`, '', { deliveredAt: new Date().toISOString() });
+        if (job.status === 'complete') { delete job.completedAt; job.qualification = null; }
+        if (!records.length) { job.status = 'queued'; job.error = ''; }
+      }
+      this.markDirty(job);
     } else if (action === 'archive' || action === 'unarchive') {
       if (action === 'archive' && (records.length || ['running', 'queued', 'gate'].includes(job.status))) throw new Error('Pause or cancel the run before archiving it');
       job.archived = action === 'archive';

@@ -6,13 +6,18 @@ the script yourself; give the writer concrete defects and desired outcomes.
 
 Read it first as the intended viewer, then check the evidence. Address these questions with exact quoted lines:
 
-- Does the opening establish a useful promise, and does the ending fulfill it? Where would attention drop, and why?
+- Does the opening pull a viewer in? For a long explainer, check the cold open in `craft.md`: a specific scene rather
+  than the topic, a narrator who reacts like a person, the belief people hold and why it is wrong or incomplete (real
+  and paid off, not staged), and a plain promise within about the first minute. An opening that starts on a definition,
+  a history or the topic itself is a `revise` finding for a long explainer. Does the ending fulfill the promise? Where
+  would attention drop, and why?
 - Can the viewer follow the explanation, reproduce the tutorial's result, or understand the story's events? Name any
   missing step, repetition or abrupt transition. Judge the requested genre, not a preference for a particular voice.
 - Does every material factual claim follow from the saved evidence? Check causal claims, comparisons, sample scope,
   denominators and caveats. Trace central measurements to the primary source. If only a secondary account was read,
   require that attribution and uncertainty in the script. Distinguish evidence from opinion and anecdote.
 - Are first-person experiences supported by creator notes? A source's experience must not become the narrator's.
+  Opinions and reactions in the first person are fine; "I did X" without notes is an invented experience (blocking).
 - Does it sound natural at the chosen speaking rate, and fit the target budget? Do not reward matching tell counters.
 - When the writer chose the length (the brief named none), is it the right one? Name beats a viewer would not miss
   (padding) or steps rushed past (too short), and suggest a target. A badly chosen length is a `revise` finding; a

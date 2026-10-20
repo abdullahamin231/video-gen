@@ -75,7 +75,8 @@ const TELLS = {
   'reversal [9]': /\b(it'?s not (just )?[^.?!]{1,40}[.,;] it'?s|isn'?t just|not just [^.?!]{1,40} but|not because [^.?!]{1,60} but because)/gi,
   'participial-tail [3]': /, (highlighting|showcasing|ensuring|reflecting|underscoring|making it|allowing|enabling|fostering|emphasizing|signaling)\b/gi,
   'generic-ending [25]': /\b(the future (looks|is) bright|only time will tell|one thing is (certain|clear)|(and |so )?the next time (you|your)|the possibilities are endless|changes everything)\b/gi,
-  'imagine-opener': /\b(imagine (a world|this)|have you ever wondered|picture this)\b/gi,
+  // "Picture this" is allowed: the reference channel opens with it, followed at once by a specific scene (craft.md).
+  'imagine-opener': /\b(imagine a world|have you ever wondered)\b/gi,
   'announced-structure': /\b(next part|here's the part (most people|nobody|everyone)|my argument (in this video )?is|let's start with|now,? let's talk about|let's (look at|talk about)|in this video,? (i|we)('ll| will))\b/gi,
   'performed-tone': /\b(i want to be fair|to be fair here|i (really )?(like|love) this one|i keep thinking about|i'd steal|puts it (well|perfectly|best)|my favou?rite (part|line))\b/gi,
   'heres-the-thing': /\b(here's the (thing|catch|kicker|twist)|but here's)\b/gi,

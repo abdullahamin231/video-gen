@@ -35,7 +35,7 @@ test('review pack freezes dense rendered evidence and normal speed clips', {skip
   const job = await fixture(t);
   await writeFile(path.join(job, 'review/render-verification.json'), JSON.stringify({ok: true,
     sha256: sha(await readFile(path.join(job, 'renders/video.mp4'))), narrationIntegrity: {ok: true}}));
-  const pack = await createReviewPack(job);
+  const pack = await createReviewPack(job, {from: 'render'});
   assert.equal(pack.stage, 'final');
   assert.equal(pack.duration, 3);
   assert.deepEqual(pack.interval, {start: 0, end: 3});
@@ -62,7 +62,7 @@ test('review pack freezes dense rendered evidence and normal speed clips', {skip
     assert.ok(probe.streams.some(stream => stream.codec_type === 'audio'));
     assert.equal(clip.playbackRate, 1);
   }
-  const second = await createReviewPack(job, {stage: 'prototype'});
+  const second = await createReviewPack(job, {from: 'render', stage: 'prototype'});
   assert.notEqual(second.evidence.find(item => item.kind === 'frames').path, samples[0].path);
   assert.equal(second.videoSha256, pack.videoSha256);
   assert.equal((await loadReviewPack(job, 'prototype')).pack.videoSha256, pack.videoSha256);
@@ -70,29 +70,29 @@ test('review pack freezes dense rendered evidence and normal speed clips', {skip
   await writeFile(path.join(job, 'review/render-verification.json'), '{}');
   assert.equal(JSON.parse(await readFile(path.join(job, frozenVerification.path), 'utf8')).narrationIntegrity.ok, true);
   assert.equal((await loadReviewPack(job, 'prototype')).pack.videoSha256, pack.videoSha256);
-  await assert.rejects(createReviewPack(job), /verification is stale/);
+  await assert.rejects(createReviewPack(job, {from: 'render'}), /verification is stale/);
 });
 
 test('review pack rejects partial final, invalid intervals and escaped output', {skip: !available}, async t => {
   const job = await fixture(t);
   for (const options of [{start: -1}, {end: 4}, {start: 2, end: 1}, {start: NaN}, {start: '0'}, {end: 2}])
-    await assert.rejects(createReviewPack(job, options), /interval|full video/);
-  await assert.rejects(createReviewPack(job, {stage: 'prototype', start: 1}), /10–15 seconds/);
-  await assert.rejects(createReviewPack(job, {stage: 'other'}), /stage/);
-  await assert.rejects(createReviewPack(job, {output: '../escape.json'}), /review directory/);
-  await assert.rejects(createReviewPack(job, {output: 'review/../../escape.json'}), /review directory/);
+    await assert.rejects(createReviewPack(job, {from: 'render', ...options}), /interval|full video/);
+  await assert.rejects(createReviewPack(job, {from: 'render', stage: 'prototype', start: 1}), /10–15 seconds/);
+  await assert.rejects(createReviewPack(job, {from: 'render', stage: 'other'}), /stage/);
+  await assert.rejects(createReviewPack(job, {from: 'render', output: '../escape.json'}), /review directory/);
+  await assert.rejects(createReviewPack(job, {from: 'render', output: 'review/../../escape.json'}), /review directory/);
   const outside = await mkdtemp(path.join(tmpdir(), 'review-outside-'));
   t.after(() => rm(outside, {recursive: true, force: true}));
   await symlink(outside, path.join(job, 'review/linked'));
-  await assert.rejects(createReviewPack(job, {output: 'review/linked/pack.json'}), /Symlinked/);
+  await assert.rejects(createReviewPack(job, {from: 'render', output: 'review/linked/pack.json'}), /Symlinked/);
 });
 
 test('review pack cannot bind an old render to edited sources', {skip: !available}, async t => {
   const job = await fixture(t);
   await writeFile(path.join(job, 'compositions/opening.html'), '<p>Changed subject</p>');
-  await assert.rejects(createReviewPack(job), /receipt is stale/);
+  await assert.rejects(createReviewPack(job, {from: 'render'}), /receipt is stale/);
   await rm(path.join(job, 'review/render-source.json'));
-  await assert.rejects(createReviewPack(job), /Missing render source receipt/);
+  await assert.rejects(createReviewPack(job, {from: 'render'}), /Missing render source receipt/);
 });
 
 test('review pack rejects symlinked render and receipt outside the job', {skip: !available}, async t => {
@@ -103,14 +103,14 @@ test('review pack rejects symlinked render and receipt outside the job', {skip: 
     await writeFile(external, original);
     await rm(path.join(job, relative));
     await symlink(external, path.join(job, relative));
-    await assert.rejects(createReviewPack(job), /must be a local file/);
+    await assert.rejects(createReviewPack(job, {from: 'render'}), /must be a local file/);
     await rm(path.join(job, relative));
     await writeFile(path.join(job, relative), original);
   }
 });
 
 test('review covers accepted encoded padding without hiding content gaps', {skip: !available}, async t => {
-  const job = await fixture(t, {videoDuration: 3.08, videoFps: 25}), pack = await createReviewPack(job);
+  const job = await fixture(t, {videoDuration: 3.08, videoFps: 25}), pack = await createReviewPack(job, {from: 'render'});
   assert.ok(Math.abs(pack.duration - 3.08) < 0.005);
   assert.equal(pack.interval.end, pack.duration);
   assert.equal(pack.scenes[1].end, pack.duration);
@@ -122,14 +122,14 @@ test('review covers accepted encoded padding without hiding content gaps', {skip
   await writeFile(timingFile, JSON.stringify(timing));
   await writeFile(path.join(job, 'review/render-source.json'), JSON.stringify({version: 1,
     sourceHash: await sourceFingerprint(job), videoSha256: pack.videoSha256}));
-  const gapPack = await createReviewPack(job);
+  const gapPack = await createReviewPack(job, {from: 'render'});
   assert.equal(gapPack.scenes[1].end, 2.9);
   assert.equal(gapPack.scenes[1].trailingMuxPadding, undefined);
   await assert.rejects(loadReviewPack(job, 'final'), /scene coverage is incomplete/);
 });
 
 test('shorter accepted encoded duration clips scene evidence at the render end', {skip: !available}, async t => {
-  const job = await fixture(t, {videoDuration: 2.92, videoFps: 25}), pack = await createReviewPack(job);
+  const job = await fixture(t, {videoDuration: 2.92, videoFps: 25}), pack = await createReviewPack(job, {from: 'render'});
   assert.ok(Math.abs(pack.duration - 2.92) < 0.005);
   assert.equal(pack.scenes[1].end, pack.duration);
   assert.equal(pack.scenes[1].trailingMuxPadding, undefined);

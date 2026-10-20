@@ -13,6 +13,11 @@ import { redact } from './events.mjs';
 import { DELEGATE_ROLES } from '../shared/routing.mjs';
 import { durationFromPrompt } from '../shared/duration.mjs';
 import { findIdeas, loadIdeas, setIdeaStatus, loadProfile, newestFirst, STATUSES } from '../../lib/ideas.mjs';
+import { servePlayer, playerPage } from '../../lib/player.mjs';
+
+// The film plays from its built HTML inside the player's own frame: the kit's inline scripts need a looser policy
+// than the workspace page, and only this server may embed it.
+const PLAYER_POLICY = "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
 
 const staticFiles = new Map([
   ['/', ['ui/index.html', 'text/html']], ['/app.mjs', ['ui/app.mjs', 'text/javascript']],
@@ -41,15 +46,17 @@ function config(input, existing) {
     if (!DELEGATE_ROLES.includes(role)) throw fail(`Unknown role ${role}`);
     if (!string(model)) throw fail(`Invalid model for ${role}`);
   }
-  if (typeof input.gateScript !== 'boolean' || typeof input.gatePrototype !== 'boolean') throw fail('Invalid checkpoint settings');
+  if (typeof input.gateScript !== 'boolean' || typeof input.gatePrototype !== 'boolean' || !['boolean', 'undefined'].includes(typeof input.gateFinal) || !['boolean', 'undefined'].includes(typeof input.gateThumbnail)) throw fail('Invalid checkpoint settings');
+  if (input.thumbnails !== undefined && (!Number.isInteger(input.thumbnails) || input.thumbnails < 1 || input.thumbnails > 6)) throw fail('Choose 1–6 thumbnails');
   if (existing && input.provider !== existing.provider && existing.agents.length) throw fail('Provider cannot change after its first agent starts. Create a new thread to use a different CLI.');
-  return { provider: input.provider, main: (input.main || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (models[role] || '').trim()])), gateScript: input.gateScript, gatePrototype: input.gatePrototype };
+  return { provider: input.provider, main: (input.main || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (models[role] || '').trim()])), gateScript: input.gateScript, gatePrototype: input.gatePrototype, gateFinal: Boolean(input.gateFinal),
+    gateThumbnail: input.gateThumbnail ?? existing?.gateThumbnail ?? true, thumbnails: input.thumbnails ?? existing?.thumbnails };
 }
 const detail = (store, job) => ({ ...summary(job), messages: job.messages, events: store.events(job.id) });
 
 export async function createApp({ root, directory = path.join(root, '.video/ui'), runnerFactory, ideaOptions = {}, ideasRoot = root } = {}) {
   let defaults = {};
-  try { const source = JSON.parse(await readFile(path.join(root, 'video.config.json'), 'utf8')); defaults = { defaultFormat: source.format === 'vertical' ? 'vertical' : 'landscape' }; } catch {}
+  try { const source = JSON.parse(await readFile(path.join(root, 'video.config.json'), 'utf8')); defaults = { defaultFormat: source.format === 'vertical' ? 'vertical' : 'landscape', defaultThumbnails: Number.isInteger(source.thumbnails) ? source.thumbnails : 3 }; } catch {}
   const store = new Store(directory, defaults);
   const runner = runnerFactory ? runnerFactory({ root, store }) : new Runner({ root, store });
   const clients = new Set();
@@ -166,11 +173,19 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
           return json(res, 201, detail(store, job));
         }
       }
+      const player = /^\/api\/jobs\/([a-f0-9-]+)\/player\/(.*)$/.exec(url.pathname);
+      if (player && ['GET', 'HEAD'].includes(req.method)) {
+        const job = store.get(player[1]), base = `/api/jobs/${job.id}/player/`;
+        res.setHeader('Content-Security-Policy', PLAYER_POLICY);
+        if (!player[2]) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(playerPage(job.title || job.slug)); }
+        if (await servePlayer(req, res, path.join(root, job.jobPath), player[2], { base })) return;
+        throw fail('Not found', 404);
+      }
       const match = /^\/api\/jobs\/([a-f0-9-]+)(?:\/(file|files|artifact|messages|control|log|events)(?:\/([a-f0-9-]+))?)?$/.exec(url.pathname);
       if (match) {
         const job = store.get(match[1]); const operation = match[2];
         if (!operation && req.method === 'GET') return json(res, 200, detail(store, job));
-        if (!operation && req.method === 'PATCH') { Object.assign(job, config(await body(req), job)); for (const legacy of ['sub', 'directorModel', 'reviewerModel']) delete job[legacy]; store.event(job, { type: 'configuration', text: 'Model routing and checkpoint preferences updated', source: 'user' }); store.save(job); return json(res, 200, detail(store, job)); }
+        if (!operation && req.method === 'PATCH') { Object.assign(job, config(await body(req), job)); await runner.syncHumanReview?.(job); for (const legacy of ['sub', 'directorModel', 'reviewerModel']) delete job[legacy]; store.event(job, { type: 'configuration', text: 'Model routing and checkpoint preferences updated', source: 'user' }); store.save(job); return json(res, 200, detail(store, job)); }
         if (!operation && req.method === 'DELETE') { await runner.remove(job); return json(res, 200, { removed: job.id }); }
         if (operation === 'files' && req.method === 'GET') return json(res, 200, await listFiles(root, job));
         if (operation === 'events' && req.method === 'GET') {

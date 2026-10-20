@@ -8,6 +8,8 @@ import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues, j
 import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies, saveToLibrary, saveAll} from '../lib/library.mjs';
 import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
+import {parseStages, parseNote, recordHumanReview} from '../lib/human.mjs';
+import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail, MAX_THUMBNAILS} from '../lib/thumbnails.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
 import {audioEnv, audioPython} from '../lib/sfx.mjs';
 import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, jobProgress, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
@@ -34,7 +36,8 @@ const digest = async file => createHash('sha256').update(await readFile(file)).d
 // command is allowed, as before.
 const ROLE = process.env.VIDEO_AGENT_ROLE || '';
 const ROLE_AGENT = Boolean(ROLE) && ROLE !== 'orchestrator';
-const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review-pack', 'deliver', 'save-all', 'preview', 'mix', 'transcribe', 'alignment-approve']);
+const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review-pack', 'deliver', 'save-all', 'preview', 'mix', 'transcribe', 'alignment-approve', 'human-review', 'play',
+  'thumbnails', 'thumbnail-choose', 'thumbnail-feedback', 'thumbnail-settings']);
 const nextHint = job => ROLE_AGENT ? '\nDone with this command. Finish your brief and reply; the orchestrator advances the pipeline.' : `\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`;
 
 function run(command, args, {cwd = ROOT, capture = false, env = {}} = {}) {
@@ -57,7 +60,8 @@ function options(args) {
     const key = args.shift();
     if (key === '--json' && (!args.length || args[0].startsWith('--'))) { result.json = true; continue; }
     if (!key.startsWith('--') || !args.length || args[0].startsWith('--')) throw new Error(`Expected --option value: ${key}`);
-    result[key.slice(2)] = args.shift();
+    if (key === '--note' || key === '--finding') (result[key.slice(2)] ||= []).push(args.shift()); // repeatable
+    else result[key.slice(2)] = args.shift();
   }
   return result;
 }
@@ -178,6 +182,19 @@ async function resolveInput(given, label) {
   throw new Error(`${label} not found: ${given}. Files in ${path.relative(ROOT, dir) || '.'}: ${entries.join(', ') || '(none)'}`);
 }
 const normalizedName = name => name.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}.]/gu, '');
+function thumbnailSettings({count, pick}) {
+  const out = {};
+  if (count !== undefined) {
+    const n = Number(count);
+    if (!Number.isInteger(n) || n < 1 || n > MAX_THUMBNAILS) throw new Error(`--thumbnails is a whole number from 1 to ${MAX_THUMBNAILS}.`);
+    out.thumbnails = n;
+  }
+  if (pick !== undefined) {
+    if (!['true', 'false'].includes(String(pick))) throw new Error('--pick-thumbnail is true or false.');
+    out.pickThumbnail = String(pick) === 'true';
+  }
+  return out;
+}
 async function start(opts) {
   const audio = await resolveInput(opts.audio || '', 'Audio'), script = await resolveInput(opts.script || '', 'Script');
   if (opts.visuals) opts = {...opts, visuals: path.relative(ROOT, await resolveInput(opts.visuals, 'Visual plan'))};
@@ -185,8 +202,16 @@ async function start(opts) {
   if (!/^[a-z0-9]/.test(name)) name = 'film-' + name;
   let candidate = name, i = 2;
   while (await exists(path.join(ROOT, 'jobs', candidate))) candidate = `${name}-${i++}`;
-  const {music, ...rest} = opts;
+  const {music, 'human-review': humanReview, thumbnails, 'pick-thumbnail': pick, ...rest} = opts;
+  // Checked before any work.
+  const stages = humanReview === undefined ? null : parseStages(humanReview);
+  const thumbs = thumbnailSettings({count: thumbnails, pick});
   await prepare({...rest, name: candidate, audio: path.relative(ROOT, audio), script: path.relative(ROOT, script)});
+  if (stages || Object.keys(thumbs).length) {
+    const file = path.join(ROOT, 'jobs', candidate, 'job.json'), manifest = await json(file);
+    if (stages) manifest.humanReview = stages;
+    Object.assign(manifest, thumbs); await save(file, manifest);
+  }
   if (music) { // a track the user supplied: keep it, analyse its beats, and tell the director to use it
     const track = await resolveInput(music, 'Music');
     await musicImport(path.join(ROOT, 'jobs', candidate), {src: path.relative(ROOT, track), name: `music/${path.basename(track).toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}`,
@@ -344,7 +369,7 @@ const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
 
-start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md>]   create a job (a VISUALS.md beside the script is picked up automatically)
+start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review prototype,final]   create a job (a VISUALS.md beside the script is picked up automatically)
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
                                      the job is named from the script file, else its folder or title (e.g. jobs/scripts/<slug>/SCRIPT.md → <slug>); --name overrides
 next [--job jobs/<slug>]             print the single next step (state machine)
@@ -368,9 +393,18 @@ prepare --name <slug> --audio <file> --script <file> [--start 0 --length 30 --fo
         [--words measured-words.json --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
 compile | assemble | audit | check | preview | render | verify [--job jobs/<slug>]
-render [--quality delivery --workers 3 --reuse-build true]  render + mix + verify; reuse-build requires a current successful full build
+render [--quality delivery --workers 3 --reuse-build true]  render + mix + verify, once, after the final reviews; reuse-build requires a current successful full build
 mix                                  redo the soundtrack mix on the current render (sources unchanged)
-review-pack --stage prototype|final [--start N --end N]  freeze rendered evidence
+review-pack --stage prototype|final [--start N --end N] [--from html|render]  freeze review evidence (frames from the built HTML by default; nothing is rendered)
+human-review --stage prototype|final --decision approve|revise [--note "12.5: text" ...]  record the person's own review of the current pack
+human-review --want prototype,final|none   choose which stages wait for the person (start takes --human-review too)
+play [--port 3004]                   play the built film in the browser, with a scene strip (read-only; no render)
+thumbnails [--json]                  after delivery: the next thumbnail step (N variants, review, pick, archive)
+thumbnail-settings [--count 1-6] [--pick true|false]   variants to make, and whether the person picks (start: --thumbnails, --pick-thumbnail)
+thumbnail-export --variant v1        render a variant's SVG to thumbnail.png (1280×720) and preview-320x180.png
+thumbnail-verdict --variant v1 --status pass|blocked [--finding ".." ...] --inspected a.png,b.png  |  --rank v2,v1   (reviewer)
+thumbnail-choose --variant v1 [--by you]   make a passing variant the thumbnail and archive it
+thumbnail-feedback --variant v1 --note "<their words>"   ask for that variant again with the person's feedback
 review-submit --file <report.json>   validate an independent sub-agent report
 review-status --stage prototype|final  check independent review qualification
 deliver                             qualify current reviews and mark complete
@@ -486,12 +520,53 @@ try {
         const iv = prototypeInterval(await json(path.join(job,'timing.json')), await json(path.join(job,'film.json')), (await json(path.join(job,'job.json'))).duration);
         start = iv.start; end = iv.end;
       }
-      const pack = await createReviewPack(job, {stage:opts.stage || 'final', start, end});
+      const pack = await createReviewPack(job, {stage:opts.stage || 'final', start, end, from: opts.from || 'html'});
       const packPath = path.join(job,pack.packPath), packSha256 = await fileHash(packPath), briefs = [];
       void briefs;
       const written = await writeReviewerBriefs(job, pack, packPath, packSha256);
       console.log(JSON.stringify({stage:pack.stage,packPath,packSha256,sourceHash:pack.sourceHash,videoSha256:pack.videoSha256,interval:pack.interval,evidenceCount:pack.evidence.length,briefs:written,
         next:`npm run video -- next --job ${path.relative(ROOT, job)}`},null,2));
+    } else if (command === 'human-review') {
+      if (opts.want !== undefined) {
+        const file = path.join(job, 'job.json'), manifest = await json(file);
+        manifest.humanReview = parseStages(opts.want); await save(file, manifest);
+        console.log(manifest.humanReview.length ? `The pipeline will wait for your review of the ${manifest.humanReview.join(' and ')}.` : 'The pipeline will not wait for your review.');
+      } else {
+        const record = await recordHumanReview(job, {stage: opts.stage, decision: opts.decision, notes: (opts.note || []).map(parseNote)});
+        console.log(`Recorded: ${record.decision} on the ${record.stage}${record.notes.length ? ` with ${record.notes.length} note(s)` : ''}.${nextHint(job)}`);
+      }
+    } else if (command === 'play') {
+      const {startPlayer} = await import('../lib/player.mjs');
+      const {url} = await startPlayer(job, {port: opts.port || 3004});
+      console.log(`Playing the built film (nothing is rendered or changed): ${url}\nStop with Ctrl+C.`);
+      await new Promise(() => {});
+    } else if (command === 'thumbnails') {
+      if (opts.json) console.log(JSON.stringify(await thumbnailStatus(job)));
+      else console.log((await thumbnailStep(job)).text);
+    } else if (command === 'thumbnail-settings') {
+      const file = path.join(job, 'job.json'), manifest = await json(file);
+      Object.assign(manifest, thumbnailSettings({count: opts.count, pick: opts.pick})); await save(file, manifest);
+      console.log(`Thumbnails: ${manifest.thumbnails ?? 'config default'} variant(s); ${manifest.pickThumbnail ? 'you pick one' : 'the reviewer\'s top-ranked is used'}.`);
+    } else if (command === 'thumbnail-export') {
+      if (!opts.variant) throw new Error('thumbnail-export needs --variant <id>.');
+      const r = await exportThumbnail(job, opts.variant);
+      console.log(`Wrote ${r.png} (${r.size?.width}×${r.size?.height}) and ${r.preview}. Open both and check the headline reads at 320×180.`);
+    } else if (command === 'thumbnail-verdict') {
+      if (opts.rank) { await recordRanking(job, String(opts.rank).split(',').map(v => v.trim()).filter(Boolean)); console.log('Ranking recorded.'); }
+      else {
+        const entry = await recordVerdict(job, {variant: opts.variant, status: opts.status, findings: opts.finding || [],
+          inspected: String(opts.inspected || '').split(',').map(v => v.trim()).filter(Boolean),
+          reviewer: process.env.VIDEO_AGENT_ROLE === 'thumbnail-reviewer' && process.env.VIDEO_AGENT_ID ? process.env.VIDEO_AGENT_ID : opts.reviewer});
+        console.log(`Recorded ${entry.status} for ${opts.variant}.`);
+      }
+    } else if (command === 'thumbnail-choose') {
+      if (!opts.variant) throw new Error('thumbnail-choose needs --variant <id>.');
+      const r = await chooseThumbnail(job, {variant: opts.variant, by: opts.by === 'you' ? 'you' : 'reviewer'});
+      console.log(`Thumbnail is now ${opts.variant} ("${r.headline}"), archived to library/thumbnails/${path.basename(job)}/.\nNext: npm run video -- thumbnails --job ${path.relative(ROOT, job)}`);
+    } else if (command === 'thumbnail-feedback') {
+      if (!opts.variant || !opts.note?.length) throw new Error('thumbnail-feedback needs --variant <id> --note "<their words>".');
+      for (const note of opts.note) await addThumbnailFeedback(job, {variant: opts.variant, text: note});
+      console.log(`Recorded feedback for ${opts.variant}.\nNext: npm run video -- thumbnails --job ${path.relative(ROOT, job)}`);
     } else if (command === 'review-submit') {
       if (!opts.file) throw new Error('review-submit requires --file from an independent reviewer.');
       const raw = await readFile(path.resolve(ROOT,opts.file),'utf8');

@@ -69,7 +69,7 @@ Several repeated treatments could become editable concept templates:
 
 | Treatment | Typical image | Role of the title | Requirement for our version |
 |---|---|---|---|
-| Buying guidance | A small set of recognizable products beneath a short caution | Identify the target workload and comparison | Explain the actual decision and conditions; do not label a product universally useless |
+| Buying guidance | A small set of recognizable products beneath a short caution | Identify the target workload and comparison | Explain the actual decision and conditions; a verdict like "USELESS" needs the film to show for whom and why |
 | Before/after | Two comparable states or a simple chart | Name the intervention and technical setting | Source the numbers, units, baseline and workload; use honest scales |
 | Outcome | One clear object with a large result or avoided constraint | Supply how the outcome is achieved | Show the promised result and its limitations in the film |
 | Mechanism or trick | Recognizable company/product symbols beside a short intrigue phrase | Name the technical relationship being explained | Reveal a real mechanism and support any claimed improvement |

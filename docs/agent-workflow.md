@@ -10,18 +10,21 @@ each stage does and where its rules are enforced, for people changing the pipeli
 | Plan | director sub-agent, `plan-check`, `asset` | → `film.json` transcribed from the visual plan (design theme, per-scene `owner`), `assets/` + `assets/SOURCES.json`; generated `STORYBOARD.md`, `briefs/build-<scene>.md` for delegated scenes | `lib/spec.mjs validateFilm` |
 | Music | director (from the plan's `## Music`), `music` (once per film, optional) | licensed track → `assets/music/<x>`, `assets/music/<x>.beats.json` (grid checked against the < 120 Hz kicks), `review/music/<x>-beats.png`; film.json `music` | `scripts/sfx/beats.py` (librosa, audio env from `setup-audio`) |
 | Build | director (owned scenes) and builder sub-agents, `build [--scene]` | `shots/*.json` (+ hooks, components, Manim) → `compositions/world.html`, `index.html`, `timing.json`, `assets/cues.js`, `review/motion.md`, `review/sounds.md` (effects, big moves, beat offsets), `review/inspect.json`, `review/build.json` | `lib/spec.mjs compileFilm` (sounds: masking vs the voice, coverage of big moves, beat sync), `lib/sfx.mjs`, `lib/inspect.mjs` |
-| Render | `render` | → `renders/picture.mp4` (HyperFrames), `renders/mix.wav` + `renders/video.mp4` (pipeline mix: narration untouched, effects, ducked music, master gain until -16 LUFS / peaks ≤ -4 dB on the MP4), `review/mix.json`, `review/sound/` (cue sheets, `listen.md`), `review/render-verification.json`, `review/pixels.json`, `review/render-source.json` | HyperFrames lint/render, `lib/mix.mjs`, `lib/sound-check.mjs` + `scripts/sfx/cue_sheet.py`, `lib/pixels.mjs`, `verify` (MP4 audio vs the mix) |
-| Review | `review-pack`, reviewer sub-agents, `review-template`, `review-submit` | → frozen pack, briefs, reports | `lib/review.mjs` |
+| Review | `review-pack` (frames from the built HTML; no render), reviewer sub-agents, `review-template`, `review-submit` | → frozen pack, briefs, reports | `lib/review-pack.mjs`, `lib/review.mjs` |
+| Your review | `human-review` (or the UI's film checkpoint), `play` | → `review/human/<stage>.json`: approve, or notes at moments, bound to the pack | `lib/human.mjs`, `lib/player.mjs` |
+| Render (once, after the final reviews) | `render` | → `renders/picture.mp4` (HyperFrames), `renders/mix.wav` + `renders/video.mp4` (pipeline mix: narration untouched, effects, ducked music, master gain until -16 LUFS / peaks ≤ -4 dB on the MP4), `review/mix.json`, `review/sound/` (cue sheets, `listen.md`), `review/render-verification.json`, `review/pixels.json`, `review/render-source.json` | HyperFrames lint/render, `lib/mix.mjs`, `lib/sound-check.mjs` + `scripts/sfx/cue_sheet.py`, `lib/pixels.mjs`, `verify` (MP4 audio vs the mix) |
 | Deliver | `deliver` | → `review/delivery.json`, `review/REPORT.md`, `job.status: complete` | `qualifyDelivery` + film audit + pixel checks |
 
 `next` (`lib/film.mjs nextStep`) derives the state from these files: no film.json and no complete visual plan → script
 writer (`briefs/visuals.md`; jobs that already have a film.json skip this); missing/invalid plan → director; missing
 prerequisite context and prototype shots → their owners in scene order (consecutive director-owned scenes share one
 `direct-<scene>.md` brief); stale build → build; build errors → repair briefs (one `repair-director.md` for director-owned
-scenes, one per delegated scene, in parallel); pixel and style findings are warnings for reviewers; stale render → render;
-no current pack → review-pack; missing reviews → reviewers; failed reviews → repair briefs from blocking findings
-(at most 4 distinct failed packs per stage, then `blocked`); plan defects or repeated visual failures → director revision;
-unsaved assets (before any review pack) → save-all; prototype accepted → build the remaining scenes; final pass → deliver. Querying the same failed pack does not consume another round.
+scenes, one per delegated scene, in parallel); style findings are warnings for reviewers; unsaved assets → save-all;
+no current pack → review-pack (frames from the built HTML, nothing rendered); missing reviews → reviewers; failed reviews →
+repair briefs from blocking findings (at most 4 distinct failed packs per stage, then `blocked`); plan defects or repeated
+visual failures → director revision; all three pass and the job's `humanReview` lists the stage → wait for the person
+(`human review <stage>`), whose notes go to the scenes they point at as repair findings, word for word; prototype accepted →
+build the remaining scenes; final pass → render once (stale render → render; pixel errors → repair) → deliver. Querying the same failed pack does not consume another round.
 Review counters are excluded from render fingerprints. Persisted completion is requalified before `next` reports done.
 
 `status [--json]` (`lib/film.mjs jobProgress`) is `next`'s read-only twin for the job UI: it applies the same checks in

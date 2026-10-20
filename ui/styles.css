@@ -196,3 +196,43 @@
 .idea-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:auto;padding-top:4px}.idea-actions .text-button{margin-left:auto}
 .reject-reasons{display:grid;gap:8px;margin:6px 0 4px}.reject-reasons .secondary-button{justify-content:flex-start}
 @media(max-width:650px){.ideas-ask{flex-direction:column}.idea-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* ---- Film review: the built HTML in HyperFrames' player, a scene strip and your timed notes ---- */
+.modal:has(.film-review){width:min(1080px,100%)}
+.film-review{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.film-player{display:block;width:100%;background:#000;border-radius:6px;overflow:hidden}
+.film-strip{position:relative;display:flex;gap:2px;height:30px}
+.film-scene{flex:1 1 0;min-width:0;border:0;border-radius:3px;background:#2a2a2a;color:#bdbdbd;font:10px Mono;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.film-scene:hover{background:#353535}.film-scene.on{background:var(--accent);color:#141613}.film-scene.missing{opacity:.35}
+.film-head{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff;pointer-events:none;transform:translateX(-1px)}
+.film-now{display:flex;gap:8px;align-items:baseline;font:12px Mono}.film-now strong{font-weight:500}
+.film-spoken{margin:0;color:#bdbdbd;font-size:12px;line-height:1.5;min-height:18px}
+.film-notes{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.film-notes textarea{width:100%;background:#151515;border:1px solid #3a3a3a;border-radius:6px;color:var(--text);padding:9px;resize:vertical}
+.note-actions{display:flex;gap:14px;align-items:center;margin-top:8px;flex-wrap:wrap}.note-whole{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:11px}
+.note-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.note-list li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;font-size:12px;line-height:1.5}
+.note-time{border:1px solid #3a3a3a;background:#222;border-radius:4px;color:var(--accent);font:10px Mono;padding:3px 6px}.note-time:disabled{color:var(--muted);cursor:default}
+.watch-row{display:flex;gap:12px;align-items:center;margin:4px 0 14px;flex-wrap:wrap}
+@media(max-width:650px){.film-scene{font-size:0;padding:0}.note-list li{grid-template-columns:auto 1fr}}
+@media(min-width:1001px){
+.modal:has(.film-notes){display:grid;grid-template-columns:minmax(0,1fr) 300px;column-gap:22px;width:min(1280px,100%)}
+.modal:has(.film-notes)>*{grid-column:1/-1}
+.modal:has(.film-notes)>.film-review{grid-column:1}
+.modal:has(.film-notes)>.film-notes{grid-column:2;margin-top:14px;border-top:0;padding-top:0;align-self:start}
+}
+
+/* ---- Thumbnail variants: pick one, or send any one back with your words ---- */
+.thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:12px 0}
+.thumb-card{display:flex;flex-direction:column;gap:7px;border:1px solid var(--line);border-radius:8px;padding:9px;background:#1b1b1b}
+.thumb-card.chosen{border-color:var(--accent)}
+.thumb-image{display:block;padding:0;border:0;background:#111;border-radius:5px;overflow:hidden;aspect-ratio:16/9}
+.thumb-image img{display:block;width:100%;height:100%;object-fit:cover}
+.thumb-image.pending{display:grid;place-items:center;color:#555}
+.thumb-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px}
+.thumb-status{font:9px Mono;text-transform:uppercase;color:var(--muted)}.thumb-status.passed-review{color:var(--ok)}.thumb-status.blocked-by-review,.thumb-status.dropped{color:var(--red)}
+.thumb-headline{margin:0;font-weight:600;font-size:12px;letter-spacing:.2px}
+.thumb-findings{font-size:11px;color:#bdbdbd}.thumb-findings ul{margin:6px 0 0;padding-left:16px}
+.thumb-actions{display:flex;flex-direction:column;gap:6px}.thumb-actions textarea{width:100%;background:#151515;border:1px solid #3a3a3a;border-radius:6px;color:var(--text);padding:7px;resize:vertical;font-size:12px}
+.thumbnail-gate{flex-wrap:wrap}.thumbnail-gate .gate-content{flex:1;min-width:0}
+.thumb-section{margin-top:22px}.inline-select{display:flex;gap:8px;align-items:center}

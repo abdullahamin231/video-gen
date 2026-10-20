@@ -21,7 +21,7 @@ export function parseNext(output) {
   const actions = [...text.matchAll(/^(DO|THEN):\s*(.+)$/gm)].map(match => ({ kind: match[1], text: match[2].trim() }));
   // `video-builder: "Read /abs/jobs/x/briefs/build-a.md and follow it exactly."` → { role: 'builder', brief: 'jobs/x/briefs/build-a.md' }
   // Script-writer briefs (the visual plan) are named by their agent type as is: `script-writer: "Read …"`.
-  const spawns = [...text.matchAll(/(?:video-|(?=script-))([a-z-]+):\s*"Read\s+(\S+?)\s+and follow it exactly/g)]
+  const spawns = [...text.matchAll(/(?:video-|(?=script-|thumbnail-))([a-z-]+):\s*"Read\s+(\S+?)\s+and follow it exactly/g)]
     .map(match => ({ role: match[1], brief: match[2].replace(/^.*?(?=jobs\/)/, '') }));
   return { state, actions, spawns };
 }

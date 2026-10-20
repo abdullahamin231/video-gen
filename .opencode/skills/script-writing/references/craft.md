@@ -7,25 +7,41 @@ for every script; a short tutorial or reported story may need a different rhythm
 
 ## Openings
 
-The first two or three sentences decide whether anyone hears the rest. A good opening makes the viewer notice something
-they had not noticed, then tells them it matters.
+The first thirty seconds decide whether anyone hears the rest. The channel we model (see
+`docs/kaiexplains-script-study.md`) almost never opens on the topic. It opens on a moment the viewer recognises, lets
+the narrator react to it like a person, and leaves a question the video then answers. For a long explainer, that cold
+open usually makes five moves in about 150–200 words:
 
-Strong openings usually start from one of these:
+1. **A scene, not a topic.** One specific moment with the details a person would actually notice: the time, the object,
+   the number on the screen, what you did while you waited. "So picture this. You just spent four thousand dollars on
+   a laptop, you load the model, paste in your code and hit enter. And you wait. And three minutes later the first
+   word shows up." Put the viewer in it ("you"), a real person from the sources ("this happened to a developer on
+   Reddit"), or the creator, but only from their notes. "Picture this" earns its place only when the very next
+   sentence is that specific; followed by a generality it is the weak "Imagine a world where...".
+2. **A reaction with some personality.** One line where the narrator sounds like someone with a temper and a sense of
+   humour, usually an exaggeration that makes the pain concrete: "which is not so much a speed as a medical condition",
+   "I've microwaved meals faster than that". It must be about this situation; a joke that fits any video is filler.
+3. **What everyone believes.** The explanation going round, with its size when the sources give it: "threads with
+   thousands of upvotes all decided it was quantization". State it fairly; it should be a belief people really hold.
+4. **The turn.** Why that belief is wrong, incomplete or missing the bigger thing: "That explanation is clean, and it's
+   satisfying, and it's mostly wrong." This is the mystery the video pays off, so it must be true and the video must
+   resolve it.
+5. **The promise.** Within about the first minute, say plainly what the viewer will know by the end and who it is for:
+   "So I want to show you where that number comes from, what it means day to day, and who should not buy this."
+
+Scale it to the runtime: a short does the scene, the turn and the promise in three or four sentences. When there is
+no common belief to turn (a neutral lesson, a how-to), open on the scene and go straight to the question. Other strong
+starts still work when they fit better:
 
 - **A concrete artifact with an odd detail.** Something that exists and can be shown, with the detail most people skim
   past. The video explains why that detail is there.
 - **A comparison that breaks.** Two things that look alike, and the one way they are not. The break is the topic.
-- **A scene.** A person (the creator, from their notes, or someone from the sources) at a specific moment: what they
-  saw, what they did next.
 - **A number with stakes**, only when the number itself surprises and the stakes are immediately clear.
-- **A wrong belief**, stated fairly, then the first crack in it.
 
-Weak openings: a definition, a history lesson, "In today's video", a rhetorical question that any video on the topic
-could ask ("Have you ever wondered...?"), "Imagine a world where...", and a stat chosen because it is big rather than
-because it is strange.
-
-In a long explanation, establish the question within about 30 seconds; in a short, do so in the first few seconds.
-State it plainly; "So the question worth answering is..." is fine when it is earned.
+Weak openings: a definition, a history lesson, "In today's video" as the first line, a rhetorical question that any
+video on the topic could ask ("Have you ever wondered...?"), "Imagine a world where...", and a stat chosen because it
+is big rather than because it is strange. Do not reuse the reference channel's exact lines or its "two a.m." every
+time; the moves are the pattern, the details must come from this topic.
 
 ## Structures
 
@@ -63,6 +79,10 @@ others. Even coverage, where every finding gets the same paragraph, reads as a m
 Decide who is talking before drafting: what they know, what they think, how they talk, and what they would never say.
 Keep that person consistent for the whole script.
 
+- **Be a person, not a reader.** The narrator speaks in the first person: what they think, what they noticed, what
+  annoys them, what they would do. Reactions and opinions are always theirs to give. What they *did* ("I bought one",
+  "I ran it for a week") must come from the creator's notes; without notes, put the viewer or a real person from the
+  sources in the scene instead. Never invent an experience to sound human.
 - **Have opinions and say them as opinions.** "I think this benchmark is measuring the wrong thing" is a person.
   "Some might argue" is nobody. Concede where the other side is right; it makes the stance believable.
 - **Talk to the viewer as a peer.** "We" for shared experience, "you" for what happens to them. Assume they are smart

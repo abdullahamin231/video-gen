@@ -226,14 +226,30 @@ test('checkpoints and questions hold the agent until you decide; pause holds run
 
 test('a checkpoint survives a restart and the decision reaches the resumed orchestrator', async t => {
   const folder = await workspace(); const store = new Store(folder);
-  const job = store.create({ ...defaults, gatePrototype: true }); job.status = 'gate'; job.gate = { id: 'g', kind: 'prototype', summary: 'Look', decision: null }; store.save(job); store.flush();
+  const job = store.create({ ...defaults, gateScript: true }); job.status = 'gate'; job.gate = { id: 'g', kind: 'script', summary: 'Look', decision: null }; store.save(job); store.flush();
   const restoredStore = new Store(folder); const runner = new Runner({ root, store: restoredStore, statusCommand: noStatus }); runner.closed = false;
   t.after(() => runner.shutdown());
   await runner.initialize('http://127.0.0.1:1'); runner.closed = true; // keep pump from launching a real CLI
   const restored = restoredStore.get(job.id); assert.equal(restored.status, 'gate'); assert.equal(restored.gate.detached, true);
   await runner.control(restored, 'approve', {}); assert.equal(restored.status, 'queued');
   const orchestrator = { id: 'o', role: 'orchestrator', status: 'running' }; restored.agents.push(orchestrator); restored.status = 'running';
-  assert.equal((await runner.tool(restored, 'o', 'checkpoint', { kind: 'prototype', summary: 'again' })).decision, 'approve');
+  assert.equal((await runner.tool(restored, 'o', 'checkpoint', { kind: 'script', summary: 'again' })).decision, 'approve');
+});
+
+test('film checkpoints are recorded by the pipeline, never approved once for every later build', async t => {
+  const folder = await workspace(); const store = new Store(folder);
+  const runner = new Runner({ root, store, statusCommand: noStatus }); runner.closed = true; t.after(() => runner.shutdown());
+  const job = store.create({ ...defaults, gatePrototype: true, gateFinal: false });
+  const orchestrator = { id: 'o', role: 'orchestrator', status: 'running' }; job.agents.push(orchestrator); job.status = 'running';
+  // Switched off: the runner says so and continues.
+  assert.equal((await runner.tool(job, 'o', 'checkpoint', { kind: 'final', summary: 'Watch it' })).decision, 'continue');
+  // On: the decision needs the job's current review pack; without one nothing is recorded or approved.
+  const waiting = runner.tool(job, 'o', 'checkpoint', { kind: 'prototype', summary: 'Watch it' });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(job.status, 'gate'); assert.equal(job.gate.kind, 'prototype');
+  await assert.rejects(runner.control(job, 'approve', { notes: [] }), /ENOENT|review pack|no such file/i);
+  assert.equal(job.gate.decision, null); assert.ok(!job.approvedGates?.includes('prototype'));
+  runner.gates.get(job.id)?.reject(new Error('test over')); await waiting.catch(() => {});
 });
 
 test('progress joins script, pipeline, thumbnail and delivery; health reads facts, not agent claims', () => {
@@ -371,7 +387,7 @@ test('pipeline status is read-only and matches the state machine for an unprepar
   const folder = await workspace(); const jobDir = path.join(folder, 'empty-job'); await mkdir(jobDir);
   const output = execFileSync(process.execPath, [path.join(root, 'scripts/video.mjs'), 'status', '--json', '--job', jobDir], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
   const status = JSON.parse(output.trim().split('\n').at(-1));
-  assert.equal(status.state, 'not prepared'); assert.equal(status.current, 'prepare'); assert.equal(status.steps.length, 12);
+  assert.equal(status.state, 'not prepared'); assert.equal(status.current, 'prepare'); assert.equal(status.steps.length, 11);
   assert.equal((await readFile(path.join(root, 'scripts/video.mjs'), 'utf8')).includes("command === 'status'"), true);
 });
 
