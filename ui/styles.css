@@ -180,3 +180,5 @@
 @media (max-width:640px){.role-model{grid-template-columns:1fr}.role-model .role-route{grid-column:1}}
 .duration-hint{display:flex;align-items:center;gap:6px;font-size:10px;color:#8a8a8a;line-height:1.6;margin:8px 0 4px}.duration-hint .icon{width:12px;height:12px}.duration-hint.found{color:var(--accent)}
 .duration-hint.missing{color:#ff8a7a}
+
+.file-name{display:flex;flex-direction:column;gap:3px;min-width:0}.file-name strong{font-size:12px;font-weight:500;color:var(--text)}.file-name code{color:var(--muted);white-space:nowrap}

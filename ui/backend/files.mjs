@@ -1,4 +1,4 @@
-import { realpath, stat, readdir, readFile } from 'node:fs/promises';
+import { realpath, stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export const types = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.woff2': 'font/woff2', '.md': 'text/plain', '.json': 'application/json', '.txt': 'text/plain', '.html': 'text/plain', '.js': 'text/plain', '.mjs': 'text/plain', '.css': 'text/plain', '.py': 'text/plain' };
@@ -16,26 +16,38 @@ export async function jobFile(root, job, requested) {
   return { path: actual, info, type: types[path.extname(actual).toLowerCase()] || 'application/octet-stream' };
 }
 
+// The Files tab shows only the files people open, in pipeline order; job folders hold thousands of build files.
+const keyFiles = [
+  ['script', 'SCRIPT.md', 'Script'],
+  ['script', 'VISUALS.md', 'Visual plan (script writer)'],
+  ['script', 'research.md', 'Research notes'],
+  ['script', 'review.md', 'Script review'],
+  ['script', 'narration.wav', 'Narration'],
+  ['job', 'inputs/visuals.md', 'Visual plan'],
+  ['job', 'film.json', 'Film plan'],
+  ['job', 'review/REPORT.md', 'Build report'],
+  ['job', 'review/delivery.json', 'Delivery report'],
+  ['job', 'renders/video.mp4', 'Final video'],
+  ['job', 'thumbnail/BRIEF.md', 'Thumbnail brief'],
+  ['job', 'thumbnail/thumbnail.png', 'Thumbnail'],
+  ['job', 'thumbnail/preview-320x180.png', 'Thumbnail feed preview'],
+  ['job', 'thumbnail/thumbnail.svg', 'Thumbnail source'],
+  ['job', 'thumbnail/REVIEW.json', 'Thumbnail review'],
+];
+
 export async function listFiles(root, job) {
-  const results = [];
-  const roots = [job.scriptPath, job.jobPath];
-  async function walk(folder, depth = 0) {
-    if (depth > 9 || results.length >= 4000) return;
-    let entries;
-    try { entries = await readdir(path.join(root, folder), { withFileTypes: true }); } catch (error) { if (error.code === 'ENOENT') return; throw error; }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.') || ['node_modules', '__pycache__'].includes(entry.name) || entry.isSymbolicLink()) continue;
-      const filename = path.posix.join(folder, entry.name);
-      if (entry.isDirectory()) await walk(filename, depth + 1);
-      else if (entry.isFile()) {
-        try { const info = await stat(path.join(root, filename)); results.push({ path: filename, size: info.size, modified: info.mtimeMs, type: types[path.extname(filename)] || 'application/octet-stream' }); }
-        catch (error) { if (error.code !== 'ENOENT') throw error; }
-      }
-      if (results.length >= 4000) break;
-    }
-  }
-  for (const folder of roots) await walk(folder);
-  return results.sort((a, b) => b.modified - a.modified);
+  const folders = { script: job.scriptPath, job: job.jobPath };
+  const found = await Promise.all(keyFiles.map(async ([where, name, label]) => {
+    if (!folders[where]) return null;
+    const filename = path.posix.join(folders[where], name);
+    try {
+      const info = await stat(path.join(root, filename));
+      return info.isFile() ? { path: filename, label, size: info.size, modified: info.mtimeMs, type: types[path.extname(filename).toLowerCase()] || 'application/octet-stream' } : null;
+    } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  }));
+  // The job copies the script's VISUALS.md into inputs/visuals.md; show one of them.
+  const files = found.filter(Boolean);
+  return files.some(file => file.label === 'Visual plan') ? files.filter(file => file.label !== 'Visual plan (script writer)') : files;
 }
 
 export async function readJson(filename) { try { return JSON.parse(await readFile(filename, 'utf8')); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } }
