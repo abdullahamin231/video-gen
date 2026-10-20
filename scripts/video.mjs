@@ -269,7 +269,7 @@ async function verify(job) {
   const soundtrack = mixReport ? {reference: 'renders/mix.wav (narration unprocessed + declared sound effects + music, master gain ' + mixReport.gainDb + ' dB)',
     narrationOnlyCorrelation: (await compareNarration(file, narrationFile)).correlation, loudness: {integratedLufs: mixReport.integratedLufs, truePeakDb: mixReport.truePeakDb,
       samplePeakDb: mixReport.samplePeakDb, mono: mixReport.mono, peaksOk: mixReport.peaksOk, limitedBy: mixReport.limitedBy}, soundEffects: mixReport.soundEffects,
-    music: mixReport.music, voiceMasked: mixReport.voiceMasked, soundsUnderMusic: mixReport.soundsUnderMusic} : null;
+    music: mixReport.music, voiceMasked: mixReport.voiceMasked, voiceClose: mixReport.voiceClose, soundsUnderMusic: mixReport.soundsUnderMusic} : null;
   const narrationIntegrity = {...await compareNarration(file, reference), ...(soundtrack ? {reference: soundtrack.reference} : {})};
   const report = {ok: true, output: path.relative(ROOT, file), duration: Number(metadata.format.duration),
     width: video.width, height: video.height, fps: video.avg_frame_rate, audioCodec: audio.codec_name,

@@ -226,8 +226,9 @@ Reviewers judge the rendered film, not the plan. Each item is a question about w
 - **Sound:** Does each sound effect belong to something visible at that moment (`review/sounds.md`, the cue sheets
   in the pack)? Does every cut and big move have one, and do cuts sit on the beat? Do the measurements in
   `review/mix.json` show the voice clear of effects and music, effects above the music, and the loudness and peak
-  targets met on the MP4? A measured risk of masking a word (`voiceMasked` in mix.json) is blocking until the mix is
-  repaired; the five headphone checks go to the person with the delivery.
+  targets met on the MP4? Effects or music louder than the voice while it speaks (`voiceMasked` in mix.json) is blocking until
+  the mix is repaired. A sound within 3 dB under the voice (`voiceClose`) is normal for a short whoosh or hit and is
+  advisory at most; the five headphone checks go to the person with the delivery.
 - **Vertical (1080×1920 jobs):** Is essential text and the key subject clear of app chrome (inside the safe area)?
   Is the layout stacked for a tall frame rather than a landscape layout squeezed in? Does something happen in the
   first second?

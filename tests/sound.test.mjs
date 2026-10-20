@@ -127,3 +127,15 @@ test('ebur128 loudness is read from a file, and headphone checks are spread out 
     {t: 5, priority: 4, check: 'd'}, {t: 20, priority: 0, check: 'outside'}], 10);
   assert.deepEqual(picks.map(p => p.check), ['b', 'd', 'c']);
 });
+
+test('only effects louder than the voice count as masking; a few dB under it is only close', async () => {
+  const dir = await job();
+  // a steady tone under the first sentence (0.5–3.5 s), at two levels against the 0.3 voice
+  await writeFile(path.join(dir, 'assets/sfx/bed.wav'), wav(2.5, t => Math.sin(2 * Math.PI * 300 * t)));
+  const bed = volume => ({world: {sounds: [{src: 'assets/sfx/bed.wav', start: 0.8, duration: 2.5, volume}]}, film: {}, duration: 10});
+  const under = await mixBuses(dir, bed(0.25)); // about 1.6 dB under the voice
+  assert.equal(under.overVoice.length, 0, JSON.stringify(under.overVoice));
+  assert.ok(under.closeToVoice.length > 0 && under.closeToVoice.every(c => c.marginDb > 0 && c.marginDb <= 3), JSON.stringify(under.closeToVoice));
+  const over = await mixBuses(dir, bed(0.6)); // about 6 dB louder than the voice
+  assert.ok(over.overVoice.length > 0 && over.overVoice.every(c => c.marginDb <= 0), JSON.stringify(over.overVoice));
+});

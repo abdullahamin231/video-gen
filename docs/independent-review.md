@@ -263,9 +263,10 @@ fallback. These thresholds allow ordinary lossy encoding; they are not a
 validated speech-recognition or intelligibility test. Significant legitimate
 mixing or processing can fail the check and require supported listening instead.
 It does not establish intelligibility under added music or sound effects: for
-that, read the measurements in the pack's `mix.json` (`voiceMasked`: moments where effects and music come within
-3 dB of the voice while it speaks, K-weighted) and the build's masking warnings in `sounds.md`. An unresolved
-possibility of masked speech needs supported audio review or a mix repair and remains blocking. `unavailable` cannot pass required audio review.
+that, read the measurements in the pack's `mix.json` (`voiceMasked`: moments where effects and music are louder
+than the voice while it speaks; `voiceClose`: within 3 dB under it; both K-weighted) and the build's masking warnings
+in `sounds.md`. `voiceMasked` needs supported audio review or a mix repair and remains blocking. `voiceClose` and the
+per-effect warnings are advisory: a short effect a few dB under the voice does not hide a word. `unavailable` cannot pass required audio review.
 The CLI can inspect receipts and reported methods; it cannot authenticate
 listening or model capability.
 
