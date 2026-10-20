@@ -9,7 +9,12 @@ const ids = list => list.map(agent => agent.id);
 
 // Read the review's disposition, never a mention of "pass" in its findings.
 export function scriptDisposition(text) {
-  const verdicts = [...String(text || '').replace(/\*\*/g, '').matchAll(/^[ \t]*(?:#{1,6}[ \t]*)?(?:(?:final[ \t]+)?(?:disposition|verdict|status)[ \t]*:[ \t]*)?(pass|revise|incomplete)\b\.?[ \t]*(?:$|[—:–-][ \t]+.*$)/gim)];
+  // A labelled line ("Verdict: PASS. 0 blockers") may carry any text after the word; a bare line
+  // ("PASS. Every claim checked") needs a full stop or dash after it, so prose like "Pass the..." is ignored.
+  const clean = String(text || '').replace(/[*_`]+/g, '');
+  const labelled = /^[ \t]*(?:#{1,6}[ \t]*)?(?:final[ \t]+)?(?:disposition|verdict|status|outcome)[ \t]*:[ \t]*(pass|revise|incomplete)\b.*$/gim;
+  const bare = /^[ \t]*(?:#{1,6}[ \t]*)?(pass|revise|incomplete)\b(?:[ \t]*$|\.[ \t]*(?:$|.+$)|[ \t]*[—:–-][ \t]+.*$)/gim;
+  const verdicts = [...clean.matchAll(labelled), ...clean.matchAll(bare)].sort((a, b) => a.index - b.index);
   return verdicts.at(-1)?.[1].toLowerCase() || '';
 }
 

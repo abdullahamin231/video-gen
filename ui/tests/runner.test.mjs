@@ -257,6 +257,9 @@ test('progress never passes a missing verdict, rejected or outdated script revie
   assert.equal(scriptDisposition('Previously PASS\nVerdict: **revise** — central claim is unsupported'), 'revise');
   assert.equal(scriptDisposition('The word pass occurs in this finding.'), '');
   assert.equal(scriptDisposition('## Final verdict: incomplete'), 'incomplete');
+  assert.equal(scriptDisposition('**Verdict: PASS. 0 blockers, 4 advisory findings.**\n\n## Outcome\n**PASS.** The full script was checked.'), 'pass');
+  assert.equal(scriptDisposition('Verdict: revise. One blocker remains.'), 'revise');
+  assert.equal(scriptDisposition('Pass the script back to the writer.\nRevise the second paragraph.'), '');
   const folder = await workspace(), store = new Store(path.join(folder, 'state'));
   const runner = new Runner({ root: folder, store, statusCommand: noStatus });
   const job = store.create(defaults); job.status = 'needs_attention';
