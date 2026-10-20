@@ -2,7 +2,7 @@
 
 Start with `npm run ui`, then open http://127.0.0.1:4310. The server binds to loopback only. Use `npm run ui -- --port 4311` to choose another port. No new application dependencies are needed.
 
-The sidebar contains threads and New video. Each new thread starts a real CLI orchestrator, using the existing Codex, Claude Code, or OpenCode installation and account. Model IDs are passed as arguments, never shell-interpolated. Codex suggestions come from its installed model cache; Claude's suggestions are CLI aliases. OpenCode accepts its provider/model IDs. Authentication, model availability, and provider policy errors appear in the thread and event log.
+The sidebar contains threads and New video. Each new thread starts a real CLI orchestrator, using the existing Codex, Claude Code, OpenCode or Pi installation and account. Model IDs are passed as arguments, never shell-interpolated. Codex suggestions come from its installed model cache; Claude's suggestions are CLI aliases. OpenCode accepts its provider/model IDs; Pi's suggestions come from `pi --list-models`. Pi takes MCP servers only from config files or extensions, so the runner loads `backend/pi-extension.mjs` with `-e` to register its bridge for each session, leaving `~/.pi` untouched. Pi roles get the instructions and model pins from `.claude/agents/`; a pin such as `opus` is passed as `anthropic/opus`, which Pi resolves to the newest Anthropic opus, so Pi needs an Anthropic login for pinned roles. Authentication, model availability, and provider policy errors appear in the thread and event log.
 
 Give a high-level prompt and a target duration. Optionally upload a script or recording (250 MB maximum each), or provide repository-relative paths. Without a recording, the orchestrator follows the repository narration workflow. A supplied recording stays unchanged. The high-level prompt drives research, independently reviewed script, narration, the existing `npm run video -- next` loop, and a separately reviewed thumbnail.
 
@@ -28,7 +28,7 @@ The browser receives batched updates and re-renders only the parts that changed,
 
 ## Models
 
-Choose the provider, the main model (orchestrator) and the sub-agent (builder) model, with optional overrides for creative roles and reviewers. With Claude and blank fields, each role uses this repository's pinned model from `.claude/agents/` (director and reviewers opus, builders haiku) and runs as that agent type. The form shows exactly which model each role will run on, and why.
+Choose the provider, then a model for each role: orchestrator, script writer, script reviewer, director, scene builders, film reviewers, thumbnail maker and thumbnail reviewer. Every row shows what that role will run on, and why. A blank row uses the repository's pinned model from `.claude/agents/` (Claude, and Pi as `anthropic/<model>`), otherwise the provider's strong or weak default for that role: the orchestrator and scene builders are weak, every other role is strong. Defaults: Claude `claude-opus-5-5` / `claude-haiku-5-5`, Pi `anthropic/claude-opus-5-5` / `anthropic/claude-haiku-5-5`, Codex `gpt-6.1-sol` / `gpt-6-luna`, OpenCode `opencode/deepseek-v4.1-flash-free` / `opencode/glm-5.3-flash` (see `ui/shared/routing.mjs`). With Claude, pinned roles still run as their agent type, with your chosen model in place of the pin. Threads created before per-role models keep their old shared builder, creative and reviewer fields until you save their configuration.
 
 ## Execution and recovery
 

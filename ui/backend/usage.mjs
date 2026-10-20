@@ -5,8 +5,8 @@ import { redact } from './events.mjs';
 const number = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
 export const emptyUsage = () => ({ input: 0, output: 0, cached: 0, cacheWrite: 0, reasoning: 0, total: 0, reports: 0, reportedCostUSD: 0, costReported: false });
 export function tokens(provider, raw = {}) {
-  const cached = number(raw.cached_input_tokens ?? raw.cache_read_input_tokens ?? raw.cache?.read);
-  const cacheWrite = number(raw.cache_creation_input_tokens ?? raw.cache?.write);
+  const cached = number(raw.cached_input_tokens ?? raw.cache_read_input_tokens ?? raw.cacheRead ?? raw.cache?.read);
+  const cacheWrite = number(raw.cache_creation_input_tokens ?? raw.cacheWrite ?? raw.cache?.write);
   const baseInput = number(raw.input_tokens ?? raw.input);
   const input = baseInput + (provider === 'Codex' ? 0 : cached + cacheWrite);
   const output = number(raw.output_tokens ?? raw.output);
@@ -117,6 +117,6 @@ export class UsageService {
       if(!this.pending)this.pending=readCodexLimits(this.root).then(result=>this.states.set('Codex',{name:'Codex',source:'Codex account/rateLimits/read',checkedAt:new Date().toISOString(),available:result.windows.length>0,...result,detail:result.windows.length?'':'Account quotas were not returned for this login.'})).catch(error=>this.states.set('Codex',{name:'Codex',available:false,checkedAt:new Date().toISOString(),windows:[],detail:redact(error.message)})).finally(()=>{this.pending=null;});
       await this.pending;
     }
-    return ['Codex','Claude','OpenCode'].map(name=>({...this.states.get(name),name,...(!this.states.has(name)?{available:false,windows:[],detail:'The CLI has not exposed an account balance. Usage is still counted per job.'}:{}),usage:totalUsage(jobs.flatMap(job=>job.agents.filter(agent=>agent.provider===name)))}));
+    return ['Codex','Claude','OpenCode','Pi'].map(name=>({...this.states.get(name),name,...(!this.states.has(name)?{available:false,windows:[],detail:'The CLI has not exposed an account balance. Usage is still counted per job.'}:{}),usage:totalUsage(jobs.flatMap(job=>job.agents.filter(agent=>agent.provider===name)))}));
   }
 }

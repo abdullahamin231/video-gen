@@ -16,7 +16,7 @@ import { routeModel } from '../shared/routing.mjs';
 import { orchestratorPrompt } from '../backend/prompt.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const defaults = { title: 'Runner integration', prompt: 'A test fixture only', provider: 'Codex', main: '', sub: '', directorModel: '', reviewerModel: '', format: 'landscape', duration: 60, gateScript: false, gatePrototype: false };
+const defaults = { title: 'Runner integration', prompt: 'A test fixture only', provider: 'Codex', main: '', models: {}, format: 'landscape', duration: 60, gateScript: false, gatePrototype: false };
 const testFolders = [];
 after(async () => { for (const folder of testFolders) await rm(folder, { recursive: true, force: true }); });
 async function workspace() {
@@ -92,9 +92,23 @@ test('CLI arguments disable built-in sub-agents, use repo agent types, and route
   assert.equal(config.permission.task, 'deny'); assert.equal(config.mcp.video_runner.command[1], options.bridge);
   const pins = { 'video-builder': 'haiku', 'video-director': 'opus', 'video-reviewer': 'opus' };
   assert.deepEqual(routeModel({ provider: 'Claude', main: '' }, 'builder', pins), { model: 'haiku', source: 'repo pin (.claude/agents/video-builder.md)' });
+  assert.deepEqual(routeModel({ provider: 'Claude', main: 'sonnet', models: { builder: 'x' } }, 'builder', pins), { model: 'x', source: 'your choice' });
+  // Each role is set on its own: choosing the director's model leaves the thumbnail maker on its pin.
+  const split = { provider: 'Claude', main: '', models: { director: 'sonnet', reviewer: 'haiku' } };
+  assert.equal(routeModel(split, 'director', pins).model, 'sonnet'); assert.equal(routeModel(split, 'thumbnail-maker', pins).model, 'opus');
+  assert.equal(routeModel(split, 'reviewer', pins).model, 'haiku'); assert.equal(routeModel(split, 'thumbnail-reviewer', pins).model, 'opus');
+  // Threads saved before per-role models keep routing through their shared fields.
   assert.equal(routeModel({ provider: 'Claude', main: 'sonnet', sub: 'x' }, 'builder', pins).model, 'x');
-  assert.equal(routeModel({ provider: 'Codex', main: 'gpt' }, 'reviewer', pins).model, 'gpt');
-  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'director', pins).source, 'CLI default');
+  assert.equal(routeModel({ provider: 'Claude', directorModel: 'y' }, 'thumbnail-maker', pins).model, 'y');
+  assert.equal(routeModel({ provider: 'Claude', main: 'sonnet', models: { director: 'z' } }, 'orchestrator', pins).model, 'sonnet');
+  // Blank roles take the provider's default for their tier, not the orchestrator's model.
+  assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'reviewer', pins), { model: 'gpt-6.1-sol', source: 'Codex strong default' });
+  assert.equal(routeModel({ provider: 'Codex', main: 'gpt' }, 'orchestrator', pins).model, 'gpt');
+  assert.equal(routeModel({ provider: 'Codex', main: '' }, 'orchestrator', pins).model, 'gpt-6-luna');
+  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'director', pins).model, 'opencode/deepseek-v4.1-flash-free');
+  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'builder', pins).model, 'opencode/glm-5.3-flash');
+  assert.equal(routeModel({ provider: 'Claude', main: '' }, 'orchestrator', pins).model, 'claude-haiku-5-5');
+  assert.equal(routeModel({ provider: 'Pi', main: '' }, 'orchestrator', pins).model, 'anthropic/claude-haiku-5-5');
 });
 
 test('the orchestrator prompt names the job explicitly and a resume prompt is short', () => {
@@ -334,4 +348,36 @@ test('pipeline status is read-only and matches the state machine for an unprepar
   const status = JSON.parse(output.trim().split('\n').at(-1));
   assert.equal(status.state, 'not prepared'); assert.equal(status.current, 'prepare'); assert.equal(status.steps.length, 11);
   assert.equal((await readFile(path.join(root, 'scripts/video.mjs'), 'utf8')).includes("command === 'status'"), true);
+});
+
+test('Pi runs in JSON mode with the runner bridge registered by its extension', () => {
+  const pi = invocation('Pi', { model: 'anthropic/claude-haiku-4-5', session: 'session-1', root, bridge: '/repo/bridge.mjs', node: '/bin/node', agentType: 'video-builder' });
+  assert.equal(pi.args[pi.args.indexOf('--mode') + 1], 'json'); assert(pi.args.includes('--approve'));
+  assert.match(pi.args[pi.args.indexOf('-e') + 1], /pi-extension\.mjs$/);
+  assert.equal(pi.args[pi.args.indexOf('--session') + 1], 'session-1'); assert.equal(pi.args[pi.args.indexOf('--model') + 1], 'anthropic/claude-haiku-4-5');
+  assert.equal(pi.args[pi.args.indexOf('--append-system-prompt') + 1], path.join(root, '.claude/agents/video-builder.md'));
+  assert.equal(pi.env.VIDEO_RUNNER_BRIDGE, '/repo/bridge.mjs'); assert.equal(pi.env.VIDEO_RUNNER_NODE, '/bin/node');
+});
+
+test('Pi events become sessions, tools, messages, usage and only final errors', () => {
+  assert.deepEqual(normalize('Pi', { type: 'session', version: 3, id: 'abc' }), [{ type: 'session', sessionId: 'abc' }]);
+  const start = normalize('Pi', { type: 'tool_execution_start', toolCallId: 't1', toolName: 'write', args: { path: 'jobs/x/a.md' } })[0];
+  assert.equal(start.status, 'running'); assert.equal(start.file, 'jobs/x/a.md'); assert.equal(start.operation, 'editing');
+  const end = normalize('Pi', { type: 'tool_execution_end', toolCallId: 't2', toolName: 'bash', args: { command: 'npm run video -- next --job jobs/x' }, result: { content: [{ type: 'text', text: 'STATE: done' }] }, isError: true })[0];
+  assert.equal(end.status, 'failed'); assert.equal(end.output, 'STATE: done'); assert.deepEqual(end.pipeline, { command: 'next', job: 'jobs/x' });
+  const usage = { input: 10, output: 5, cacheRead: 100, cacheWrite: 20, cost: { total: 0.5 } };
+  const reply = normalize('Pi', { type: 'message_end', message: { role: 'assistant', responseId: 'r1', model: 'm', content: [{ type: 'thinking', thinking: 'x' }, { type: 'text', text: 'Hello' }], usage, stopReason: 'stop' } });
+  assert.deepEqual(reply.map(item => item.type), ['message', 'usage']); assert.equal(reply[0].text, 'Hello'); assert.equal(reply[1].cost, 0.5);
+  assert.deepEqual(tokens('Pi', usage), { input: 130, output: 5, cached: 100, cacheWrite: 20, reasoning: 0, total: 135 });
+  const failed = { role: 'assistant', stopReason: 'error', errorMessage: 'No API key' };
+  assert.deepEqual(normalize('Pi', { type: 'agent_end', willRetry: true, messages: [failed] }), []);
+  assert.equal(normalize('Pi', { type: 'agent_end', willRetry: false, messages: [failed] })[0].fatal, true);
+});
+
+test('Pi roles use the repository pins as Anthropic models', () => {
+  const pins = { 'video-builder': 'haiku', 'video-director': 'opus' };
+  assert.deepEqual(routeModel({ provider: 'Pi', main: '' }, 'builder', pins), { model: 'anthropic/haiku', source: 'repo pin (.claude/agents/video-builder.md)' });
+  assert.equal(routeModel({ provider: 'Pi', main: '' }, 'director', { 'video-director': 'openrouter/x' }).model, 'openrouter/x');
+  assert.equal(routeModel({ provider: 'Pi', main: 'anthropic/sonnet', models: { builder: 'b' } }, 'builder', pins).model, 'b');
+  assert.equal(routeModel({ provider: 'Pi', main: 'anthropic/sonnet' }, 'orchestrator', pins).model, 'anthropic/sonnet');
 });

@@ -1,7 +1,7 @@
 ---
 name: script-reviewer
 description: Independently reviews a source-based narration script for editorial quality, factual support and the requested genre and duration.
-model: opus
+model: claude-opus-5-5
 ---
 
 Your prompt supplies the brief, script, research notes and saved sources. Follow

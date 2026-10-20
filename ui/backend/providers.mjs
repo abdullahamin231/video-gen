@@ -3,9 +3,12 @@ import { access, readFile, readdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { DEFAULT_MODELS } from '../shared/routing.mjs';
+import { fileURLToPath } from 'node:url';
 
-export const providerNames = ['Codex', 'Claude', 'OpenCode'];
-const executables = { Codex: 'codex', Claude: 'claude', OpenCode: 'opencode' };
+export const providerNames = ['Codex', 'Claude', 'OpenCode', 'Pi'];
+const executables = { Codex: 'codex', Claude: 'claude', OpenCode: 'opencode', Pi: 'pi' };
+const piExtension = fileURLToPath(new URL('./pi-extension.mjs', import.meta.url));
 export async function executable(name) {
   if (!providerNames.includes(name)) throw new Error('Unsupported CLI provider');
   for (const folder of (process.env.PATH || '').split(path.delimiter)) {
@@ -55,6 +58,14 @@ export function invocation(provider, { model = '', session = '', bridge, env = {
     const config = { permission: { external_directory: 'deny', task: 'deny' } };
     if (bridge) config.mcp = { video_runner: { type: 'local', command: [node, bridge], enabled: true, timeout: 86400000 } };
     childEnv.OPENCODE_CONFIG_CONTENT = JSON.stringify(config);
+  } else if (provider === 'Pi') {
+    // The prompt arrives on stdin. --approve loads this repository's skills (.agents/skills), which Pi
+    // otherwise skips in a non-interactive run. Pi has no built-in sub-agent tool; extension ones are excluded.
+    args = ['--mode', 'json', '--approve', '--tools', '+grep,+find,+ls', '--exclude-tools', 'subagent*,task', '-e', piExtension];
+    if (agentType) args.push('--append-system-prompt', path.join(root, '.claude/agents', `${agentType}.md`));
+    if (bridge) Object.assign(childEnv, { VIDEO_RUNNER_NODE: node, VIDEO_RUNNER_BRIDGE: bridge });
+    if (model) args.push('--model', model);
+    if (session) args.push('--session', session);
   } else throw new Error('Unsupported CLI provider');
   return { args, env: childEnv };
 }
@@ -84,8 +95,13 @@ export async function discoverProviders(root) {
           const cache = JSON.parse(await readFile(path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'models_cache.json'), 'utf8'));
           models = (cache.models || []).map(model => model.slug).filter(Boolean);
         } catch { /* Custom model IDs remain available. */ }
-      } else if (name === 'Claude') models = ['opus', 'sonnet', 'haiku'];
-      return { name, installed: version.code === 0, version: version.stdout.trim().slice(0, 200), models: [...new Set(models)], pins: name === 'Claude' ? pins : {}, error: version.code === 0 ? '' : version.stderr.slice(-1000), auth: 'Uses existing CLI login; verified when a run starts' };
+      } else if (name === 'Claude') models = ['claude-sonnet-5-5', 'opus', 'sonnet', 'haiku'];
+      else if (name === 'Pi') {
+        // `pi --list-models` prints a table: provider, model, …; suggest provider/model IDs.
+        const list = await capture(command, ['--list-models', '--offline'], { cwd: root, timeout: 15000 });
+        models = list.stdout.split('\n').slice(1).map(line => line.trim().split(/\s+/)).filter(cells => cells.length > 1).map(([provider, id]) => `${provider}/${id}`);
+      }
+      return { name, installed: version.code === 0, version: version.stdout.trim().slice(0, 200), models: [...new Set([...Object.values(DEFAULT_MODELS[name] || {}), ...models])], pins: name === 'Claude' ? pins : {}, error: version.code === 0 ? '' : version.stderr.slice(-1000), auth: 'Uses existing CLI login; verified when a run starts' };
     } catch (error) { return { name, installed: false, models: [], pins: {}, error: error.message }; }
   }));
 }

@@ -1,7 +1,7 @@
 ---
 name: script-writer
 description: Writes a narration script from user-supplied sources and a target duration, following the script-writing skill. Creative role: runs on the strong model.
-model: opus
+model: claude-opus-5-5
 ---
 
 Your prompt names a brief file or gives sources and a duration. Read `.claude/skills/script-writing/SKILL.md` and its

@@ -11,9 +11,9 @@ const app=await createApp({root,directory});await app.start(0);
 const results=[];
 try{
   const selected = process.argv.slice(2);
-  for(const provider of selected.length ? selected : ['Codex','Claude','OpenCode']){
-    if(!['Codex','Claude','OpenCode'].includes(provider))throw new Error('Unsupported provider');
-    const job=app.store.create({title:`${provider} connectivity check`,prompt:'Read-only runner connectivity check',provider,main:'',sub:'',directorModel:'',reviewerModel:'',format:'landscape',duration:10,gateScript:false,gatePrototype:false});
+  for(const provider of selected.length ? selected : ['Codex','Claude','OpenCode','Pi']){
+    if(!['Codex','Claude','OpenCode','Pi'].includes(provider))throw new Error('Unsupported provider');
+    const job=app.store.create({title:`${provider} connectivity check`,prompt:'Read-only runner connectivity check',provider,main:'',models:{},format:'landscape',duration:10,gateScript:false,gatePrototype:false});
     job.status='running';app.store.save(job);
     const timer=setTimeout(()=>{void app.runner.control(job,'cancel');},90000);
     try{

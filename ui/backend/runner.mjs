@@ -154,7 +154,7 @@ export class Runner {
     const route = routeModel(job, role, this.pins);
     Object.assign(agent, { ...task, step: role === 'orchestrator' ? '' : stepFor(job, role, task), promptPreview: role === 'orchestrator' ? '' : prompt.slice(0, 600),
       model: route.model, modelSource: route.source, provider: job.provider, status: 'starting', runs: (agent.runs || 0) + 1, error: '', note: '' });
-    const agentType = job.provider === 'Claude' ? CLAUDE_AGENT_TYPES[role] || '' : '';
+    const agentType = ['Claude', 'Pi'].includes(job.provider) ? CLAUDE_AGENT_TYPES[role] || '' : '';
     const command = await executable(job.provider);
     if (this.closed || ['cancelled', 'interrupted'].includes(job.status)) throw new Error('Run stopped');
     const token = randomUUID() + randomUUID();

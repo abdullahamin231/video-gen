@@ -125,17 +125,27 @@ served the film. Missing scenes never qualify for final review or delivery.
 
 ## Models per role
 
-Creative and judgement roles need a strong model; following `next` and building scenes do not. In Claude Code the
-agent types in `.claude/agents/` pin this:
+Creative and judgement roles need a strong model; following `next` and building scenes do not.
 
-| Agent type | Model | Why |
+| Role | Tier | Why |
 |---|---|---|
-| orchestrator (main session) | any, e.g. `claude --model haiku` | `next` decides every step |
-| `video-director` | `opus` | the concept, the plan, and the scenes whose look is hardest to put into words |
-| `video-builder` | `haiku` | delegated scenes; `build --scene` checks catch broken output |
-| `video-reviewer` | `opus` | a weak reviewer passes weak films |
+| orchestrator (main session) | weak | `next` decides every step |
+| `script-writer`, `video-director`, thumbnail maker | strong | the script, the concept, the plan, and the scenes whose look is hardest to put into words |
+| `video-builder` | weak | delegated scenes; `build --scene` checks catch broken output |
+| `script-reviewer`, `video-reviewer`, thumbnail reviewer | strong | a weak reviewer passes weak films |
 
-To change a role's model, edit `model:` in its file. Leave `CLAUDE_CODE_SUBAGENT_MODEL` unset; it overrides these.
+Default models for each harness:
+
+| Harness | Strong | Weak |
+|---|---|---|
+| Claude Code | `claude-opus-5-5` | `claude-haiku-5-5` |
+| Pi | `anthropic/claude-opus-5-5` | `anthropic/claude-haiku-5-5` |
+| Codex | `gpt-6.1-sol` | `gpt-6-luna` |
+| OpenCode | `opencode/deepseek-v4.1-flash-free` | `opencode/glm-5.3-flash` |
+
+In Claude Code the agent types in `.claude/agents/` pin these (Pi reads the same pins); to change a role's model, edit
+`model:` in its file. Leave `CLAUDE_CODE_SUBAGENT_MODEL` unset; it overrides them. The job UI applies the table for
+every harness and lets you choose a different model for any role (`ui/shared/routing.mjs` holds the defaults).
 
 ## Writing a script
 

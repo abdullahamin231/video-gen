@@ -10,6 +10,7 @@ import { Runner } from './runner.mjs';
 import { providerNames, discoverProviders } from './providers.mjs';
 import { jobFile, listFiles, inside, parseRange } from './files.mjs';
 import { redact } from './events.mjs';
+import { DELEGATE_ROLES } from '../shared/routing.mjs';
 
 const staticFiles = new Map([
   ['/', ['ui/index.html', 'text/html']], ['/app.mjs', ['ui/app.mjs', 'text/javascript']],
@@ -29,11 +30,17 @@ async function body(req) {
 }
 const string = (value, max = 120) => typeof value === 'string' && value.length <= max && !value.includes('\0');
 function config(input, existing) {
-  if (!providerNames.includes(input.provider)) throw fail('Choose Codex, Claude, or OpenCode');
-  for (const field of ['main', 'sub', 'directorModel', 'reviewerModel']) if (!string(input[field] ?? '')) throw fail(`Invalid ${field}`);
+  if (!providerNames.includes(input.provider)) throw fail('Choose Codex, Claude, OpenCode, or Pi');
+  if (!string(input.main ?? '')) throw fail('Invalid main model');
+  const models = input.models ?? {};
+  if (!models || typeof models !== 'object' || Array.isArray(models)) throw fail('Invalid role models');
+  for (const [role, model] of Object.entries(models)) {
+    if (!DELEGATE_ROLES.includes(role)) throw fail(`Unknown role ${role}`);
+    if (!string(model)) throw fail(`Invalid model for ${role}`);
+  }
   if (typeof input.gateScript !== 'boolean' || typeof input.gatePrototype !== 'boolean') throw fail('Invalid checkpoint settings');
   if (existing && input.provider !== existing.provider && existing.agents.length) throw fail('Provider cannot change after its first agent starts. Create a new thread to use a different CLI.');
-  return { provider: input.provider, main: (input.main || '').trim(), sub: (input.sub || '').trim(), directorModel: (input.directorModel || '').trim(), reviewerModel: (input.reviewerModel || '').trim(), gateScript: input.gateScript, gatePrototype: input.gatePrototype };
+  return { provider: input.provider, main: (input.main || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (models[role] || '').trim()])), gateScript: input.gateScript, gatePrototype: input.gatePrototype };
 }
 const detail = (store, job) => ({ ...summary(job), messages: job.messages, events: store.events(job.id) });
 
@@ -139,7 +146,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
       if (match) {
         const job = store.get(match[1]); const operation = match[2];
         if (!operation && req.method === 'GET') return json(res, 200, detail(store, job));
-        if (!operation && req.method === 'PATCH') { Object.assign(job, config(await body(req), job)); store.event(job, { type: 'configuration', text: 'Model routing and checkpoint preferences updated', source: 'user' }); store.save(job); return json(res, 200, detail(store, job)); }
+        if (!operation && req.method === 'PATCH') { Object.assign(job, config(await body(req), job)); for (const legacy of ['sub', 'directorModel', 'reviewerModel']) delete job[legacy]; store.event(job, { type: 'configuration', text: 'Model routing and checkpoint preferences updated', source: 'user' }); store.save(job); return json(res, 200, detail(store, job)); }
         if (!operation && req.method === 'DELETE') { await runner.remove(job); return json(res, 200, { removed: job.id }); }
         if (operation === 'files' && req.method === 'GET') return json(res, 200, await listFiles(root, job));
         if (operation === 'events' && req.method === 'GET') {

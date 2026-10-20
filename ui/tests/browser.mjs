@@ -29,11 +29,13 @@ try {
   const page = await browser.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.setViewport({ width: 1440, height: 1000 });
   await page.goto(url, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('.welcome');
   await click(page, '.new-job'); await page.select('select[name=format]', 'vertical'); await page.type('#new-prompt', 'A test fixture video about power grids.'); await page.type('input[name=title]', 'Browser integration fixture');
-  await page.type('input[name=main]', 'fixture-main'); await page.type('input[name=sub]', 'fixture-builder');
-  assert((await page.$eval('#routing-preview', node => node.textContent)).includes('fixture-builder'), 'routing preview follows the form');
+  await page.type('input[name=main]', 'fixture-main'); await page.type('input[name="model:builder"]', 'fixture-builder');
+  assert((await page.$eval('.role-route[data-role=builder]', node => node.textContent)).includes('fixture-builder'), 'role row shows the chosen model');
+  assert(/strong default|repo pin/.test(await page.$eval('.role-route[data-role=director]', node => node.textContent)), 'unset roles show their default');
+  await page.$eval('.role-models', node => node.scrollIntoView()); await page.screenshot({ path: path.join(shots, 'role-models.png') });
   await click(page, '#new-job-form button[type=submit]');
   await page.waitForSelector('.status-badge.needs_attention', { timeout: 20000 });
-  const job = app.store.all()[0]; assert.equal(job.main, 'fixture-main'); assert.equal(job.sub, 'fixture-builder'); assert.equal(job.format, 'vertical');
+  const job = app.store.all()[0]; assert.equal(job.main, 'fixture-main'); assert.equal(job.models.builder, 'fixture-builder'); assert.equal(job.models.director, ''); assert.equal(job.format, 'vertical');
   assert.equal(job.agents.filter(agent => agent.role === 'builder').length, 2);
   await page.screenshot({ path: path.join(shots, 'thread.png') });
 

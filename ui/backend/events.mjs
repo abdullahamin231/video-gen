@@ -41,6 +41,8 @@ function toolEvent(name, input, status, output = '', key = '') {
   return item;
 }
 
+const piText = content => (Array.isArray(content) ? content : []).filter(block => block.type === 'text' && block.text).map(block => block.text).join('\n');
+
 // Provider stream → normalized events. A failed tool call is recoverable (status "failed");
 // only provider/runner failures are type "error".
 export function normalize(provider, raw) {
@@ -76,6 +78,21 @@ export function normalize(provider, raw) {
       if (raw.is_error) result.push({ type: 'error', fatal: true, text: redact(raw.result || raw.errors?.join('\n') || raw.subtype), status: 'failed' });
       result.push({ type: 'usage', usage: raw.usage, fallbackOnly: true, cost: raw.total_cost_usd, contextLimits: raw.modelUsage, text: raw.subtype || 'Turn finished' });
     }
+  } else if (provider === 'Pi') {
+    if (raw.type === 'session' && raw.id) result.push({ type: 'session', sessionId: raw.id });
+    if (raw.type === 'tool_execution_start') result.push(toolEvent(raw.toolName, raw.args, 'running', '', raw.toolCallId));
+    if (raw.type === 'tool_execution_end') result.push(toolEvent(raw.toolName, raw.args, raw.isError ? 'failed' : 'completed', piText(raw.result?.content), raw.toolCallId));
+    const message = raw.type === 'message_end' && raw.message?.role === 'assistant' ? raw.message : null;
+    if (message) {
+      const text = piText(message.content);
+      const key = message.responseId || String(message.timestamp || '');
+      if (text) result.push({ type: 'message', text: redact(text), messageId: key });
+      if (message.usage) result.push({ type: 'usage', usage: message.usage, cost: message.usage.cost?.total, usageKey: key ? `message:${key}` : undefined, model: message.responseModel || message.model, text: 'API message token usage reported' });
+    }
+    // An errored response may still be retried; only the run's final outcome is fatal.
+    const last = raw.type === 'agent_end' && !raw.willRetry ? (raw.messages || []).filter(item => item.role === 'assistant').at(-1) : null;
+    if (last?.stopReason === 'error') result.push({ type: 'error', fatal: true, text: redact(last.errorMessage || 'Provider error'), status: 'failed' });
+    if (raw.type === 'auto_retry_end' && raw.success === false) result.push({ type: 'error', fatal: true, text: redact(raw.finalError || 'Provider retries failed'), status: 'failed' });
   } else {
     const part = raw.part || raw.properties?.part;
     const sessionId = raw.sessionID || raw.session_id || part?.sessionID;
