@@ -1,6 +1,6 @@
 # Quality standard (directors, builders and reviewers)
 
-The operational runbook is the root [AGENTS.md](../AGENTS.md). This file is the creative and review standard. The
+The operational runbook is [orchestrator.md](orchestrator.md). This file is the creative and review standard. The
 briefs written by the pipeline summarise it for each role; directors and reviewers read it in full.
 
 The user gives one request:

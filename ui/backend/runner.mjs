@@ -5,7 +5,8 @@ import path from 'node:path';
 import { executable, invocation, capture, agentPins } from './providers.mjs';
 import { normalize, normalizeFile, redact, parseNext, describeTask } from './events.mjs';
 import { listFiles, jobFile, readJson, inside } from './files.mjs';
-import { orchestratorPrompt } from './prompt.mjs';
+import { orchestratorPrompt, roleNote } from './prompt.mjs';
+import { CodexRollouts, applyRolloutUsage } from './codex-usage.mjs';
 import { UsageService, applyUsage, totalUsage } from './usage.mjs';
 import { computeProgress, computeHealth, scriptDisposition } from './progress.mjs';
 import { routeModel, CLAUDE_AGENT_TYPES, DELEGATE_ROLES } from '../shared/routing.mjs';
@@ -44,13 +45,14 @@ function stepFor(job, role, task) {
 }
 
 export class Runner {
-  constructor({ root, store, spawnProcess = spawn, statusCommand }) {
+  constructor({ root, store, spawnProcess = spawn, statusCommand, codexRollouts = new CodexRollouts() }) {
     this.root = root; this.store = store; this.spawn = spawnProcess;
     this.processes = new Map(); this.runningJobs = new Set(); this.credentials = new Map(); this.waiters = new Set();
     this.files = new Map(); this.slots = new Map(); this.gates = new Map(); this.status = new Map();
     this.url = ''; this.closed = false; this.polling = false; this.pins = {};
     this.bridge = path.join(root, 'ui/backend/mcp.mjs');
     this.usage = new UsageService(root);
+    this.codexRollouts = codexRollouts; this.codexSynced = new Map();
     this.statusCommand = statusCommand || (job => capture(process.execPath, [path.join(root, 'scripts/video.mjs'), 'status', '--json', '--job', job.jobPath], { cwd: root, timeout: 120000, maxBytes: 8000000 }));
   }
   wake() { for (const wake of this.waiters) wake(); this.waiters.clear(); }
@@ -164,6 +166,8 @@ export class Runner {
       env: { VIDEO_RUNNER_URL: this.url, VIDEO_RUNNER_TOKEN: token, VIDEO_THREAD_ID: job.id, VIDEO_AGENT_ID: agent.id, VIDEO_AGENT_ROLE: role } });
     this.store.event(job, { type: 'agent', text: `${agent.task || role} — ${role} ${agent.runs > 1 ? 'resumed' : 'started'}`, agentId: agent.id, role, model: agent.model || 'CLI default', brief: agent.brief || '', source: 'runner' });
     const child = this.spawn(command, options.args, { cwd: this.root, env: options.env, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    // Every sub-agent hears the same boundary from the runner, whatever its CLI loads from AGENTS.md files.
+    const input = role === 'orchestrator' ? prompt : prompt + roleNote(role, job.provider);
     const record = { child, job, agent, token };
     this.processes.set(agent.id, record);
     Object.assign(agent, { status: 'running', pid: child.pid, startedAt: new Date().toISOString(), lastEventAt: new Date().toISOString() });
@@ -173,7 +177,7 @@ export class Runner {
       if (this.processes.get(agent.id) === record) { agent.processStart = proc.slice(proc.lastIndexOf(')') + 2).split(' ')[19]; this.store.save(job, false); }
     }).catch(() => {});
     this.store.save(job);
-    let buffer = '', stderr = '', response = '', providerError = '', spawnError = '', lines = 0, hasAssistantUsage = false;
+    let buffer = '', stderr = '', response = '', finalMessage = '', providerError = '', spawnError = '', lines = 0, hasAssistantUsage = false;
     const runId = randomUUID(), starts = new Map();
     const consume = line => {
       if (!line.trim()) return;
@@ -183,7 +187,7 @@ export class Runner {
       agent.lastEventAt = new Date().toISOString();
       for (const item of normalize(job.provider, raw)) {
         if (item.type === 'session') { agent.sessionId = item.sessionId; this.store.save(job, false); continue; }
-        if (item.type === 'message') { response += item.text + '\n'; agent.lastMessage = item.text.slice(0, 600); this.store.message(job, role, item.text, agent.id); continue; }
+        if (item.type === 'message') { response += item.text + '\n'; finalMessage = item.text; agent.lastMessage = item.text.slice(0, 600); this.store.message(job, role, item.text, agent.id); continue; }
         if (item.type === 'usage' || item.type === 'context') {
           applyUsage(agent, job.provider, item, runId, lines, hasAssistantUsage);
           if (item.fromAssistant) hasAssistantUsage = true;
@@ -193,6 +197,11 @@ export class Runner {
         }
         if (item.type === 'quota') { this.usage.observe(job.provider, item); continue; }
         if (item.fatal) providerError = item.text || 'Provider reported an error';
+        if (item.builtinAgent && item.status === 'running') {
+          // The runner caps Codex at one thread per session, so a spawn fails; record the attempt so it shows in run health.
+          agent.builtinAgentCalls = (agent.builtinAgentCalls || 0) + 1;
+          this.store.event(job, { type: 'error', fatal: false, status: 'failed', text: `${agent.task || role} tried the CLI's built-in sub-agent tool (${item.tool}); only runner delegation is allowed`, agentId: agent.id, role, source: 'runner' });
+        }
         if (item.type === 'tool') this.trackTool(job, agent, item, starts);
         this.store.event(job, { ...item, agentId: agent.id, role, source: 'provider' });
       }
@@ -209,11 +218,12 @@ export class Runner {
       child.stdin.on('error', () => { /* A provider can reject flags before reading its prompt. */ });
       child.once('error', error => { spawnError = error.message; });
       child.once('close', (code, sig) => { if (buffer.trim()) consume(buffer); resolve({ code, signal: sig }); });
-      child.stdin.end(prompt);
+      child.stdin.end(input);
     });
     this.processes.delete(agent.id); this.credentials.delete(token);
     job.activeCommands = (job.activeCommands || []).filter(item => item.agentId !== agent.id);
     this.wake();
+    await this.syncCodexUsage(job, agent).catch(() => {});
     const failure = spawnError || providerError || (result.code !== 0 ? `${job.provider} exited ${result.code ?? result.signal}. ${redact(stderr).trim()}` : '') || (!lines ? `${job.provider} produced no event stream. Check its CLI version and login.` : '');
     agent.status = job.status === 'cancelled' ? 'cancelled' : this.closed ? 'interrupted' : failure ? 'failed' : 'finished';
     agent.finishedAt = new Date().toISOString(); agent.result = response.slice(-6000); agent.error = failure.slice(0, 2000);
@@ -223,7 +233,15 @@ export class Runner {
     this.store.event(job, { type: failure && agent.status === 'failed' ? 'error' : 'agent', text: failure && agent.status === 'failed' ? `${agent.task || role} failed: ${failure.slice(0, 400)}` : `${agent.task || role} — ${role} ${agent.status}`, agentId: agent.id, role, status: agent.status, source: 'runner' });
     this.store.save(job);
     if (failure) throw new Error(failure);
-    return { agentId: agent.id, role, task: agent.task, sessionId: agent.sessionId, model: agent.model || 'CLI default', status: agent.status, result: response.slice(-20000) };
+    // Only the agent's final reply goes back: everything returned stays in the orchestrator's context for the rest of the run.
+    return { agentId: agent.id, role, task: agent.task, sessionId: agent.sessionId, model: agent.model || 'CLI default', status: agent.status, result: (finalMessage || response).trim().slice(-3000) };
+  }
+  // Codex reports usage only when a turn completes and never for the helper agents a session spawns itself; its
+  // rollout files hold the complete counts.
+  async syncCodexUsage(job, agent) {
+    if (agent.provider !== 'Codex' || !agent.sessionId || !this.codexRollouts) return;
+    const total = await this.codexRollouts.sessionUsage(agent.sessionId, agent.createdAt);
+    if (applyRolloutUsage(agent, total)) { job.usage = totalUsage(job.agents); this.store.save(job, false); }
   }
   // Tool events carry what each agent is touching: files, pipeline commands, and what `next` told it.
   trackTool(job, agent, item, starts) {
@@ -291,24 +309,21 @@ export class Runner {
     // Feedback, delegation, checkpoints and delivery belong to the orchestrator alone. Reviewers in
     // particular must not read the user's notes, or they stop being independent.
     if (agent.role !== 'orchestrator') throw new Error(`The ${name} tool is only available to the orchestrator`);
-    if (name === 'feedback') {
-      const messages = job.messages.filter(message => message.role === 'You' && !message.deliveredAt && message !== job.messages[0]);
-      for (const message of messages) { message.deliveredAt = new Date().toISOString(); this.store.touchMessage(job, message); }
-      return { messages: messages.map(({ text, at }) => ({ text, at })), status: job.status, runtimeAgentId: agentId };
-    }
+    if (name === 'feedback') return { messages: this.takeMessages(job), status: job.status, runtimeAgentId: agentId };
     if (name === 'progress') {
       if (typeof args.summary !== 'string') throw new Error('Invalid progress report');
       job.summary = redact(args.summary).slice(0, 2000); agent.note = job.summary.slice(0, 600);
       this.store.event(job, { type: 'progress', text: job.summary, file: normalizeFile(this.root, args.file || ''), agentId, role: agent.role, source: 'agent-reported' });
       return { recorded: true, pipelineState: job.pipeline?.state || null };
     }
-    if (name === 'delegate') return this.delegate(job, agent, args);
+    // User messages ride along with delegate results, so the orchestrator need not poll feedback between steps.
+    if (name === 'delegate') return this.withMessages(job, await this.delegate(job, agent, args));
     if (name === 'delegate_parallel') {
       if (!Array.isArray(args.tasks) || !args.tasks.length || args.tasks.length > 8) throw new Error('Give 1–8 tasks');
       agent.status = 'waiting'; agent.waitingFor = 'agents'; this.store.save(job);
       try {
         const settled = await Promise.allSettled(args.tasks.map(task => this.delegate(job, agent, task, false)));
-        return { results: settled.map(item => item.status === 'fulfilled' ? { ok: true, ...item.value } : { ok: false, error: item.reason.message }) };
+        return this.withMessages(job, { results: settled.map(item => item.status === 'fulfilled' ? { ok: true, ...item.value } : { ok: false, error: item.reason.message }) });
       } finally { if (agent.status === 'waiting') agent.status = 'running'; delete agent.waitingFor; this.store.save(job); }
     }
     if (name === 'checkpoint') {
@@ -326,6 +341,16 @@ export class Runner {
     }
     if (name === 'complete') return this.qualify(job);
     throw new Error('Unknown runner tool');
+  }
+  // Undelivered user messages, marked delivered. Only the orchestrator ever receives them.
+  takeMessages(job) {
+    const messages = job.messages.filter(message => message.role === 'You' && !message.deliveredAt && message !== job.messages[0]);
+    for (const message of messages) { message.deliveredAt = new Date().toISOString(); this.store.touchMessage(job, message); }
+    return messages.map(({ text, at }) => ({ text, at }));
+  }
+  withMessages(job, result) {
+    const userMessages = this.takeMessages(job);
+    return userMessages.length ? { ...result, userMessages } : result;
   }
   async delegate(job, parent, args, track = true) {
     if (!DELEGATE_ROLES.includes(args.role)) throw new Error('Unsupported agent role');
@@ -463,6 +488,10 @@ export class Runner {
           for (const file of removed.slice(0, 20)) this.store.event(job, { type: 'file', text: 'File removed from disk', file, source: 'filesystem', status: 'observed' });
           if (changed.length + removed.length > 60) this.store.event(job, { type: 'file', text: `${changed.length + removed.length - 60} more file changes`, source: 'filesystem', status: 'observed' });
           if ([...changed.map(file => file.path), ...removed].some(file => file.startsWith(job.jobPath + '/'))) this.markDirty(job);
+        }
+        if (job.provider === 'Codex' && Date.now() - (this.codexSynced.get(job.id) || 0) > 30000) {
+          this.codexSynced.set(job.id, Date.now());
+          for (const agent of job.agents.filter(item => ['running', 'waiting', 'starting'].includes(item.status))) await this.syncCodexUsage(job, agent).catch(() => {});
         }
         await this.refresh(job, { files });
       }

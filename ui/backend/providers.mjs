@@ -33,19 +33,27 @@ export async function agentPins(root) {
 
 // Each CLI's own sub-agent tool is switched off: every sub-agent must go through the runner's
 // delegate tool so it is a separate, tracked process with its own events, files and tokens.
+// Codex 0.163 still offers spawn_agent with multi_agent disabled; capping its threads per session at one (the agent
+// itself) makes every spawn fail with "agent thread limit reached".
+export const CODEX_NO_SUBAGENTS = ['--disable', 'multi_agent', '-c', 'features.multi_agent_v2.max_concurrent_threads_per_session=1'];
 export function invocation(provider, { model = '', session = '', bridge, env = {}, node = process.execPath, root, agentType = '' }) {
-  const childEnv = { ...process.env, ...env, NO_COLOR: '1', FORCE_COLOR: '0', MCP_TIMEOUT: '30000', MCP_TOOL_TIMEOUT: '86400000' };
+  // NODE_NO_WARNINGS and a silent npm drop the deprecation notice and npm banner that every pipeline command
+  // otherwise prints into the agent's context.
+  const childEnv = { ...process.env, ...env, NO_COLOR: '1', FORCE_COLOR: '0', MCP_TIMEOUT: '30000', MCP_TOOL_TIMEOUT: '86400000', NODE_NO_WARNINGS: '1', npm_config_loglevel: 'silent' };
   // A CLI launched from an existing Claude session is still a separate runner session.
   delete childEnv.CLAUDECODE;
   delete childEnv.CLAUDE_CODE_ENTRYPOINT;
   let args;
   if (provider === 'Codex') {
-    args = ['exec', '--json', '--color', 'never', '-C', root, '-s', 'workspace-write', '-c', 'approval_policy="never"', '-c', 'sandbox_workspace_write.network_access=true', '--disable', 'multi_agent'];
+    args = ['exec', '--json', '--color', 'never', '-C', root, '-s', 'workspace-write', '-c', 'approval_policy="never"', '-c', 'sandbox_workspace_write.network_access=true', ...CODEX_NO_SUBAGENTS];
     if (bridge) args.push('-c', `mcp_servers.video_runner.command=${JSON.stringify(node)}`, '-c', `mcp_servers.video_runner.args=${JSON.stringify([bridge])}`, '-c', 'mcp_servers.video_runner.env_vars=["VIDEO_RUNNER_URL","VIDEO_RUNNER_TOKEN","VIDEO_THREAD_ID","VIDEO_AGENT_ID","VIDEO_AGENT_ROLE"]', '-c', 'mcp_servers.video_runner.tool_timeout_sec=86400', '-c', 'mcp_servers.video_runner.required=true', '-c', 'mcp_servers.video_runner.default_tools_approval_mode="approve"');
     if (model) args.push('-m', model);
     if (session) args.push('resume', session);
     args.push('-');
   } else if (provider === 'Claude') {
+    // Bash times out after 2 minutes by default; a render or build then gets backgrounded and polled, each check
+    // re-sending the whole conversation. An hour lets long pipeline commands finish in one call.
+    Object.assign(childEnv, { BASH_DEFAULT_TIMEOUT_MS: '3600000', BASH_MAX_TIMEOUT_MS: '3600000' });
     args = ['--print', '--verbose', '--output-format', 'stream-json', '--permission-mode', 'acceptEdits', '--allowedTools', 'Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,Skill,mcp__video_runner__*', '--disallowedTools', 'Agent,Task'];
     if (agentType) args.push('--agent', agentType);
     if (bridge) args.push('--mcp-config', JSON.stringify({ mcpServers: { video_runner: { command: node, args: [bridge] } } }));

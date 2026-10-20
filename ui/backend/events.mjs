@@ -58,6 +58,8 @@ export function normalize(provider, raw) {
       else if (item.type === 'file_change') for (const change of item.changes || []) result.push(toolEvent('File ' + change.kind, { path: change.path }, status, '', item.id));
       else if (item.type === 'mcp_tool_call') result.push(toolEvent(`${item.server}.${item.tool}`, item.arguments, status, JSON.stringify(item.result ?? item.error ?? ''), item.id));
       else if (item.type === 'web_search') result.push(toolEvent('Web search', { command: item.query }, status, '', item.id));
+      // Codex's own sub-agent tools (spawn_agent, wait_agent, ...). The runner blocks them; this records the attempt.
+      else if (item.type === 'collab_tool_call') result.push({ ...toolEvent(`Built-in sub-agent: ${item.tool || 'call'}`, {}, status, '', item.id), builtinAgent: true, tool: item.tool || 'call' });
       else if (item.type === 'reasoning' && item.text) result.push({ type: 'reasoning', text: redact(item.text) });
     }
     if (raw.type === 'turn.failed' || raw.type === 'error') result.push({ type: 'error', fatal: true, text: redact(raw.error?.message || raw.message || 'Provider error'), status: 'failed' });

@@ -127,3 +127,23 @@ test('CLI qualifies real encoded media only after prototype and final independen
   assert.match(stale.stderr,/stale/);
   assert.notEqual(JSON.parse(await readFile(path.join(job,'job.json'))).status,'complete');
 });
+
+test('role agents cannot advance the pipeline, and every brief opens with the sub-agent boundary', async () => {
+  const {writeBrief, ROLE_BOUNDARY} = await import('../lib/briefs.mjs');
+  const {mkdtemp, readFile, rm} = await import('node:fs/promises');
+  const {tmpdir} = await import('node:os');
+  for (const [command, extra] of [['next', []], ['render', []], ['review-pack', []], ['deliver', []], ['save-all', []], ['build', []]]) {
+    const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/video.mjs'), command, '--job', 'jobs/none', ...extra], {encoding: 'utf8', env: {...process.env, VIDEO_AGENT_ROLE: 'reviewer'}});
+    assert.equal(result.status, 1, command);
+    assert.match(result.stderr, /orchestrator's job\. You are the reviewer/, command);
+  }
+  // A scene build is the builder's own work; it fails here only because the job does not exist.
+  const scene = spawnSync(process.execPath, [path.join(ROOT, 'scripts/video.mjs'), 'build', '--job', 'jobs/none', '--scene', 'a'], {encoding: 'utf8', env: {...process.env, VIDEO_AGENT_ROLE: 'builder'}});
+  assert.doesNotMatch(scene.stderr, /orchestrator's job/);
+  const job = await mkdtemp(path.join(tmpdir(), 'video-brief-'));
+  try {
+    const text = await readFile(await writeBrief(job, 'review-x.md', '# Role: reviewer\n\nBody.\n'), 'utf8');
+    assert(text.startsWith('# Role: reviewer\n\n' + ROLE_BOUNDARY));
+    assert.match(text, /Body\.\n$/);
+  } finally { await rm(job, {recursive: true, force: true}); }
+});

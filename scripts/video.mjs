@@ -27,6 +27,13 @@ const json = async file => JSON.parse(await readFile(file, 'utf8'));
 const save = (file, data) => writeFile(file, JSON.stringify(data, null, 2) + '\n');
 const exists = async file => {try {await access(file); return true;} catch {return false;}};
 const digest = async file => createHash('sha256').update(await readFile(file)).digest('hex');
+// The UI runner starts every agent with VIDEO_AGENT_ROLE. Role agents (director, builder, reviewer, ...) follow their
+// brief; advancing the pipeline belongs to the orchestrator alone. Without the variable (a plain harness session) every
+// command is allowed, as before.
+const ROLE = process.env.VIDEO_AGENT_ROLE || '';
+const ROLE_AGENT = Boolean(ROLE) && ROLE !== 'orchestrator';
+const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review-pack', 'deliver', 'save-all', 'preview', 'mix', 'transcribe', 'alignment-approve']);
+const nextHint = job => ROLE_AGENT ? '\nDone with this command. Finish your brief and reply; the orchestrator advances the pipeline.' : `\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`;
 
 function run(command, args, {cwd = ROOT, capture = false, env = {}} = {}) {
   return new Promise((resolve, reject) => {
@@ -96,7 +103,11 @@ async function prepare(opts) {
   if (language !== 'en' && model.endsWith('.en')) throw new Error('Non-English audio requires a multilingual model.');
   await mkdir(path.dirname(job), {recursive: true});
   await hf(['init', job, '--non-interactive', '--resolution', format === 'vertical' ? 'portrait' : format], {capture: true, env: {HYPERFRAMES_SKIP_SKILLS: '1'}});
-  const pointer = `# Job ${opts.name}\n\nThis is a pipeline job. Do not run hyperframes or npx commands here and never upgrade HyperFrames.\nFrom the repository root run: npm run video -- next --job jobs/${opts.name}\nand do exactly what it prints.\n`;
+  const pointer = `# Job ${opts.name}\n\nThis is a pipeline job. Do not run hyperframes or npx commands here and never upgrade HyperFrames.\n\n` +
+    `If you were given a brief (a file in briefs/), follow only that brief: do not run \`next\`, \`render\`, \`review-pack\` or \`deliver\`, ` +
+    `do not start sub-agents, and reply when the brief is done.\n\n` +
+    `Only the orchestrator, with no brief, advances the job: from the repository root it runs ` +
+    `npm run video -- next --job jobs/${opts.name} and does what it prints.\n`;
   for (const f of ['AGENTS.md', 'CLAUDE.md']) await writeFile(path.join(job, f), pointer);
   await writeFile(path.join(job, 'package.json'), JSON.stringify({name: opts.name, private: true, type: 'module',
     scripts: {next: `npm --prefix ../.. run video -- next --job jobs/${opts.name}`}}, null, 2) + '\n');
@@ -141,7 +152,7 @@ async function finishPreparation(job, manifest, narration) {
   await save(path.join(job, 'alignment.json'), alignment);
   await writeFile(path.join(job, 'SCRIPT.md'), `# Recorded excerpt\n\n${words.map(w => w.text).join(' ')}\n`);
   await writeBrief(job, 'director.md', directorBrief(job, manifest, alignment));
-  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: faceless-explainer\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult repository AGENTS.md, docs/agent-workflow.md and docs/independent-review.md.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nProduction is driven by: npm run video -- next --job jobs/${manifest.name}\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
+  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: faceless-explainer\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult docs/orchestrator.md, docs/agent-workflow.md and docs/independent-review.md.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nProduction is driven by the orchestrator alone: npm run video -- next --job jobs/${manifest.name}. An agent following a brief in briefs/ follows only that brief.\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
   manifest.status = 'prepared';
   await save(path.join(job, 'job.json'), manifest);
@@ -339,10 +350,12 @@ library-add --source <bundle-dir>   publish a new immutable artifact version
 library-use --item <id@version> --job jobs/<slug>  freeze files and record hashes
 
 The latest prepared job is used when --job is omitted.
-Creative design is performed by the agent; see AGENTS.md and docs/agent-workflow.md.
+Creative design is performed by the agent; see docs/orchestrator.md and docs/agent-workflow.md.
 `;
 try {
   const [command = 'help', ...args] = process.argv.slice(2), opts = options(args);
+  if (ROLE_AGENT && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
+    throw new Error(`\`${command}${command === 'build' ? ' without --scene' : ''}\` advances the pipeline, which is the orchestrator's job. You are the ${ROLE}: finish the brief you were given and reply with its result. Do not start sub-agents.`);
   if (command === 'help') console.log(HELP);
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
@@ -380,12 +393,12 @@ try {
         if (progress.scenes.length) console.log(`\nScenes: ${progress.scenes.filter(s => s.built).length}/${progress.scenes.length} built`);
       }
     } else if (command === 'plan-check') {
-      try { await planCheck(job); console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`); }
+      try { await planCheck(job); console.log(nextHint(job)); }
       catch (error) { if (error instanceof SpecError) { printSpecError(error); console.error('\nFix film.json and run plan-check again.'); process.exitCode = 1; } else throw error; }
     } else if (command === 'build') {
       const result = await buildFilm(job, {scene: opts.scene || null});
       if (!result.ok) { process.exitCode = 1; console.log(opts.scene ? `\nFix the errors in shots/${opts.scene}.json and run build again.` : '\nFix the errors and run build again.'); }
-      else console.log(opts.scene ? `\nScene ${opts.scene} passes the checks. Read the transcript above against the plan, then finish.` : `\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
+      else console.log(opts.scene ? `\nScene ${opts.scene} passes the checks. Read the transcript above against the plan, then finish.` : nextHint(job));
     } else if (command === 'snapshot') await snapshot(job, {scene: opts.scene, at: opts.at});
     else if (command === 'review-template') await reviewTemplate(job, {stage: opts.stage || 'final', role: opts.role});
     else if (command === 'asset') {
@@ -406,7 +419,7 @@ try {
     else if (command === 'save-all') {
       const saved = await saveAll(LIBRARY, job);
       console.log(saved.length ? saved.map(s => `${s.file} → ${s.item}${s.saved ? '' : ' (already saved)'}`).join('\n') : 'Nothing new to save.');
-      console.log(`Next: npm run video -- next --job ${path.relative(ROOT, job)}`);
+      console.log(nextHint(job).trim());
     }
     else if (command === 'music') await musicImport(job, opts);
     else if (command === 'mix') await remixFilm(job, {verify});
@@ -438,8 +451,17 @@ try {
     } else if (command === 'review-submit') {
       if (!opts.file) throw new Error('review-submit requires --file from an independent reviewer.');
       const raw = await readFile(path.resolve(ROOT,opts.file),'utf8');
-      if (raw.includes('FILL-IN')) throw new Error('The report still contains FILL-IN placeholders. Replace every FILL-IN value (agentId, verdict, initialObservation) and delete "findingExample".');
-      const report = JSON.parse(raw); delete report.findingExample;
+      let report;
+      try { report = JSON.parse(raw); } catch (error) { throw new Error(`The report is not valid JSON: ${error.message}`); }
+      delete report.findingExample;
+      const unfilled = [];
+      const scan = (value, at) => {
+        if (typeof value === 'string' && value.includes('FILL-IN')) unfilled.push(at);
+        else if (Array.isArray(value)) value.forEach((v, i) => scan(v, `${at}[${i}]`));
+        else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) scan(v, at ? `${at}.${k}` : k);
+      };
+      scan(report, '');
+      if (unfilled.length) throw new Error(`Replace the FILL-IN placeholder in: ${unfilled.join(', ')}. ("findingExample" is ignored.)`);
       console.log(JSON.stringify(await submitReview(job,report),null,2));
     } else if (command === 'review-status') {
       const status = await reviewStatus(job,opts.stage || 'final');

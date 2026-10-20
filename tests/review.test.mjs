@@ -176,3 +176,18 @@ test('external render symlink cannot be loaded as frozen local review media',asy
   await symlink(external,path.join(job,'renders/video.mp4'));
   await assert.rejects(loadReviewPack(job,'final'),/local file/);
 });
+
+test('a report with several problems lists them all, each with its field', async t => {
+  const job=await fixture(t), context=await freeze(job,'prototype');
+  const r=review(context,'narration-fidelity');
+  r.inspection.mode='watched'; delete r.inspection.audio; r.coverage=[{start:0,end:99}];
+  r.findings=[{id:'F1',severity:'blocking',start:1,end:2,subject:'label',requirement:'',observed:'cut off',repair:'',evidence:['review/prototype/missing.png']}];
+  const error=assert.throws(()=>validateReview(r,context),error=>{
+    for (const field of ['inspection.mode','inspection.audio','coverage[0]','findings[0] (F1)','verdict']) assert(error.message.includes(field+':'),field);
+    assert.match(error.message,/requirement, repair must be filled in/);
+    assert.match(error.message,/evidence not in the pack: review\/prototype\/missing\.png/);
+    assert.match(error.message,/^The report has \d+ problems/);
+    return true;
+  });
+  void error;
+});

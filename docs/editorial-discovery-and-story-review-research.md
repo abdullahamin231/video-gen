@@ -15,7 +15,7 @@ Local evidence:
 - [Thumbnail study](kaiexplains-thumbnail-study.md), [source manifest](research/kaiexplains-2026-10-19/manifest.json) and [channel listing](research/kaiexplains-2026-10-19/channel-source.json).
 - [Contact sheet 1](research/kaiexplains-2026-10-19/contact-sheet-1.jpg) and [contact sheet 2](research/kaiexplains-2026-10-19/contact-sheet-2.jpg).
 - [Annotated reference transcript](<../inputs/scripts/Can 9 year old GPU beats today's latest GPUs？.md>), associated with [this video](https://www.youtube.com/watch?v=eckOsa0kBkY).
-- [Current pipeline contract](../AGENTS.md), [workflow documentation](agent-workflow.md), [script-writing process](../.opencode/skills/script-writing/SKILL.md) and [storyboard format reference](../.opencode/skills/hyperframes/references/storyboard-format.md).
+- [Current pipeline contract](orchestrator.md), [workflow documentation](agent-workflow.md), [script-writing process](../.opencode/skills/script-writing/SKILL.md) and [storyboard format reference](../.opencode/skills/hyperframes/references/storyboard-format.md).
 
 The saved listing has no per-video view counts, durations or publication dates. We have no channel impressions, CTR, retention, historical variants or controlled comparisons. The sample supports observations about editorial choices, not conclusions about what caused growth. Technical claims in its titles, thumbnails and transcript remain claims by the reference creator.
 

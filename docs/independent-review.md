@@ -7,7 +7,7 @@ stage. It introduces no storyboard approval, interview, or user-operated
 command.
 
 This protocol supplements [the production workflow](agent-workflow.md) and
-the quality requirements in [AGENTS.md](../AGENTS.md). Technical audits remain
+the quality requirements in [orchestrator.md](orchestrator.md). Technical audits remain
 mandatory. A review verdict cannot waive an audit failure, and a successful
 audit cannot waive a demonstrated creative defect.
 
@@ -180,8 +180,8 @@ npm run video -- review-pack --job jobs/example --stage prototype --start 8 --en
 directory. It also writes `briefs/review-<stage>-<role>.md` for each reviewer
 and prints their absolute paths and the pack hash. Spawn a separate reviewer
 as a fresh sub-agent with no conversation history (however the host harness spawns one) for each brief, passing the brief path as its initial
-task. Each reviewer runs `review-template` (pre-filled hashes), fills `review/<stage>/incoming/<role>.json`,
-and submits it with `review-submit`. Packs also contain the motion transcript (`motion.md`, kind `motion`) and the
+task. Each reviewer runs `review-template` (pre-filled hashes, and the reviewer id when the runner started the agent), fills `review/<stage>/incoming/<role>.json`,
+and submits it with `review-submit`, which lists every remaining problem with its field in one pass. Packs also contain the motion transcript (`motion.md`, kind `motion`) and the
 automated check results (`inspect.json`, `pixels.json`, kind `checks`) as supporting diagnostics.
 They cannot replace image/video inspection. Without visual input a reviewer records `inspection.visual: "unavailable"`
 and verdict `incomplete`. The blind visual role reads diagnostics only after saving its observations of the images.

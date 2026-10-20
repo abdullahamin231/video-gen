@@ -30,7 +30,7 @@ async function until(fn, message = 'condition') {
 }
 const noStatus = async () => ({ stdout: '', stderr: 'no job', code: 1 });
 function fakeRunner({ store, root }, env = {}, statusCommand = noStatus) {
-  return new Runner({ root, store, statusCommand, spawnProcess: (_command, _args, options) => spawn(process.execPath, [path.join(root, 'ui/tests/fake-cli.mjs')], { ...options, env: { ...options.env, ...env } }) });
+  return new Runner({ root, store, statusCommand, codexRollouts: null, spawnProcess: (_command, _args, options) => spawn(process.execPath, [path.join(root, 'ui/tests/fake-cli.mjs')], { ...options, env: { ...options.env, ...env } }) });
 }
 const post = (url, pathname, data, headers = {}) => fetch(url + pathname, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Video-Client': '1', ...headers }, body: JSON.stringify(data) });
 
@@ -85,8 +85,13 @@ test('CLI arguments disable built-in sub-agents, use repo agent types, and route
   const codex = invocation('Codex', options);
   assert(codex.args.includes(options.model)); assert(codex.args.includes('resume')); assert(codex.args.includes('session-1'));
   assert.equal(codex.args[codex.args.indexOf('--disable') + 1], 'multi_agent');
+  // Codex still offers spawn_agent with multi_agent off; one thread per session makes every spawn fail.
+  assert(codex.args.includes('features.multi_agent_v2.max_concurrent_threads_per_session=1'));
+  assert.equal(codex.env.NODE_NO_WARNINGS, '1');
   assert(!codex.args.join(' ').includes('private')); assert(!codex.args.includes('--dangerously-bypass-approvals-and-sandbox'));
   const claude = invocation('Claude', { ...options, agentType: 'video-builder' });
+  // Long renders finish in one Bash call instead of being backgrounded and polled.
+  assert.equal(claude.env.BASH_DEFAULT_TIMEOUT_MS, '3600000'); assert.equal(claude.env.BASH_MAX_TIMEOUT_MS, '3600000');
   assert.equal(claude.args[claude.args.indexOf('--disallowedTools') + 1], 'Agent,Task'); assert.equal(claude.args[claude.args.indexOf('--agent') + 1], 'video-builder');
   const open = invocation('OpenCode', options); const config = JSON.parse(open.env.OPENCODE_CONFIG_CONTENT);
   assert.equal(config.permission.task, 'deny'); assert.equal(config.mcp.video_runner.command[1], options.bridge);
@@ -165,7 +170,15 @@ test('sub-agents are tracked as a tree with briefs, scenes and files, and cannot
     }
     assert(!job.messages.some(message => message.text === 'FEEDBACK LEAKED'));
     assert(job.messages.some(message => message.text === 'feedback refused'));
-    assert(!job.messages.find(message => message.text.startsWith('Secret')).deliveredAt);
+    // The user's message reaches the orchestrator inside the delegate result, never a builder.
+    assert(job.messages.find(message => message.text.startsWith('Secret')).deliveredAt);
+    const delegated = JSON.parse(job.messages.find(message => message.text.startsWith('DELEGATED ')).text.slice(10));
+    assert.deepEqual(delegated.userMessages, ['Secret direction for the orchestrator only']);
+    // Only each agent's final reply goes back to the orchestrator.
+    assert.deepEqual(delegated.replies, Array(2).fill('Fixture agent says done, but did not qualify any outputs.'));
+    assert.equal(job.messages.filter(message => message.text === 'role note received').length, 2);
+    for (const builder of builders) assert.equal(builder.builtinAgentCalls, 1);
+    assert(app.store.events(job.id).some(event => event.type === 'error' && event.fatal === false && /built-in sub-agent/.test(event.text)));
     assert.equal(job.lastNext.state, 'build scene "a"'); assert.equal(job.lastNext.spawns.length, 2);
     assert(app.store.events(job.id).some(event => event.type === 'tool' && event.status === 'failed'));
     // Health is recomputed right after the run ends; a failed grep never makes it an error.

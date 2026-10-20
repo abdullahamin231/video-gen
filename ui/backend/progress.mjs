@@ -114,7 +114,7 @@ export function computeHealth(job, events, now = Date.now()) {
   const last = events.at(-1);
   const quietFor = last ? now - Date.parse(last.at) : 0;
   const recentFailures = events.filter(event => event.type === 'tool' && event.status === 'failed' && now - Date.parse(event.at) < 10 * 60000);
-  const fatal = [...events].reverse().find(event => event.type === 'error');
+  const fatal = [...events].reverse().find(event => event.type === 'error' && event.fatal !== false);
   const failedAgents = (job.agents || []).filter(agent => agent.role !== 'orchestrator' && agent.status === 'failed');
   const longCommand = (job.activeCommands || []).find(item => ['render', 'build', 'review-pack', 'start', 'tts'].includes(item.command));
 
@@ -133,6 +133,10 @@ export function computeHealth(job, events, now = Date.now()) {
     add('warning', `No activity for ${Math.round(quietFor / 60000)} min${longCommand ? ` while ${longCommand.command} runs` : ''}`);
   if (recentFailures.length >= 4) add('warning', `${recentFailures.length} tool calls failed in the last 10 min`);
   if (failedAgents.length) add('warning', `${failedAgents.length} sub-agent run(s) failed: ${failedAgents.slice(-3).map(agent => agent.task || agent.role).join('; ')}`);
+  const helpers = (job.agents || []).reduce((sum, agent) => sum + (agent.usage?.helperAgents || 0), 0);
+  const attempts = (job.agents || []).filter(agent => agent.builtinAgentCalls);
+  if (helpers) add('warning', `${helpers} untracked helper agent${helpers === 1 ? '' : 's'} started through a CLI's own sub-agent tool (their tokens are counted)`);
+  else if (attempts.length) add('warning', `${attempts.length} agent${attempts.length === 1 ? '' : 's'} tried a CLI's own sub-agent tool: ${attempts.slice(-3).map(agent => agent.task || agent.role).join('; ')}`);
   if (fatal && job.status === 'running' && now - Date.parse(fatal.at) < 10 * 60000) add('warning', `Recent provider error: ${String(fatal.text).slice(0, 160)}`);
 
   const order = ['error', 'attention', 'warning'];

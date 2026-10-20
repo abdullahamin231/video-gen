@@ -23,11 +23,17 @@ else {
     if (process.env.FAKE_DELEGATE === '1') {
       const result = await call('delegate_parallel', { tasks: ['a', 'b'].map(scene => ({ role: 'builder', prompt: `Read jobs/fixture/briefs/build-${scene}.md and follow it exactly.` })) });
       if (!result.ok) throw new Error(JSON.stringify(result.body));
+      // Report what came back, so tests can see the short replies and the user's messages riding along.
+      const replies = result.body.results.map(item => item.result);
+      write({ type: 'item.completed', item: { id: 'text-delegated', type: 'agent_message', text: `DELEGATED ${JSON.stringify({ replies, userMessages: (result.body.userMessages || []).map(message => message.text) })}` } });
     }
   }
   if (process.env.FAKE_CALLBACK === '1' && role !== 'orchestrator') {
     // A role agent may leave a note, but must not be able to read the user's feedback.
     await call('note', { summary: `Working on ${role}` });
+    write({ type: 'item.completed', item: { id: 'text-note', type: 'agent_message', text: prompt.includes(`Runner note (${role})`) ? 'role note received' : 'no role note' } });
+    // Codex reports its own sub-agent tools as collab_tool_call items; the runner records the attempt.
+    write({ type: 'item.started', item: { id: 'collab-1', type: 'collab_tool_call', tool: 'spawn_agent', status: 'in_progress' } });
     const feedback = await call('feedback');
     write({ type: 'item.completed', item: { id: 'text-fb', type: 'agent_message', text: feedback.ok ? 'FEEDBACK LEAKED' : 'feedback refused' } });
     write({ type: 'item.completed', item: { id: 'fc-1', type: 'file_change', status: 'completed', changes: [{ kind: 'add', path: 'jobs/fixture/shots/' + (/build-(\w+)/.exec(prompt)?.[1] || 'x') + '.json' }] } });

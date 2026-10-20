@@ -22,7 +22,8 @@ npm run video -- help
 
 > Create a video given the audio `inputs/audio/source.mp3` and script `inputs/scripts/<your-script>.md`.
 
-Works in any harness that reads `AGENTS.md` (Codex, OpenCode) or `CLAUDE.md` (Claude Code). The agent runs
+Works in any harness that reads `AGENTS.md` (Codex, OpenCode) or `CLAUDE.md` (Claude Code). That short file sends the
+orchestrator to [docs/orchestrator.md](docs/orchestrator.md) and keeps sub-agents on their briefs. The orchestrator runs
 `npm run video -- start ...` and then repeats `npm run video -- next` until it prints `STATE: done`. `next` derives the
 job state from files and prints exactly one step: a command to run, or briefs to hand to fresh sub-agents (director,
 one builder per scene, three independent reviewers, repair builders).

@@ -1,6 +1,6 @@
 # Pipeline stages (maintainer reference)
 
-Agents follow the root [AGENTS.md](../AGENTS.md) loop (`start`, then `next` until done). This file explains what
+The orchestrator follows the [orchestrator.md](orchestrator.md) loop (`start`, then `next` until done). This file explains what
 each stage does and where its rules are enforced, for people changing the pipeline.
 
 | Stage | Command | Inputs → outputs | Enforced by |
