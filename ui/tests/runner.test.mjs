@@ -399,3 +399,23 @@ test('Pi roles use the repository pins as Anthropic models', () => {
   assert.equal(routeModel({ provider: 'Pi', main: 'anthropic/sonnet', models: { builder: 'b' } }, 'builder', pins).model, 'b');
   assert.equal(routeModel({ provider: 'Pi', main: 'anthropic/sonnet' }, 'orchestrator', pins).model, 'anthropic/sonnet');
 });
+
+test('the same work asked for twice while it runs waits for the running agent instead of starting another', async t => {
+  const folder = await workspace(); const store = new Store(folder);
+  const app = await createApp({ root, directory: path.join(folder, 'state'), runnerFactory: options => fakeRunner(options, { FAKE_DELAY_MS: '600' }) });
+  await app.start(0);
+  t.after(() => app.close());
+  const runner = app.runner, job = app.store.create(defaults); job.status = 'running';
+  const agent = { id: 'orchestrator', role: 'orchestrator', status: 'running' }; job.agents.push(agent); job.orchestratorId = agent.id;
+  const first = runner.tool(job, agent.id, 'delegate', { role: 'script-writer', prompt: 'Write the script.' });
+  await until(() => job.agents.some(item => item.role === 'script-writer' && item.status === 'running'), 'first writer');
+  const second = await runner.tool(job, agent.id, 'delegate', { role: 'script-writer', prompt: 'Write the script, resumed.' });
+  assert.equal(second.attached, true);
+  assert.equal((await first).agentId, second.agentId);
+  assert.equal(job.agents.filter(item => item.role === 'script-writer').length, 1);
+  // Different briefs are different work and run side by side.
+  await runner.tool(job, agent.id, 'delegate_parallel', { tasks: ['a', 'b'].map(scene => ({ role: 'builder', prompt: `Read jobs/fixture/briefs/build-${scene}.md and follow it exactly.` })) });
+  assert.equal(job.agents.filter(item => item.role === 'builder').length, 2);
+  void store;
+});
+

@@ -1,5 +1,6 @@
 // A stdio MCP bridge. Only protocol JSON is written to stdout.
 import { createInterface } from 'node:readline';
+import http from 'node:http';
 const url = process.env.VIDEO_RUNNER_URL;
 const token = process.env.VIDEO_RUNNER_TOKEN;
 const thread = process.env.VIDEO_THREAD_ID;
@@ -20,6 +21,24 @@ const orchestratorTools = [
 const roleTools = [{ name: 'note', description: 'Optional: a one-line note about what you are doing now, shown on your card in the job UI.', inputSchema: { type: 'object', properties: { summary: { type: 'string' }, file: { type: 'string' } }, required: ['summary'], additionalProperties: false } }];
 const tools = role === 'orchestrator' ? orchestratorTools : roleTools;
 
+// Plain HTTP, not fetch: Node's fetch fails any response that takes over 300 s to start ("fetch failed"), whatever
+// signal it is given, and delegate, checkpoint and ask stay open for as long as the agent or the user takes.
+function post(body) {
+  return new Promise((resolve, reject) => {
+    const target = new URL('/api/internal/tool', url);
+    const data = JSON.stringify(body);
+    const request = http.request(target, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data), Authorization: `Bearer ${token}` } }, response => {
+      let text = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => { text += chunk; });
+      response.on('end', () => { try { resolve({ ok: response.statusCode >= 200 && response.statusCode < 300, body: JSON.parse(text) }); } catch { reject(new Error(`Runner returned ${response.statusCode}`)); } });
+      response.on('error', reject);
+    });
+    request.setTimeout(0);
+    request.on('error', reject);
+    request.end(data);
+  });
+}
 function send(id, result, error) { process.stdout.write(JSON.stringify(error ? { jsonrpc: '2.0', id, error } : { jsonrpc: '2.0', id, result }) + '\n'); }
 async function handle(message) {
   if (message.id === undefined) return;
@@ -29,9 +48,8 @@ async function handle(message) {
     if (message.method === 'tools/list') return send(message.id, { tools });
     if (message.method !== 'tools/call') return send(message.id, null, { code: -32601, message: 'Method not found' });
     if (!tools.some(tool => tool.name === message.params?.name)) throw new Error('Unknown runner tool');
-    const response = await fetch(`${url}/api/internal/tool`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ thread, agentId, name: message.params.name, arguments: message.params.arguments || {} }), signal: AbortSignal.timeout(24 * 60 * 60 * 1000) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Runner request failed');
+    const { ok, body: result } = await post({ thread, agentId, name: message.params.name, arguments: message.params.arguments || {} });
+    if (!ok) throw new Error(result.error || 'Runner request failed');
     send(message.id, { content: [{ type: 'text', text: JSON.stringify(result) }], isError: false });
   } catch (error) { send(message.id, { content: [{ type: 'text', text: error.message }], isError: true }); }
 }

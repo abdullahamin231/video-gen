@@ -52,7 +52,7 @@ export class Runner {
     this.url = ''; this.closed = false; this.polling = false; this.pins = {};
     this.bridge = path.join(root, 'ui/backend/mcp.mjs');
     this.usage = new UsageService(root);
-    this.codexRollouts = codexRollouts; this.codexSynced = new Map();
+    this.codexRollouts = codexRollouts; this.codexSynced = new Map(); this.inflight = new Map();
     this.statusCommand = statusCommand || (job => capture(process.execPath, [path.join(root, 'scripts/video.mjs'), 'status', '--json', '--job', job.jobPath], { cwd: root, timeout: 120000, maxBytes: 8000000 }));
   }
   wake() { for (const wake of this.waiters) wake(); this.waiters.clear(); }
@@ -356,9 +356,26 @@ export class Runner {
     if (!DELEGATE_ROLES.includes(args.role)) throw new Error('Unsupported agent role');
     if (args.agentId && /reviewer$/.test(args.role)) throw new Error('Reviewers must be fresh agents; do not resume one');
     if (track) { parent.status = 'waiting'; parent.waitingFor = 'agents'; this.store.save(job); }
-    await this.refresh(job, { force: true }).catch(() => {}); // tie the agent to the step the pipeline is on now
-    try { return await this.runAgent(job, { role: args.role, prompt: args.prompt, agentId: args.agentId, parentId: parent.id }); }
-    finally { if (track && parent.status === 'waiting') { parent.status = 'running'; delete parent.waitingFor; this.store.save(job); } }
+    // The same work asked for again while it is still running (an orchestrator whose call was cut off, then resumed)
+    // waits for the running agent instead of starting a second one on the same files.
+    const key = this.taskKey(job, args);
+    try {
+      const running = this.inflight.get(key);
+      if (running) {
+        this.store.event(job, { type: 'agent', text: `${running.task} is already running; waiting for it instead of starting another ${args.role}`, agentId: running.agentId, role: args.role, source: 'runner' });
+        return { ...await running.promise, attached: true };
+      }
+      await this.refresh(job, { force: true }).catch(() => {}); // tie the agent to the step the pipeline is on now
+      const promise = this.runAgent(job, { role: args.role, prompt: args.prompt, agentId: args.agentId, parentId: parent.id });
+      const entry = { promise, task: describeTask(args.role, args.prompt).task, agentId: args.agentId || '' };
+      this.inflight.set(key, entry);
+      try { return await promise; } finally { if (this.inflight.get(key) === entry) this.inflight.delete(key); }
+    } finally { if (track && parent.status === 'waiting') { parent.status = 'running'; delete parent.waitingFor; this.store.save(job); } }
+  }
+  // One running agent per brief; roles that work without a brief (script writer, reviewers, thumbnail) one at a time each.
+  taskKey(job, args) {
+    const { brief } = describeTask(args.role, args.prompt);
+    return `${job.id}:${args.role}:${brief || ''}`;
   }
   // The agent's tool call stays open until you decide, so it cannot carry on past a checkpoint.
   async waitForHuman(job, agent, gate) {

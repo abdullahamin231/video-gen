@@ -38,6 +38,7 @@ else {
     write({ type: 'item.completed', item: { id: 'text-fb', type: 'agent_message', text: feedback.ok ? 'FEEDBACK LEAKED' : 'feedback refused' } });
     write({ type: 'item.completed', item: { id: 'fc-1', type: 'file_change', status: 'completed', changes: [{ kind: 'add', path: 'jobs/fixture/shots/' + (/build-(\w+)/.exec(prompt)?.[1] || 'x') + '.json' }] } });
   }
+  if (process.env.FAKE_DELAY_MS && role !== 'orchestrator') await new Promise(resolve => setTimeout(resolve, Number(process.env.FAKE_DELAY_MS)));
   write({ type: 'item.completed', item: { id: 'text-1', type: 'agent_message', text: 'Fixture agent says done, but did not qualify any outputs.' } });
   write({ type: 'turn.completed', usage: { input_tokens: 10, output_tokens: 5 } });
 }
