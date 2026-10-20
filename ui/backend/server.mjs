@@ -12,6 +12,7 @@ import { jobFile, listFiles, inside, parseRange } from './files.mjs';
 import { redact } from './events.mjs';
 import { DELEGATE_ROLES } from '../shared/routing.mjs';
 import { durationFromPrompt } from '../shared/duration.mjs';
+import { findIdeas, loadIdeas, setIdeaStatus, loadProfile, newestFirst, STATUSES } from '../../lib/ideas.mjs';
 
 const staticFiles = new Map([
   ['/', ['ui/index.html', 'text/html']], ['/app.mjs', ['ui/app.mjs', 'text/javascript']],
@@ -46,7 +47,7 @@ function config(input, existing) {
 }
 const detail = (store, job) => ({ ...summary(job), messages: job.messages, events: store.events(job.id) });
 
-export async function createApp({ root, directory = path.join(root, '.video/ui'), runnerFactory } = {}) {
+export async function createApp({ root, directory = path.join(root, '.video/ui'), runnerFactory, ideaOptions = {}, ideasRoot = root } = {}) {
   let defaults = {};
   try { const source = JSON.parse(await readFile(path.join(root, 'video.config.json'), 'utf8')); defaults = { defaultFormat: source.format === 'vertical' ? 'vertical' : 'landscape', defaultDuration: Number.isInteger(source.length) && source.length > 0 ? source.length : 180 }; } catch {}
   const store = new Store(directory, defaults);
@@ -86,6 +87,9 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
     if (!(await stat(actual)).isFile()) throw fail('Input is not a file');
     return path.relative(root, actual).split(path.sep).join('/');
   }
+  // Idea searches hit public feeds for a few seconds; only one runs at a time.
+  let ideaRun = null;
+  const ideasState = async () => { const data = await loadIdeas(ideasRoot), profile = await loadProfile(ideasRoot); return { niche: profile.niche, cards: newestFirst(data.cards), lastRun: data.runs?.at(-1) || null, running: Boolean(ideaRun) }; };
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -115,6 +119,23 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
           if (!Number.isInteger(input.defaultDuration) || input.defaultDuration < 10 || input.defaultDuration > 3600) throw fail('Default target must be 10–3600 seconds');
           store.saveSettings({ concurrency: input.concurrency, defaultFormat: input.defaultFormat, defaultDuration: input.defaultDuration }); runner.pump(); return json(res, 200, store.settings());
         }
+      }
+      if (url.pathname === '/api/ideas' && req.method === 'GET') return json(res, 200, await ideasState());
+      if (url.pathname === '/api/ideas' && req.method === 'POST') {
+        const input = await body(req);
+        if (input.focus !== undefined && !string(input.focus, 200)) throw fail('Keep the request under 200 characters');
+        if (ideaRun) throw fail('Already looking for ideas. Wait for that search to finish.', 409);
+        ideaRun = findIdeas(ideasRoot, { ...ideaOptions, focus: input.focus || '', refresh: input.refresh === true });
+        try { const result = await ideaRun; ideaRun = null; return json(res, 201, { ...await ideasState(), found: result.cards.map(c => c.id) }); }
+        finally { ideaRun = null; }
+      }
+      const ideaMatch = /^\/api\/ideas\/([a-f0-9]{8})$/.exec(url.pathname);
+      if (ideaMatch && req.method === 'PATCH') {
+        const input = await body(req);
+        if (!STATUSES.includes(input.status)) throw fail('Unknown status');
+        if (input.reason !== undefined && !string(input.reason, 300)) throw fail('Reason too long');
+        try { return json(res, 200, await setIdeaStatus(ideasRoot, ideaMatch[1], input.status, input.reason || '')); }
+        catch (error) { throw fail(error.message, 404); }
       }
       if (url.pathname === '/api/stream' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });

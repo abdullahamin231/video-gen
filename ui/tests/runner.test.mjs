@@ -423,3 +423,34 @@ test('the same work asked for twice while it runs waits for the running agent in
   void store;
 });
 
+
+test('ideas API: finds new ideas, refuses a second search while one runs, and records status changes', async t => {
+  const folder = await workspace(), ideasRoot = path.join(folder, 'ideas-root');
+  await mkdir(ideasRoot, { recursive: true });
+  await writeFile(path.join(ideasRoot, 'ideas.config.json'), JSON.stringify({ niche: 'Test niche', sources: { reddit: { subreddits: ['LocalLLaMA'] } } }));
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const feed = `<feed>${['Which GPU should I buy for local LLM?', 'Is 8GB VRAM enough for Qwen?'].map((title, i) => `<entry><id>t3_${i}</id><link href="https://www.reddit.com/r/LocalLLaMA/comments/${i}/x/" /><published>${new Date().toISOString()}</published><title>${title}</title><content>x</content></entry>`).join('')}</feed>`;
+  const app = await createApp({ root, ideasRoot, directory: path.join(folder, 'state'), runnerFactory: options => fakeRunner(options), ideaOptions: { fetchText: async () => { await gate; return feed; } } });
+  const url = await app.start(0); t.after(() => app.close());
+  const empty = await (await fetch(url + '/api/ideas')).json();
+  assert.deepEqual([empty.niche, empty.cards.length, empty.running], ['Test niche', 0, false]);
+  assert.equal((await fetch(url + '/api/ideas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 403, 'writes need the local client header');
+  const first = post(url, '/api/ideas', { focus: 'gpu' });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal((await post(url, '/api/ideas', {})).status, 409);
+  assert.equal((await (await fetch(url + '/api/ideas')).json()).running, true);
+  release();
+  const result = await (await first).json();
+  assert.equal(result.found.length, 1, 'the focus keeps only the GPU question');
+  assert.equal(result.cards[0].title, 'Which GPU should I buy for local LLM?');
+  assert.equal(result.lastRun.focus, 'gpu');
+  const id = result.cards[0].id;
+  const patched = await fetch(url + `/api/ideas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Video-Client': '1' }, body: JSON.stringify({ status: 'rejected', reason: 'Already covered' }) });
+  assert.equal(patched.status, 200); assert.equal((await patched.json()).reason, 'Already covered');
+  assert.equal((await fetch(url + '/api/ideas/deadbeef', { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Video-Client': '1' }, body: JSON.stringify({ status: 'saved' }) })).status, 404);
+  assert.equal((await fetch(url + `/api/ideas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Video-Client': '1' }, body: JSON.stringify({ status: 'bogus' }) })).status, 400);
+  const more = await (await post(url, '/api/ideas', {})).json();
+  assert.equal(more.found.length, 1, 'asking for more brings the idea not yet shown');
+  assert.equal(more.cards[0].title, 'Is 8GB VRAM enough for Qwen?');
+});

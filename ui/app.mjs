@@ -28,6 +28,7 @@ const state = {
   settings: { concurrency: 1, defaultFormat: 'landscape', defaultDuration: 180 },
   tab: 'thread', inspectorTab: 'overview', connected: false, loading: true, showArchived: false,
   activityFilter: 'all', activityAgent: '', olderLoaded: false, drawer: null,
+  view: 'threads', ideas: null, ideaFilter: 'new', ideasBusy: false,
 };
 try { state.selected = localStorage.getItem('video-workspace-selected'); } catch {}
 let toastTimer, lastFocus, renderQueued = false, filesTimer, filesRequest = 0;
@@ -103,10 +104,11 @@ function set(element, html) {
 function schedule() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); }
 function render() {
   if (!$('#sidebar')) $('#app').innerHTML = '<aside id="sidebar" class="sidebar" aria-label="Video threads"></aside><main class="main-panel" id="main"><div id="topbar"></div><div id="heading"></div><div class="content-scroll" id="content-scroll"></div><div id="footer"></div></main><aside id="inspector" class="inspector" aria-label="Job inspector"></aside>';
-  $('#app').classList.toggle('no-job', !state.job);
+  $('#app').classList.toggle('no-job', !state.job || state.view === 'ideas');
   set($('#sidebar'), sidebar());
   set($('#topbar'), topbar());
   const scroller = $('#content-scroll');
+  if (state.view === 'ideas') { set($('#heading'), ''); set(scroller, ideasView()); set($('#footer'), ''); set($('#inspector'), ''); return; }
   const atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80, top = scroller.scrollTop;
   if (!state.job) { set($('#heading'), ''); set(scroller, welcome()); set($('#footer'), ''); set($('#inspector'), ''); return; }
   set($('#heading'), heading());
@@ -126,11 +128,14 @@ setInterval(() => {
 function sidebar() {
   const all = [...state.jobs.values()], archivedCount = all.filter(job => job.archived).length;
   const list = all.filter(job => Boolean(job.archived) === state.showArchived);
+  const fresh = state.ideas?.cards.filter(card => card.status === 'new').length || 0;
   return `<button class="new-job" data-action="new">${icon('plus')}New video<span class="keycap">N</span></button>
+  <button class="ideas-nav ${state.view === 'ideas' ? 'selected' : ''}" data-action="ideas" ${state.view === 'ideas' ? 'aria-current="page"' : ''}>${icon('bulb')}Ideas${fresh ? `<span class="tab-count">${fresh}</span>` : ''}</button>
   <nav class="job-list" aria-label="Threads">${list.map(job => {
     const progress = job.progress, current = progress?.current;
     const sub = job.status === 'running' && current ? current.label : labels[job.status] || job.status;
-    return `<button class="job-item ${job.id === state.selected ? 'selected' : ''}" data-action="select" data-id="${job.id}" ${job.id === state.selected ? 'aria-current="page"' : ''}>
+    const selected = job.id === state.selected && state.view === 'threads';
+    return `<button class="job-item ${selected ? 'selected' : ''}" data-action="select" data-id="${job.id}" ${selected ? 'aria-current="page"' : ''}>
       <span class="job-state ${esc(job.status)}">${jobIcon(job)}</span>
       <span class="job-item-copy"><strong>${esc(job.title)}</strong><small>${esc(sub)}</small>${progress ? `<span class="mini-progress"><span style="width:${(progress.done / progress.total * 100).toFixed(1)}%"></span></span>` : ''}</span>
       ${job.status === 'gate' ? '<span class="notification-dot"></span>' : ''}</button>`;
@@ -140,7 +145,7 @@ function sidebar() {
 const jobIcon = job => job.status === 'running' ? '<span class="running-ring"></span>' : icon(job.status === 'complete' ? 'check' : ['failed', 'interrupted', 'needs_attention'].includes(job.status) ? 'warning' : job.status === 'queued' ? 'clock' : job.status === 'gate' ? 'question' : 'pause');
 const badge = job => `<span class="status-badge ${esc(job.status)}">${jobIcon(job)}${labels[job.status] || job.status}</span>`;
 function topbar() {
-  return `<header class="topbar"><button class="icon-button mobile-menu" data-action="sidebar" aria-label="Toggle threads">${icon('menu')}</button><div class="breadcrumbs"><span>video-gen</span>${state.job ? `${icon('chevron')}<span>${esc(state.job.title)}</span>` : ''}</div><div class="topbar-right"><span class="connection-label ${state.connected ? 'connected' : ''}"><span class="tiny-dot"></span>${state.connected ? 'Live' : 'Reconnecting…'}</span><button class="text-button usage-trigger" data-action="usage">${icon('pulse')}Usage</button><button class="icon-button" data-action="settings" aria-label="Workspace settings">${icon('sliders')}</button></div></header>`;
+  return `<header class="topbar"><button class="icon-button mobile-menu" data-action="sidebar" aria-label="Toggle threads">${icon('menu')}</button><div class="breadcrumbs"><span>video-gen</span>${state.view === 'ideas' ? `${icon('chevron')}<span>Ideas</span>` : state.job ? `${icon('chevron')}<span>${esc(state.job.title)}</span>` : ''}</div><div class="topbar-right"><span class="connection-label ${state.connected ? 'connected' : ''}"><span class="tiny-dot"></span>${state.connected ? 'Live' : 'Reconnecting…'}</span><button class="text-button usage-trigger" data-action="usage">${icon('pulse')}Usage</button><button class="icon-button" data-action="settings" aria-label="Workspace settings">${icon('sliders')}</button></div></header>`;
 }
 function welcome() {
   return `<div class="welcome"><div class="welcome-content"><span class="welcome-symbol">${icon('film')}</span><h1>What are we making?</h1><p>Give your agent an idea. Follow every step, every agent and every file, from the first brief to the final video.</p><button class="primary-button" data-action="new">${icon('plus')}New video</button><div class="welcome-features"><span>${icon('terminal')}Your CLI, your models</span><span>${icon('layers')}Every pipeline step</span><span>${icon('users')}Every sub-agent</span></div>${state.loading ? '<p class="muted">Loading your workspace…</p>' : ''}</div></div>`;
@@ -196,6 +201,46 @@ function gate() {
 }
 function composer() {
   return `<div class="composer-area"><form id="message-form" class="composer"><label class="sr-only" for="message-input">Send direction to this thread</label><textarea id="message-input" placeholder="Add direction or leave feedback…" rows="1" maxlength="20000"></textarea><div class="composer-toolbar"><button type="button" class="text-button provider-trigger" data-action="configure"><span class="provider-mark">${marks[state.job.provider]}</span>${state.job.provider}${icon('down')}</button><span class="composer-hint">Delivered at the orchestrator’s next feedback check</span><button class="send-button" type="submit" aria-label="Send">${icon('send')}</button></div></form></div>`;
+}
+
+// ---------- ideas ----------
+const IDEA_FILTERS = [['new', 'New'], ['saved', 'Saved'], ['used', 'Made'], ['rejected', 'Rejected'], ['all', 'All']];
+const REJECT_REASONS = ['Wrong audience', 'Already covered', 'Weak evidence', 'Wrong angle', 'Too expensive to make'];
+async function loadIdeas() { state.ideas = await api('/api/ideas'); schedule(); }
+function ideasView() {
+  const data = state.ideas;
+  if (!data) return '<div class="view-content"><div class="empty-state"><p>Loading ideas…</p></div></div>';
+  const counts = Object.fromEntries(IDEA_FILTERS.map(([key]) => [key, key === 'all' ? data.cards.length : data.cards.filter(card => card.status === key).length]));
+  const list = data.cards.filter(card => state.ideaFilter === 'all' || card.status === state.ideaFilter);
+  const run = data.lastRun, failed = run?.sources.filter(source => !source.ok) || [];
+  const busy = state.ideasBusy || data.running;
+  return `<div class="view-content ideas-view"><div class="view-title"><div><h2>Ideas worth making.</h2><p>Pulled from Hugging Face, r/LocalLLaMA, Hacker News, GitHub and reference channels’ outlier videos, then ranked by momentum and by how close they are to the questions that do best: what to buy, whether your machine is enough, what it costs. Every search brings only ideas you have not seen.</p></div><span class="subtle-tag">${esc(data.niche.toUpperCase())}</span></div>
+  <form id="ideas-form" class="ideas-ask"><label class="sr-only" for="idea-focus">What should the next ideas be about?</label><input id="idea-focus" name="focus" maxlength="200" placeholder="Ask for more, e.g. “Mac hardware”, “coding models”, “cheap GPUs”. Leave empty for anything new." ${busy ? 'disabled' : ''}><button class="primary-button" type="submit" ${busy ? 'disabled' : ''}>${busy ? '<span class="running-ring"></span>Looking…' : `${icon('search')}Find more ideas`}</button></form>
+  ${run ? `<div class="ideas-run">${icon('clock')}<span>Last search ${sinceAgo(run.at)}${run.focus ? ` for “${esc(run.focus)}”` : ''}: ${run.found} new idea${run.found === 1 ? '' : 's'} from ${run.considered} candidate${run.considered === 1 ? '' : 's'}.</span><details data-key="idea-sources"><summary>${run.sources.length - failed.length}/${run.sources.length} sources answered</summary><ul>${run.sources.map(source => `<li class="${source.ok ? '' : 'failed'}">${icon(source.ok ? 'check' : 'warning')}${esc(source.name)} · ${source.ok ? `${source.count} item${source.count === 1 ? '' : 's'}${source.cached ? ' (cached)' : ''}` : esc(source.error)}</li>`).join('')}</ul></details></div>` : ''}
+  ${failed.length ? `<div class="inline-error">${icon('warning')}${failed.length} of ${run.sources.length} sources did not answer in the last search (see the source list above). The ideas come from the rest.</div>` : ''}
+  <div class="activity-filters">${IDEA_FILTERS.map(([key, label]) => `<button class="chip ${state.ideaFilter === key ? 'active' : ''}" data-action="idea-filter" data-filter="${key}">${label}${counts[key] ? ` · ${counts[key]}` : ''}</button>`).join('')}</div>
+  ${list.length ? `<div class="idea-grid">${list.map(ideaCard).join('')}</div>` : `<div class="empty-state"><p>${!data.cards.length ? 'No ideas yet. Find some: the first search takes a few seconds.' : state.ideaFilter === 'new' ? 'You have been through every new idea. Ask for more above.' : 'Nothing here yet.'}</p>${!data.cards.length && !busy ? `<button class="primary-button" data-action="ideas-find">${icon('search')}Find ideas</button>` : ''}</div>`}</div>`;
+}
+function ideaCard(card) {
+  const sources = card.sources || [];
+  const actions = card.status === 'rejected' ? `<button class="secondary-button small" data-action="idea-status" data-id="${card.id}" data-status="new">${icon('retry')}Restore</button>`
+    : `<button class="primary-button small" data-action="idea-make" data-id="${card.id}">${icon('film')}Make video</button>${card.status === 'saved' ? `<button class="secondary-button small" data-action="idea-status" data-id="${card.id}" data-status="new">Unsave</button>` : `<button class="secondary-button small" data-action="idea-status" data-id="${card.id}" data-status="saved">${icon('star')}Save</button>`}<button class="text-button" data-action="idea-reject" data-id="${card.id}">${icon('x')}Not for us</button>`;
+  return `<article class="idea-card ${esc(card.status)}"><div class="idea-top"><span class="eyebrow">${esc(card.form.toUpperCase())}</span><span class="idea-score" title="${esc(Object.entries(card.scoreParts || {}).map(([key, value]) => `${key} ${value}`).join(' · '))}">${Math.round(card.score * 100)}</span></div><h3>${esc(card.title)}</h3><p>${esc(card.promise)}</p>${card.reasons?.length ? `<ul class="idea-reasons">${card.reasons.map(reason => `<li>${esc(reason)}</li>`).join('')}</ul>` : ''}<details class="idea-sources" data-key="src-${card.id}"><summary>${sources.length} source${sources.length === 1 ? '' : 's'} · ${esc([...new Set(sources.map(source => source.label))].join(', '))}</summary><ul>${sources.map(source => `<li><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}${icon('arrow')}</a><small>${esc(source.label)}${source.metric ? ` · ${esc(source.metric)}` : ''}</small></li>`).join('')}</ul></details>${card.status === 'used' ? `<small class="muted">A video thread was started from this idea.</small>` : ''}${card.status === 'rejected' && card.reason ? `<small class="muted">Rejected: ${esc(card.reason)}</small>` : ''}<div class="idea-actions">${actions}</div></article>`;
+}
+// The new-video form, filled in from an idea: its angle, plus the sources the script writer should start from.
+function ideaPrompt(card) {
+  const seconds = state.settings.defaultDuration || 180, length = seconds % 60 ? `${seconds}-second` : `${seconds / 60}-minute`;
+  const links = [...new Set((card.sources || []).flatMap(source => [source.url, source.link]).filter(Boolean))];
+  return `A ${length} explainer: ${card.title}\n\n${card.promise}\n\nStart from these sources and check every claim against primary evidence:\n${links.map(link => `- ${link}`).join('\n')}`;
+}
+async function findIdeas(focus = '') {
+  state.ideasBusy = true; schedule();
+  try { const result = await api('/api/ideas', { method: 'POST', data: { focus } }); state.ideas = result; state.ideaFilter = 'new'; toast(result.found.length ? `${result.found.length} new idea${result.found.length === 1 ? '' : 's'}.` : focus ? `No new ideas about “${focus}”. Try other words.` : 'No new ideas right now. Try again later or ask for a topic.'); }
+  finally { state.ideasBusy = false; schedule(); }
+}
+async function ideaStatus(id, status, reason = '') {
+  const card = await api(`/api/ideas/${id}`, { method: 'PATCH', data: { status, reason } });
+  const index = state.ideas?.cards.findIndex(item => item.id === id) ?? -1; if (index >= 0) state.ideas.cards[index] = card; schedule();
 }
 
 // ---------- progress ----------
@@ -403,9 +448,14 @@ function durationHint(prompt) {
     : target.seconds ? target.error : 'No length found yet. Add one, e.g. “3 minutes” or “90 seconds”.';
   return `<p id="duration-hint" class="duration-hint${target.seconds && !target.error ? ' found' : ''}" aria-live="polite">${text}</p>`;
 }
-function newJob() {
+function newJob(idea = null) {
   const base = state.job || {};
   openModal(`${modalHeading('What are we making?', 'One prompt. One thread. The entire production.')}<form id="new-job-form"><label class="field-label" for="new-prompt">Describe your video</label><textarea id="new-prompt" name="prompt" rows="4" placeholder="A 3-minute explainer about why batteries degrade. Make it visual and accessible…" required maxlength="20000" aria-describedby="duration-hint"></textarea>${durationHint('')}<div class="form-grid"><label>Title (optional)<input name="title" placeholder="Name this thread" maxlength="150"></label><label>Format<select name="format"><option value="landscape" ${state.settings.defaultFormat === 'landscape' ? 'selected' : ''}>Landscape · 16:9</option><option value="vertical" ${state.settings.defaultFormat === 'vertical' ? 'selected' : ''}>Portrait · 9:16</option></select></label></div><details class="advanced-options input-options"><summary>Use an existing script or recording ${icon('down')}</summary><div class="form-grid"><label>Script file<input type="file" name="scriptFile" accept=".md,.txt"><input name="inputScript" placeholder="Or repository-relative path"></label><label>Recording<input type="file" name="audioFile" accept="audio/*,.webm,.mp4"><input name="audioPath" placeholder="Or repository-relative path"></label></div><p class="model-caveat">A supplied recording is kept unchanged. Without one, the agent generates narration from the reviewed script. Uploads stay inside this repository (250 MB per file).</p></details><div class="form-divider"></div>${modelFields({ provider: base.provider, main: base.main || '', models: roleModels(base) })}<div class="modal-footer"><span>${icon('terminal')}Runs real CLI agents and production tools</span><button class="primary-button" type="submit">Start video ${icon('arrow')}</button></div><div id="form-error" class="form-error" role="alert"></div></form>`, true);
+  if (idea) {
+    const form = $('#new-job-form'), prompt = ideaPrompt(idea);
+    form.dataset.idea = idea.id; form.elements.prompt.value = prompt; form.elements.title.value = idea.title.slice(0, 150);
+    $('#duration-hint').outerHTML = durationHint(prompt);
+  }
 }
 function configure() { if (!state.job) return newJob(); openModal(`${modalHeading('Your production crew.', 'Route models by role and choose your checkpoints.')}<form id="configure-form">${modelFields(state.job)}<div class="modal-footer"><button class="secondary-button" type="button" data-action="close">Cancel</button><button class="primary-button" type="submit">Save configuration ${icon('check')}</button></div><div id="form-error" class="form-error" role="alert"></div></form>`, true); }
 async function inspectFile(file) {
@@ -440,7 +490,14 @@ document.addEventListener('click', async e => {
     switch (action) {
       case 'new': newJob(); break;
       case 'close': closeModal(); break;
-      case 'select': state.selected = button.dataset.id; state.tab = 'thread'; state.files = []; document.body.classList.remove('sidebar-open'); await loadDetail(); break;
+      case 'ideas': state.view = 'ideas'; document.body.classList.remove('sidebar-open'); schedule(); await loadIdeas(); if (!state.ideas.cards.length && !state.ideas.lastRun) await findIdeas(); break;
+      case 'ideas-find': await findIdeas(); break;
+      case 'idea-filter': state.ideaFilter = button.dataset.filter; schedule(); break;
+      case 'idea-status': await ideaStatus(button.dataset.id, button.dataset.status); toast(button.dataset.status === 'saved' ? 'Saved.' : 'Moved back to new.'); break;
+      case 'idea-reject': openModal(`${modalHeading('Why not this one?', 'The reason is kept with the idea, so it is clear later why it was passed over.')}<div class="reject-reasons">${REJECT_REASONS.map(reason => `<button class="secondary-button" data-action="idea-reject-reason" data-id="${esc(button.dataset.id)}" data-reason="${esc(reason)}">${esc(reason)}</button>`).join('')}</div><div class="modal-footer"><button class="text-button" data-action="idea-reject-reason" data-id="${esc(button.dataset.id)}" data-reason="">Skip the reason</button><button class="secondary-button" data-action="close">Keep it</button></div>`); break;
+      case 'idea-reject-reason': await ideaStatus(button.dataset.id, 'rejected', button.dataset.reason); closeModal(); toast('Rejected. It will not come back.'); break;
+      case 'idea-make': newJob(state.ideas.cards.find(card => card.id === button.dataset.id)); break;
+      case 'select': state.view = 'threads'; state.selected = button.dataset.id; state.tab = 'thread'; state.files = []; document.body.classList.remove('sidebar-open'); await loadDetail(); break;
       case 'toggle-archived': state.showArchived = !state.showArchived; schedule(); break;
       case 'tab': state.tab = button.dataset.tab; if (['files', 'outputs'].includes(state.tab)) await loadFiles(); schedule(); break;
       case 'inspector-tab': state.inspectorTab = button.dataset.tab; schedule(); break;
@@ -480,6 +537,7 @@ document.addEventListener('click', async e => {
   } catch (error) { toast(error.message); button.disabled = false; }
 });
 document.addEventListener('submit', async e => {
+  if (e.target.id === 'ideas-form') { e.preventDefault(); try { await findIdeas($('#idea-focus').value.trim()); } catch (error) { toast(error.message); } return; }
   if (!['new-job-form', 'configure-form', 'message-form', 'settings-form'].includes(e.target.id)) return;
   e.preventDefault(); const form = e.target, button = $('button[type=submit]', form); if (button) button.disabled = true;
   try {
@@ -490,7 +548,9 @@ document.addEventListener('submit', async e => {
       if (target.error) { $('#form-error', form).textContent = target.error; const hint = $('#duration-hint', form); hint.textContent = target.error; hint.classList.add('missing'); $('#new-prompt', form).focus(); return; }
       const input = { ...readConfig(form), title: data.get('title'), prompt: data.get('prompt'), format: data.get('format'), audioPath: data.get('audioPath') || '', inputScript: data.get('inputScript') || '' };
       for (const [field, target] of [['audioFile', 'audioPath'], ['scriptFile', 'inputScript']]) { const file = data.get(field); if (file?.size) { button.textContent = 'Uploading…'; input[target] = (await api(`/api/uploads?name=${encodeURIComponent(file.name)}`, { method: 'POST', raw: file })).path; } }
-      button.textContent = 'Starting…'; const created = await api('/api/jobs', { method: 'POST', data: input }); state.selected = created.id; state.tab = 'thread'; closeModal(); await loadJobs();
+      button.textContent = 'Starting…'; const created = await api('/api/jobs', { method: 'POST', data: input }); state.selected = created.id; state.tab = 'thread'; state.view = 'threads';
+      if (form.dataset.idea) await ideaStatus(form.dataset.idea, 'used').catch(() => {});
+      closeModal(); await loadJobs();
     } else if (form.id === 'configure-form') { await api(`/api/jobs/${state.job.id}`, { method: 'PATCH', data: readConfig(form) }); closeModal(); await loadDetail(); toast('Saved. New agents will use these models.'); }
     else if (form.id === 'settings-form') { state.settings = await api('/api/settings', { method: 'PATCH', data: { concurrency: Number(data.get('concurrency')), defaultFormat: data.get('defaultFormat') } }); closeModal(); toast('Workspace settings saved.'); }
     else { const input = $('#message-input'); if (!input.value.trim()) return; await api(`/api/jobs/${state.job.id}/messages`, { method: 'POST', data: { text: input.value } }); input.value = ''; toast('Queued for the orchestrator’s next feedback check.'); }
@@ -512,6 +572,7 @@ document.addEventListener('keydown', e => {
 
 // ---------- start ----------
 render();
+loadIdeas().catch(() => {});
 api('/api/settings').then(result => { state.settings = result; }).catch(error => toast(error.message));
 api('/api/providers').then(result => { state.providers = result; schedule(); }).catch(error => toast(error.message));
 loadUsage().catch(() => {});

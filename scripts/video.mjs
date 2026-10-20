@@ -19,6 +19,7 @@ import {directorBrief, writeBrief} from '../lib/briefs.mjs';
 import {findVisualPlan, VISUALS_FILE} from '../lib/visuals.mjs';
 import {loadConfig, resolveSettings} from '../lib/format.mjs';
 import {readdir} from 'node:fs/promises';
+import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
@@ -309,6 +310,31 @@ async function musicImport(job, opts) {
   console.log(`Then set film.json "music": {"src": "${a.path}", "source": ${JSON.stringify(opts.source)}, "license": ${JSON.stringify(opts.license)}, "trackStart": 0, "filmStart": 0} and run plan-check; the build reports which cuts land on the beat.`);
 }
 
+function printIdea(c, i) {
+  console.log(`\n${i + 1}. ${c.title}   [${c.id} · ${c.form} · score ${c.score.toFixed(2)}${c.status !== 'new' ? ` · ${c.status}` : ''}]`);
+  console.log(`   ${c.promise}`);
+  for (const r of c.reasons) console.log(`   + ${r}`);
+  for (const s of c.sources) console.log(`   - ${s.label}: ${s.title}${s.metric ? ` (${s.metric})` : ''}\n     ${s.url}`);
+}
+async function ideasCommand(opts) {
+  if (opts.set) {
+    const c = await setIdeaStatus(ROOT, opts.set, opts.status, opts.reason);
+    return console.log(opts.json ? JSON.stringify(c) : `Marked ${c.id} as ${c.status}: ${c.title}`);
+  }
+  if (opts.show) {
+    if (![...STATUSES, 'all'].includes(opts.show)) throw new Error(`--show must be one of: ${[...STATUSES, 'all'].join(', ')}`);
+    const cards = newestFirst((await loadIdeas(ROOT)).cards).filter(c => opts.show === 'all' || c.status === opts.show);
+    if (opts.json) return console.log(JSON.stringify(cards));
+    if (!cards.length) return console.log(`No ${opts.show === 'all' ? '' : opts.show + ' '}ideas yet. Run: npm run video -- ideas`);
+    return cards.forEach(printIdea);
+  }
+  const {run, cards} = await findIdeas(ROOT, {focus: opts.focus || '', count: numeric(opts.count, 0, 'count') || undefined, refresh: opts.refresh === 'true'});
+  if (opts.json) return console.log(JSON.stringify({run, cards}));
+  for (const s of run.sources) console.log(`${s.ok ? '✓' : '✗'} ${s.name}: ${s.ok ? `${s.count} item(s)${s.cached ? ' (cached)' : ''}` : s.error}`);
+  if (!cards.length) console.log(`\nNo new ideas${run.focus ? ` matching “${run.focus}”` : ''}. Try --refresh true later, or a different --focus.`);
+  else { console.log(`\n${cards.length} new idea(s)${run.focus ? ` for “${run.focus}”` : ''}:`); cards.forEach(printIdea); }
+  console.log('\nRun again for more. Mark one with: npm run video -- ideas --set <id> --status saved|rejected');
+}
 const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
@@ -349,6 +375,11 @@ library-info --item <id@version>     inspect one bundle, usage and provenance
 library-add --source <bundle-dir>   publish a new immutable artifact version
 library-use --item <id@version> --job jobs/<slug>  freeze files and record hashes
 
+ideas [--focus "mac hardware" --count 6 --refresh true --json]   find new video ideas (never repeats one already shown)
+                                     feeds and reference channels come from ideas.config.json; YOUTUBE_API_KEY is optional
+ideas --show new|saved|rejected|used|all [--json]   list ideas found so far
+ideas --set <id> --status new|saved|rejected|used [--reason ".."]   mark an idea
+
 The latest prepared job is used when --job is omitted.
 Creative design is performed by the agent; see docs/orchestrator.md and docs/agent-workflow.md.
 `;
@@ -363,6 +394,7 @@ try {
   else if (command === 'setup-manim') console.log(await setupManim());
   else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
   else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
+  else if (command === 'ideas') await ideasCommand(opts);
   else if (command === 'library-add') {
     if (!opts.source) throw new Error('library-add requires --source bundle-directory.');
     console.log(JSON.stringify(await publishBundle(LIBRARY, path.resolve(ROOT, opts.source)), null, 2));
