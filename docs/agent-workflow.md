@@ -70,7 +70,9 @@ the clip, then play inside the world.
   `assets/`, colours and fonts outside the theme (warning), objects that appear with no motion (warning), font sizes, numbers not in the narration/script, overlong
   text, entrance-only choreography, determinism and literal-time lint for hooks/components.
 - Browser (`build`): legibility on screen (≥28 px labels, ≥40 px values), text collisions and cut-off text, frame use
-  (content box ≥20%), centring, subject stillness (>3 s without development outside a declared hold), diagnostic activity
+  (content spans ≥40% of the frame), a hero per scene (text ≥96 px or an object ≥10% of the frame), empty boxes (a
+  hollow card-shaped rectangle with nothing inside for ≥1 s), washed-out frames (everything under 65% opacity for
+  ≥1 s), centring, subject stillness (>3 s without development outside a declared hold), diagnostic activity
   counts in world coordinates (camera movement excluded), overlapping tweens on the same property, and seek-order consistency.
 - Pixels (`render`): content box, frozen picture and blank frames measured on the encoded MP4.
 - Media (`verify`): streams, duration, size, fps, audible narration, gain-fitted waveform match with the source.

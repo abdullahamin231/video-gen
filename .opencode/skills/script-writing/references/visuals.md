@@ -9,10 +9,34 @@ Write `VISUALS.md` next to `SCRIPT.md` after the script is final (its scene star
 not move afterwards). Never put visual notes into `SCRIPT.md`; it stays plain narration.
 
 Before writing, read the repository's `docs/quality.md` (the standard the film is judged against) and the sections
-"The design theme", "Objects" and "Actions" of `docs/SCENE_SPEC.md` (what the scene language can do). Plan only what
-that toolset can build: shapes, paths, text, counters, images (photo cut-outs, logos, SVG drawings), TeX, axes and
-bars, networks, deterministic particles, a free camera, verbs such as drop, pop, stamp, swing, strike, type, shake,
-draw, move, transform, count, grow, focus; plus custom components and ManimCE for anything the built-ins cannot do.
+"The design theme", "Objects", "Composite objects" and "Actions" of `docs/SCENE_SPEC.md` (what the scene language
+can do). Plan with that toolset: the explainer vocabulary first (`hero` numbers, source `card`s, spec `sheet`s,
+hanging `tag`s, `verdict` stamps, `gauge`s that fill, `chip`s), then shapes, paths, text, counters, SVG drawings and
+logos, TeX, axes and bars, networks, deterministic particles, a free camera, verbs such as drop, pop, stamp, swing,
+strike, type, shake, draw, move, transform, count, grow, fill, focus; plus custom components and ManimCE for anything
+the built-ins cannot do. No photos: real things are drawn as SVG.
+
+## The channel theme
+
+If `video.config.json` names a `channelTheme` (by default `channel/theme.json`; in a job, `inputs/channel-theme.json`),
+the film is made in it: copy that JSON into the plan's `## Theme` block and describe the film inside it. Change a
+token only when this film's material truly needs it, and say what and why in `"channelDepartures"` inside the JSON.
+Viewers recognise the channel by its look; a new look for every film throws that away. With `"channelTheme": null`,
+design the theme for this film.
+
+## How every frame is composed
+
+- **Use the whole frame.** Plan each scene's layout in frame terms: the main subject on one side (left or right
+  third), the hero across from it, the evidence card or supporting detail in a free corner. Never one small cluster in
+  the middle of an empty frame.
+- **One hero per beat.** Name the one element that dominates each beat: a big number or word (`hero`, 140–220 px, in
+  the accent colour, with a small unit), or the main subject at a quarter to half of the frame width. Everything else
+  is small and quiet.
+- **Show the evidence.** Where the narration rests on what a source says, plan a `card` with the source's exact words
+  (one or two sentences, copied from `research.md`), the phrase to highlight, the title line (e.g. "r/LocalLLaMA ·
+  u/name") and the source chip; or a `sheet` with the spec's rows. Give the URL beside it in the plan.
+- **One stage per idea that builds.** A stage can live 20–40 s: it appears, fills, gets tagged and stamped while the
+  camera pans to what is new. Plan what is added at each beat rather than a new picture each time.
 
 ## How to make it buildable
 
@@ -23,8 +47,10 @@ draw, move, transform, count, grow, focus; plus custom components and ManimCE fo
 - **Give positions and sizes in frame terms**: left third, centre, top-right corner; "about half the frame width",
   "price numerals around 120 px". Builders follow numbers better than adjectives.
 - **Say what leaves.** At each new stage, say what is cleared, dimmed, transformed or carried.
-- **Name real things exactly**: the product, logo, website or place, with the search words a builder should use to
-  find an image (`"NVIDIA DGX Spark press photo, transparent PNG"`), or say "draw it" and describe its silhouette.
+- **Name real things exactly** and describe how to draw them: the product, its silhouette, proportions, colours and
+  the two or three details that identify it (`"draw: NVIDIA DGX Spark, a small gold-champagne box about 3:1 wide,
+  perforated metal front, a black NVIDIA badge at the lower left"`). Companies appear as their logo
+  (`"logo: NVIDIA, SVG"`). No photos.
 - **Use only supported numbers and claims.** Every number shown must be spoken or in `research.md`; note the source
   next to any shown figure that is not spoken.
 - **Decide, don't offer menus.** Record alternatives you rejected in their own section; the plan itself states one choice.
@@ -74,9 +100,12 @@ surfaces, line weight, shapes, typography, what each colour means, motion person
 - Events:
   1. "<exact words>" → <object> <verb> <how / where / how large>
   2. "<exact words>" → ...
+- Layout: <where things sit in the frame: main subject in the left/right third, hero opposite, evidence in a corner>
+- Hero: <the one element that dominates, e.g. "$3,999" hero, 180 px, yellow, top right; or "the gauge, half the frame height">
+- Evidence: <each source card or sheet: exact words, highlight, title line, source chip, URL; or "none: reason">
 - Payoff: <the visible result that completes the explanation, and how long it holds>
 - Camera: <the move and its reason, or "static: reason">
-- Assets: <each real thing: search words for an image or logo, or "draw: <silhouette>">
+- Assets: <each real thing: "draw: <silhouette, proportions, identifying details>" or "logo: <company>, SVG">
 - Carry: <subject ids still on screen from earlier scenes, or none>
 - Handoff: <what carries into the next scene and how; everything else leaves>
 - Why not basic: <what a labelled box, a sentence on screen or a plain fade would fail to show>

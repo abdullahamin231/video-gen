@@ -64,15 +64,16 @@ stillness, text overlap) is a warning: fix it, or keep it on purpose and say why
 
 ## The design theme
 
-Every film declares ONE design theme in `film.json` `"theme"`. The director chooses the look; nothing about it is
-prescribed. The kit applies the tokens to every object automatically, which is what keeps scenes consistent: write a
+Every film declares ONE design theme in `film.json` `"theme"`. When the job has a channel theme
+(`inputs/channel-theme.json`, from `video.config.json` `"channelTheme"`), the film uses it and records any departure
+in `"channelDepartures"`; otherwise the director chooses the look. The kit applies the tokens to every object automatically, which is what keeps scenes consistent: write a
 colour or font name from the theme, never a new hex value or typeface in a shot. The two examples below show the
 format with deliberately different looks; design the theme for your film rather than copying either.
 
 ```json
 "theme": {
   "name": "Shop-shelf stickers",
-  "description": "Chunky white outlines on a near-black stage. Real products appear as photo cut-outs sitting on a white shelf; everything else is flat sticker graphics with hard black offset shadows. Prices are heavy black numerals on tilted yellow tags. Labels are small bold uppercase mono chips. Things drop in and land with a little overshoot, tags swing, verdicts are stamped. One stage per idea, objects large, lots of empty space.",
+  "description": "Chunky white outlines on a near-black stage. Real products are flat SVG sticker drawings sitting on a white shelf, with hard black offset shadows. Prices are heavy black numerals on tilted yellow tags. Labels are small bold uppercase mono chips. Things drop in and land with a little overshoot, tags swing, verdicts are stamped. One stage per idea; the shelf spans the frame, the price of the moment is the hero.",
   "rejected": "Thin-line technical diagrams: precise but too cold for a conversational shopping story",
   "bg": "#0e1010",
   "fg": "white",
@@ -86,7 +87,7 @@ format with deliberately different looks; design the theme for your film rather 
   "label": {"font": "mono", "weight": 800, "size": 34, "upper": true},
   "value": {"font": "sans", "weight": 900, "color": "ink"},
   "eases": {"out": "pop"},
-  "defaults": {"rect": {"shadow": true, "fill": "panel"}, "image": {"shadow": {"dx": 0, "dy": 14, "blur": 18, "opacity": 0.6}}}
+  "defaults": {"rect": {"shadow": true, "fill": "panel"}, "image": {"shadow": true}}
 }
 ```
 
@@ -112,6 +113,7 @@ A very different theme in the same format:
 
 | field | meaning |
 |---|---|
+| `channelDepartures` | only when the job has a channel theme and this film changes it: what changed and why |
 | `name`, `description` | required. The look in words, written so a builder who never saw the film could follow it |
 | `rejected` | a theme you considered and why it lost |
 | `bg` | required. Background colour |
@@ -162,11 +164,30 @@ name from the theme), `width` (stroke px; default `theme.stroke`), `fill` (true 
 | `network` | `nodes` | `nodes: [{"id","at","label","r"}]`, `edges: [["a","b"], ...]`; parts are node ids and `a-b` |
 | `particles` | `at` | `count`, `size: [w,h]` region, `seed`, `r`, `colors`, `points`; parts `p0`, `p1`… |
 | `group` | `at`, `children` | children are objects positioned relative to the group |
-| `image` | `at`, `src`, `size` | a file under `assets/` (product photo, logo, illustration); `fit: "cover"` crops; `knockout: "white"\|"black"` (or `{"key", "tolerance", "softness"}`) makes a plain studio background transparent; `frame: true` (or `{"padding", "fill", "color", "corner", "width"}`) presents it as a card in the theme's style. Search `library-search` first; bring new files in with `npm run video -- asset --src <url\|file> --name <name>.png --note "<what it shows>"` (saved to the library too; web URLs must be `.svg` unless `VG_ALLOW_WEB_IMAGES=1`) |
+| `image` | `at`, `src`, `size` | an SVG file under `assets/`: a drawing of a real thing (you draw it: true silhouette, identifying details, the theme's colours and line weight) or a logo. No photos. Search `library-search` first; save drawings with `npm run video -- save`; bring SVG logos in with `npm run video -- asset --src <svg url\|file> --name <name>.svg --note "<what it shows>"`. `frame: true` (or `{"padding", "fill", "color", "corner", "width"}`) presents it on a card in the theme's style |
 | `svg` | `markup` | raw SVG; elements with `id` become parts |
 | `manim` | `at`, `size`, `file`, `class` | a ManimCE clip (see below); starts at its `play` action |
 | `video` | `at`, `src`, `size` | local video file |
 | custom | — | `type` = a component in `components/<type>.js` |
+
+### Composite objects
+
+The recurring moves of an explainer, ready-made. Each takes the theme's colours and fonts (`paper` and `ink` colours
+when the theme names them, else `white` and the background), so it belongs to any film. Use them before building the
+same thing out of rectangles; arrive with the usual verbs (`drop`, `pop`, `create`, `stamp`, `swing`, `write`).
+
+| type | required | notes |
+|---|---|---|
+| `hero` | `at` | THE number or word of the beat. `value` (rolls with `count`; omit to start at "—") or `text`; `unit` (small uppercase line under it); `size` (default 180), `color` (default `yellow`), `anchor`, plus `prefix`, `suffix`, `decimals`. Parts `text`, `unit` |
+| `card` | `at`, `text` | a real source on screen: `text` = its exact words (wrapped to `width`, default 640), `title` (e.g. "r/LocalLLaMA · u/name", "Meta AI blog"), `highlight` (words from `text` marked in `highlightColor`, default `yellow`), `source` (chip under the card: the site, subreddit, repo), `size` (default 32). Parts `paper`, `title`, `text`, `highlight` (sweep it in with `grow` `from: "left"`), `source` |
+| `sheet` | `at`, `rows` | a spec list on paper: `rows: [["layers", "78"], ...]`, `title`, `highlight` (row index or list), `width` (default 560), `size` (default 30). Parts `paper`, `title`, `row-0`, `row-1`… |
+| `tag` | `at`, `text` | a hanging tag (price, size): `string` (length of the string above it, default 80; 0 for none), `color` (default `yellow`), `size` (default 44). Parts `string`, `pin`, `body`, `text`. `swing` sways it from the pin |
+| `verdict` | `at`, `text` | a rubber stamp: bordered uppercase word(s), tilted (`tilt`, default -7°), `color` (default `red`), `size` (default 72). Arrive with `stamp` |
+| `gauge` | `at` | a container on a shelf with a scale beside it: `size: [w, h]` (default [360, 440]), `max`, `step`, `unit`, `value` (start level), `fillLabel` (text on the fill), `limit` (dashed line at a level), `title` (under the shelf), `color` (frame, default `blue`), `fill`. Parts `well`, `frame`, `shelf`, `scale`, `fill`, `fill-label`, `limit`, `title`. Change the level with `fill` |
+| `chip` | `at`, `text` | a small rounded uppercase label: `color`, `filled: true`, `size` (default 28). Parts `pill`, `text` |
+
+Numbers shown on a card, sheet, tag or hero follow the same rule as text: spoken, in the script, or given a reason
+in `"numbers"` (for a quote: `"numbers": "quoted from <source>"`).
 
 **Parts**: target `"id.part"` to act on part of an object: axes `x-axis y-axis ticks tick-labels grid x-label y-label`,
 arrows `shaft head`, vectors `shaft head`, tex `\cssId` names, network node ids and `a-b` edges, bars `bar-N`,
@@ -205,6 +226,7 @@ small stagger (`stagger` sets it).
 | `strike` | `color` (default `red`), `width`, `padding` | a line is drawn across the target and stays attached to it |
 | `type` | `cursor: true`, `blink` (s), `cursorColor` | text appears character by character, like typing into a search box |
 | `shake` | `amount` (px, default 14) | a quick side-to-side shake: refusal, error, impact |
+| `fill` | `to` (a level on the gauge's scale), `label` (new fill text), `color` | a `gauge` fills or drains to a new level |
 | `focus` / `unfocus` | `level` (default 0.25) | dims everything except the targets / restores |
 | `indicate` | `scale`, `color` | brief emphasis |
 | `circumscribe` | `shape: rect|circle`, `color`, `keep` | draws a ring around the target |

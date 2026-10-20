@@ -27,6 +27,8 @@ Sticker graphics on near-black.
 ### opening — the shelf appears
 - Starts at: "start"
 - Idea: The shelf.
+- Layout: the shelf spans the lower third; the price hero sits top right.
+- Hero: the shelf itself, the full frame width.
 - Events:
   1. "opening" → the white shelf draws on across the lower third
 - Payoff: The shelf holds for one second.
@@ -34,6 +36,8 @@ Sticker graphics on near-black.
 ### \`comparison\`
 - **Starts at:** "comparison"
 - **Idea**: Two products.
+- **Layout**: one box in each third, tags above them.
+- Hero: "$3,999" hero, 180 px, yellow, top right.
 - Events:
   1. "comparison" → a yellow tag reading $3,999 swings onto the left box
 - Payoff: The tags sit side by side.
@@ -63,6 +67,7 @@ test('the visual plan is read by scene id and checked for its required sections'
   const errors = visualPlanErrors('# Visual plan: X\n\n## Concept\nA.\n\n## Scenes\n\n### opening\n- Idea: x\n');
   assert.ok(errors.some(e => /## Theme/.test(e)));
   assert.ok(errors.some(e => /opening.*Starts at/.test(e)));
+  assert.ok(errors.some(e => /opening.*Layout/.test(e)) && errors.some(e => /opening.*Hero/.test(e)));
   const bad = visualPlanErrors(PLAN.replace('"bg": "#101010",', '"bg": #101010,').replace('### opening — the shelf appears', '### Opening: the shelf'));
   assert.ok(bad.some(e => /Theme.*JSON does not parse/.test(e)));
   assert.ok(bad.some(e => /"Opening".*kebab-case/.test(e)));

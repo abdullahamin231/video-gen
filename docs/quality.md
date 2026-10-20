@@ -24,20 +24,30 @@ makes the film better (and says why in the shot's `notes`).
    declares it in `film.json` `theme`, and every scene is made in it. Which theme is a creative choice (the director's,
    for a film without a visual plan); that there is exactly one is not negotiable.
 
-## Design: one theme, chosen for this film
+## Design: one theme per film, starting from the channel's
 
-No look is mandatory and nothing is off the table: flat sticker graphics, paper cut-outs, photo collage, blueprint
-line work, chalkboard, neon on black, editorial print, isometric 3D, clay, pixel art, hand-drawn marker, a precise
-mathematical style, or something new. Choose the theme that best fits the topic, the audience and the voice of the
-narrator, then commit to it.
+### The channel theme
 
-### Choosing the theme
+When `video.config.json` names a `channelTheme` (by default [channel/theme.json](../channel/theme.json)), every film
+starts from it: the job carries a copy at `inputs/channel-theme.json`, the script writer copies it into the visual
+plan, and the director copies that into `film.json`. Viewers recognise the channel by its look, so keep it. Change a
+token only when this film's material needs it (a colour meaning the film cannot do without, a font the topic calls
+for), and say what and why in the theme's `"channelDepartures"`. plan-check warns about an unexplained departure.
 
-- Start from the narration. A wry, conversational tech video suits a bold graphic look with real product photos; a
+With `"channelTheme": null`, each film chooses its own look freely, as described below.
+
+### Choosing a theme (no channel theme, or a deliberate departure)
+
+No look is mandatory and nothing is off the table: flat sticker graphics, paper cut-outs, blueprint line work,
+chalkboard, neon on black, editorial print, isometric 3D, clay, pixel art, hand-drawn marker, a precise mathematical
+style, or something new. Choose the theme that best fits the topic, the audience and the voice of the narrator, then
+commit to it.
+
+- Start from the narration. A wry, conversational tech video suits a bold graphic look with drawn products and real sources; a
   calm proof suits precise geometry; a history story might suit paper and print. Consider at least two genuinely
   different themes and record the one you rejected and why (`theme.rejected`).
-- Decide the **imagery language** first: how real things appear (cut-out photos, flat illustrations, line drawings,
-  3D renders) and how abstract ideas appear (charts, blocks, diagrams, metaphors). Then decide the surface treatment,
+- Decide the **imagery language** first: how real things appear (flat illustrations, line drawings, isometric
+  drawings; always SVG, never photos) and how abstract ideas appear (charts, blocks, diagrams, metaphors). Then decide the surface treatment,
   type and motion so they belong with that imagery.
 - Write the theme down in `film.json` `theme`: a `name`, a `description` that a builder who has never seen the film
   could follow (imagery, surfaces, line weight, shapes, type, colour use, motion personality, composition), and the
@@ -52,8 +62,7 @@ A viewer who pauses on any frame should recognise the film. Across every scene k
 - background, palette and the meaning of each accent colour (one meaning per colour for the whole film);
 - line weight, corner radius, shadow and fill treatment;
 - typefaces, weights and case for labels, values and titles;
-- imagery language: if real products appear as photo cut-outs, every real product does; if objects are drawn, they
-  are drawn in one hand;
+- imagery language: every real thing is drawn in one hand (the same line weight, fill treatment and level of detail);
 - motion personality: the same kind of entrance, emphasis and exit for the same kind of event;
 - framing rules: margins, where labels sit, how big the main subject is.
 
@@ -64,36 +73,62 @@ builders inherit them. A scene that departs from the theme needs a reason that s
 
 These are the qualities that separate a produced explainer from an animated slide deck. They hold for every theme.
 
-### Show the real thing
+### Show the real thing, drawn
 
 - When the narration names something concrete (a product, a place, a company, a device, a person, a website), show
-  it so the viewer recognises it in under a second without reading a label: a cut-out photo, a logo, or an
-  illustration with its true silhouette and details. An anonymous rectangle with a label is a last resort.
-- Bring real images in with `npm run video -- asset --src <url|file> --name <name>.png` (the source is recorded in
-  `assets/SOURCES.json`). Search the library first (`library-search`, then `library-use`): earlier films may already
-  hold the image, drawing or component you need. Web images are SVG-only by default: a png, jpg, webp or gif from a URL
-  is refused. A person can allow raster downloads for the whole session with `VG_ALLOW_WEB_IMAGES=1`; local raster
-  files are always accepted. Every asset must end up inside the repository, never in `/tmp` or a
-  scratch directory, and every asset is saved to `library/` so the next film can find it: `asset` saves what it
-  imports, `save` saves what an agent draws or builds (a drawing, a component, a Manim scene) with a title and search
-  tags, and `next` saves anything left over before review. Prefer images that already have no background: press-kit PNGs and product renders. A plain
-  white or black studio background can be keyed out at render time (`"knockout": "white"` on the image; parts of the
-  subject as light as the background vanish too, so check the result). Otherwise present the photo deliberately as a
-  framed print or card (`"frame": true`). Whichever you choose, use it the same way throughout the film.
-- Look at every asset before using it: no watermarks, no blurry or tiny images (source at least the size it is
-  shown), no misleading picture of a different model. If no good image exists, draw the object in the theme's style.
+  it so the viewer recognises it in under a second without reading a label. Draw it as an SVG illustration in the
+  theme's style: its true silhouette, proportions and the two or three details that identify it (the vents and
+  ports of a Mac Studio, the gold fan shroud of a GPU, the logo on a box). Companies appear as their logo (an SVG
+  mark). An anonymous rectangle with a label is a last resort. **This channel uses no photos.**
+- Search the library first (`library-search`, then `library-use`): earlier films may already hold the drawing, logo
+  or component you need. Save every drawing you make as an SVG file in `assets/` and show it with an `image` object;
+  `save` it with a title and search tags so the next film finds it. Logos come in with
+  `npm run video -- asset --src <svg url|file> --name <name>.svg` (the source is recorded in `assets/SOURCES.json`).
+  Every asset stays inside the repository, never in `/tmp` or a scratch directory.
+- Draw the right thing: the actual model, not a different one with the same name; if you cannot tell what it looks
+  like, show its logo and name instead of inventing hardware.
 - Abstract ideas become familiar, physical metaphors the viewer already understands: a shop shelf with price tags
   for "what it costs", a SOLD OUT stamp for scarcity, a strike-through for "you no longer pay this", a search bar
   being typed into for "you go and look it up", a stack of coins growing for "it adds up". Then let the metaphor act.
 
-### Big, bold and readable
+### Use the whole frame, with one hero per beat
 
-- Few objects, each large. The main subject usually spans a quarter to half of the frame width. Key numbers are
-  large (64 px and up, often 80–140 px); labels are at least 28 px, values at least 40 px, on screen at 1080p.
-- Strong contrast between subject and background; the most important element is the brightest or most saturated.
-- Text is a design element, not a sentence: prices, names, short labels, search queries, one-word verdicts. The
-  narration already says the sentences.
+A filled frame is not a crowded one. Produced explainers keep most of the frame dark and quiet; what makes them feel
+full is that their few elements reach across the whole frame and that one of them clearly dominates
+([the frame study](kaiexplains-frame-study.md) has the measurements).
+
+- **Spread the composition.** Place the main subject on one side (left or right third), the hero number across from
+  it, and the evidence card or supporting detail in a free corner. Content should span most of the frame, not
+  cluster in the middle third. The build warns when a scene's content spans less than 40% of the frame.
+- **One hero per beat.** Each beat has one element that is clearly the biggest and brightest thing on screen: a hero
+  number or word (`hero`, 140–220 px, in the accent colour, a small uppercase unit under it), or the main subject at a
+  quarter to half of the frame width. The build warns about a scene where nothing reaches 96 px text or a tenth of the
+  frame.
+- **Everything else is small and quiet.** Labels are short, uppercase, in the label style, at least 28 px; values at
+  least 40 px; supporting elements are dimmer. The size contrast between the hero and the rest is what directs the eye.
+- **Strong contrast** between subject and background; the most important element is the brightest or most saturated.
+- **Text is a design element, not a sentence**: prices, names, short labels, search queries, one-word verdicts. The
+  narration already says the sentences. A quoted source is the exception, and it goes on a card (below).
+- **No empty boxes and no washed-out frames.** A rectangle on screen holds something (a value, a drawing, a quote); a
+  placeholder box with nothing in it reads as broken. A frame where everything is half-faded looks like a mistake:
+  bring the next subject in at full strength, or clear the stage. The build warns about both.
 - Check every frame at phone size (480 px wide). If something essential cannot be read, make it bigger or remove it.
+
+### Show the evidence
+
+When the narration rests on something a source says (a post, an article, a paper, a README, a spec, a benchmark
+table), put the source itself on screen: a `card` with the exact sentence retyped, the key phrase highlighted and a
+chip naming where it is from (the subreddit, the site, the repo), or a `sheet` with the spec's rows. The viewer sees
+that the claim is real. Quote exactly what the source says, keep it to one or two sentences, and give the number's
+source in `"numbers"` when the narration does not say it.
+
+### The explainer vocabulary
+
+The kit has ready-made objects for the recurring moves of an explainer (see SCENE_SPEC.md "Composite objects"). Use
+them before building something similar out of rectangles: `hero` (the big number), `card` (a source quote), `sheet`
+(a spec list), `tag` (a hanging price or size tag), `verdict` (a rubber stamp), `gauge` (a container with a scale that
+fills: memory, budget, capacity), `chip` (a small source or status label). They take the theme's colours and fonts,
+so they belong to any film.
 
 ### Vertical films (reels and shorts)
 
@@ -112,8 +147,10 @@ A job made with `--format vertical` is 1080×1920 and watched full-screen on a p
   progresses: the first product lands, then its price tag, then the second product, then the verdict. The viewer
   sees the comparison assemble.
 - Keep the stage framed. Do not keep zooming out to fit more things; when the stage is full or the idea changes, clear
-  it, transform it into the next stage, or cut cleanly to a new one. Recurring subjects carry across the cut.
-- Leave generous empty space and keep one clear focal point. Supporting elements are smaller or dimmed.
+  it, transform it into the next stage, or cut cleanly to a new one. Recurring subjects carry across the cut. A stage
+  can live for 20–40 s while it builds; pan the camera to what is new instead of cutting away.
+- Keep one clear focal point: the hero of the beat. Dark, empty background between elements is fine; a small cluster
+  in the middle of an empty frame is not.
 
 ### The film is dynamic: every spoken beat lands as a visible event
 
@@ -139,7 +176,7 @@ A job made with `--format vertical` is 1080×1920 and watched full-screen on a p
   about what happened. Only a deliberate scene cut may show a new stage at once.
 - Show construction. When the narration describes something being set up or built (a computer, a desk, a shelf, a
   rig, a network), it assembles part by part, in the order a viewer would build it, each part on its own cue, in the
-  theme's motion language: line drawings draw themselves on, sticker parts drop and snap into place, photo parts slide
+  theme's motion language: line drawings draw themselves on, sticker parts drop and snap into place, paper parts slide
   in and stack. Do not start a scene with those parts already on screen (`"visible": true`); the opening frame holds
   only what is meant to be there at 0 s.
 
@@ -219,6 +256,9 @@ Reviewers judge the rendered film, not the plan. Each item is a question about w
   is said?
 - **Explanation:** With the sound off, does the action show what happens and why (cause → consequence → payoff)?
 - **Readability:** Is every essential label and number readable at 480 px wide? No text collisions, nothing cut off?
+- **Frame:** Does the composition use the whole frame, with one hero per beat that clearly dominates? Any empty
+  placeholder boxes or washed-out, half-faded frames?
+- **Evidence:** Where the narration rests on a source, is the source shown (a card or sheet with its exact words)?
 - **Focus:** Is there one clear focal point at each moment, with the most important thing the most prominent?
 - **Stage:** Are layouts calm and framed, or crowded and shrinking? Are transitions clean and handoffs clear?
 - **Truth:** Is every number and claim supported by the narration or script?

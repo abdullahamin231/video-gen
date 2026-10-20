@@ -17,6 +17,7 @@ import {setupManim} from '../lib/manim.mjs';
 import {SpecError} from '../lib/spec.mjs';
 import {directorBrief, writeBrief} from '../lib/briefs.mjs';
 import {findVisualPlan, VISUALS_FILE} from '../lib/visuals.mjs';
+import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/channel.mjs';
 import {loadConfig, resolveSettings} from '../lib/format.mjs';
 import {readdir} from 'node:fs/promises';
 import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
@@ -95,7 +96,8 @@ async function prepare(opts) {
   if (await exists(job)) throw new Error(`Job exists: ${job}. Use a new --name; existing work is never overwritten.`);
   const audio = path.resolve(ROOT, opts.audio), script = path.resolve(ROOT, opts.script);
   const [metadata, sourceScript] = await Promise.all([probe(audio), readFile(script, 'utf8')]);
-  const settings = resolveSettings(opts, await loadConfig(ROOT), Number(metadata.format.duration));
+  const config = await loadConfig(ROOT), settings = resolveSettings(opts, config, Number(metadata.format.duration));
+  const channel = await loadChannelTheme(ROOT, config);
   const {start, duration, format, fps} = settings;
   for (const w of settings.warnings) console.warn(`Warning: ${w}`);
   const language = opts.language || 'en', model = opts.model || (language === 'en' ? 'small.en' : 'small');
@@ -118,6 +120,8 @@ async function prepare(opts) {
   // The writer's visual plan travels with the script; without one, `next` asks a writer for it before planning.
   const visuals = opts.visuals ? path.resolve(ROOT, opts.visuals) : await findVisualPlan(script);
   if (visuals) await copyFile(visuals, path.join(job, VISUALS_FILE));
+  // The channel's theme travels with the job, so the plan is made in it and later checks compare against the same file.
+  if (channel) await copyFile(channel.file, path.join(job, CHANNEL_THEME_FILE));
   const narration = extractNarration(sourceScript);
   await writeFile(path.join(job, 'inputs/narration.txt'), narration);
   await run('ffmpeg', ['-v', 'error', '-i', audio, '-ss', String(start), '-t', String(duration),
@@ -131,6 +135,7 @@ async function prepare(opts) {
       sha256: await digest(path.join(job, 'assets/narration.wav'))},
     script: {path: 'inputs/source-script.md', source: path.relative(ROOT, script), sha256: await digest(script)},
     ...(visuals ? {visuals: {path: VISUALS_FILE, source: path.relative(ROOT, visuals), sha256: await digest(visuals)}} : {}),
+    ...(channel ? {channelTheme: {path: CHANNEL_THEME_FILE, source: path.relative(ROOT, channel.file), sha256: await digest(channel.file)}} : {}),
     transcription: {language, model, engine, suppliedWords: !!opts.words},
     creativeMode: 'agent-discretion', workflow: 'faceless-explainer', status: 'awaiting-transcription',
     review: {producerAgentIds: ['/root'], requiredRoles: ['visual-mechanism', 'narration-fidelity', 'continuity-legibility']},
@@ -377,6 +382,7 @@ library-use --item <id@version> --job jobs/<slug>  freeze files and record hashe
 
 ideas [--focus "mac hardware" --count 6 --refresh true --json]   find new video ideas (never repeats one already shown)
                                      feeds and reference channels come from ideas.config.json; YOUTUBE_API_KEY is optional
+frame-stats --video <a.mp4>[,<b.mp4>] [--every 2]   measure how much of the frame a film uses (ink, spread, near-blank), to compare films
 ideas --show new|saved|rejected|used|all [--json]   list ideas found so far
 ideas --set <id> --status new|saved|rejected|used [--reason ".."]   mark an idea
 
@@ -395,6 +401,12 @@ try {
   else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
   else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
   else if (command === 'ideas') await ideasCommand(opts);
+  else if (command === 'frame-stats') {
+    const {frameStats} = await import('../lib/pixels.mjs');
+    const files = String(opts.video || '').split(',').map(v => v.trim()).filter(Boolean);
+    if (!files.length) throw new Error('frame-stats needs --video <file.mp4>[,<file.mp4>...]');
+    for (const f of files) { const r = await frameStats(path.resolve(f), {every: numeric(opts.every, 2, 'every')}); console.log(`${f}\n  ${r.frames} frames every ${r.every}s · ink median ${r.inkMedian}% (p90 ${r.inkP90}%) · spread median ${r.spreadMedian}% · near-blank ${r.nearBlank}%`); }
+  }
   else if (command === 'library-add') {
     if (!opts.source) throw new Error('library-add requires --source bundle-directory.');
     console.log(JSON.stringify(await publishBundle(LIBRARY, path.resolve(ROOT, opts.source)), null, 2));

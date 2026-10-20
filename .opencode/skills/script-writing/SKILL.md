@@ -72,6 +72,8 @@ While reading, collect in `research.md`:
 - **Concrete artifacts**: things that exist and could be shown on screen. A footnote, a config file, a price tag, a
   chart, a comment thread, a line of code. Scripts that point at real things feel researched; scripts that describe
   categories feel generated.
+- **Quotable lines**: the exact sentence, table row or config line you may put on screen, copied verbatim with its URL
+  and who said it. The visual plan shows these as source cards and spec sheets, so they must be word for word.
 - **The questions** a smart, sceptical viewer would ask at each step, in the order they would ask them.
 - **Tensions**: where sources disagree, where the common belief is wrong, where the incentive of someone involved
   explains something, where a cost hides.
