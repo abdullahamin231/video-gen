@@ -18,6 +18,8 @@ sub-agents do the creative work from self-contained brief files. This works the 
    Add `--format vertical` when the user asks for a reel, short, TikTok or vertical video, and `--format landscape` for
    long-form when the defaults say otherwise. Defaults come from `video.config.json`; never edit it unless asked.
    Add `--music "<track>"` when the user supplies a music track; otherwise the director picks a licensed one.
+   A `VISUALS.md` beside the script (the script writer's visual plan) is carried into the job automatically
+   (`--visuals <file>` names another one). Without one, `next` first has a `script-writer` write it.
 
    The job is named after the script: its file name, else its `#` title, else its folder (`jobs/scripts/<slug>/SCRIPT.md`
    becomes `<slug>`). Generic names such as `script` or `SCRIPT` are never used alone. Pass `--name <slug>` only when the
@@ -41,7 +43,7 @@ sub-agents do the creative work from self-contained brief files. This works the 
   a new session). Several briefs may run in parallel. Wait for them to finish. Do not do their work yourself, do not edit
   their files, and do not pass them your own opinions.
   Reviewer sub-agents must be new agents that did not build anything.
-  The step names a role (`video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
+  The step names a role (`script-writer`, `video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
   that name, use it: it pins the role's model (see "Models per role" below). Otherwise use any fresh sub-agent.
 
 When it prints `STATE: done`, complete the thumbnail workflow, then give the user the MP4 and thumbnail paths and a short verification note from `review/delivery.json`
@@ -57,6 +59,8 @@ Every request to create a video also includes a thumbnail unless the user explic
 film is finished, using its actual script, title and visuals. This is an orchestrator completion step after the
 existing CLI loop; do not assume a thumbnail CLI command exists or change a qualified film to make a still.
 
+Start from the "## Thumbnail" section of the job's visual plan (`jobs/<slug>/inputs/visuals.md`), written by the
+script writer: it holds the headline, subject, layout and payoff the maker carries out.
 Read [docs/kaiexplains-thumbnail-study.md](docs/kaiexplains-thumbnail-study.md) before designing it, including its
 visual evidence. Adapt the contrast, hierarchy and simplicity with original or licensed assets and our own identity.
 Reference thumbnails are research material, not production artwork or evidence of a proven CTR formula.
@@ -108,8 +112,9 @@ record the intended script payoff and the missing rendered verification honestly
 
 | Role | Brief | Writes | Checked by |
 |---|---|---|---|
-| Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` (the film's one design theme, concept, scenes, who builds each) and the assets it needs, then the scenes it owns: the prototype, its context, and any later scene it keeps | `plan-check`, `build --scene` |
-| Scene builder (one per delegated scene) | `briefs/build-<scene>.md` | `shots/<scene>.json` (+ hook, components, Manim file); full creative authority, departures recorded in `notes` | `build --scene` (spec errors, browser checks, motion transcript) |
+| Script writer (visual plan for a supplied script) | `briefs/visuals.md` | `inputs/visuals.md`: concept, theme, every scene's events at exact words, assets, thumbnail | `next` (required sections) |
+| Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` transcribed from the visual plan (its theme, concept, scenes, who builds each) and the assets it needs, then the scenes it owns: the prototype, its context, and any later scene it keeps | `plan-check`, `build --scene` |
+| Scene builder (one per delegated scene) | `briefs/build-<scene>.md` | `shots/<scene>.json` (+ hook, components, Manim file) built from the visual plan's section for that scene (quoted in the brief); departures recorded in `notes` | `build --scene` (spec errors, browser checks, motion transcript) |
 | Repair builder | `briefs/repair-<scene>.md` | fixes to a delegated scene | same |
 | Reviewers ×3 | `briefs/review-<stage>-<role>.md` | `review/<stage>/incoming/<role>.json` | `review-submit` |
 
@@ -119,20 +124,22 @@ that planned them; it delegates later scenes with `"owner": "builder"` in film.j
 
 Build errors mean the film is broken or untrue (invalid spec, no declared design theme, missing assets, unspoken cue
 words, conflicting or non-seek-safe motion, nondeterminism, unsourced numbers). Every film has exactly one design theme,
-chosen by the director; no particular look is prescribed. Style guidance (sizes, colours or fonts outside the theme,
+chosen in the visual plan; no particular look is prescribed. Style guidance (sizes, colours or fonts outside the theme,
 frame use, stillness, overlaps) produces warnings: agents may break it on purpose, and reviewers judge whether that
 served the film. Missing scenes never qualify for final review or delivery.
 
 ## Models per role
 
-Creative and judgement roles need a strong model; following `next` and building scenes do not.
+Only script generation runs on the strong model. The script writer puts all of the film's creative thinking into the
+script and its visual plan (`VISUALS.md`: concept, design theme, every scene's stage and events at exact words, assets,
+thumbnail), so every later role carries out a written design instead of inventing one.
 
 | Role | Tier | Why |
 |---|---|---|
 | orchestrator (main session) | weak | `next` decides every step |
-| `script-writer`, `video-director`, thumbnail maker | strong | the script, the concept, the plan, and the scenes whose look is hardest to put into words |
-| `video-builder` | weak | delegated scenes; `build --scene` checks catch broken output |
-| `script-reviewer`, `video-reviewer`, thumbnail reviewer | strong | a weak reviewer passes weak films |
+| `script-writer`, `script-reviewer` | strong | the script and the visual plan are where creative thinking pays off; the reviewer checks both |
+| `video-director`, `video-builder`, thumbnail maker | weak | transcribe the visual plan into film.json and build it; `plan-check` and `build --scene` catch broken output |
+| `video-reviewer`, thumbnail reviewer | weak | check the render against the plan and the quality standard; raise one to strong if weak reviews pass weak films |
 
 Default models for each harness:
 
@@ -153,9 +160,9 @@ When the user asks for a script ("Write a 5-minute script from these links"), it
 and a target duration. Spawn a fresh `script-writer` sub-agent (or any strong-model sub-agent) whose prompt gives the
 sources, the duration and any creator notes, and tells it to follow the `script-writing` skill
 (`.opencode/skills/script-writing/SKILL.md`, linked into `.claude/skills` and `.agents/skills`). It writes
-`jobs/scripts/<slug>/SCRIPT.md` with its research notes. Give the user the script, its word count and estimated
+`jobs/scripts/<slug>/SCRIPT.md` with its research notes and the visual plan `VISUALS.md` the film is built from. Give the user the script, its word count and estimated
 duration and the speaking-rate assumption. Before delivery, commission a fresh `script-reviewer` (or strong-model reviewer)
-with the brief, script, saved sources and research notes, following the skill's `references/review.md`. Have the writer address blockers
+with the brief, script, visual plan, saved sources and research notes, following the skill's `references/review.md`. Have the writer address blockers
 and the reviewer check revisions (at most two rounds); unresolved work is a draft, never an independently passed script.
 If the user names no duration, use a positive `length` from `video.config.json` (seconds); if it is null, ask for the
 missing target. For a reel, short or vertical video (or `"format": "vertical"` in the config), tell the writer it is

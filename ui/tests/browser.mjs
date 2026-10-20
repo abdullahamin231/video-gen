@@ -31,7 +31,7 @@ try {
   await click(page, '.new-job'); await page.select('select[name=format]', 'vertical'); await page.type('#new-prompt', 'A test fixture video about power grids.'); await page.type('input[name=title]', 'Browser integration fixture');
   await page.type('input[name=main]', 'fixture-main'); await page.type('input[name="model:builder"]', 'fixture-builder');
   assert((await page.$eval('.role-route[data-role=builder]', node => node.textContent)).includes('fixture-builder'), 'role row shows the chosen model');
-  assert(/strong default|repo pin/.test(await page.$eval('.role-route[data-role=director]', node => node.textContent)), 'unset roles show their default');
+  assert(/weak default|repo pin/.test(await page.$eval('.role-route[data-role=director]', node => node.textContent)), 'unset roles show their default');
   // Model IDs belong to one harness: switching clears this harness's choices and switching back restores them.
   const chooseProvider = name => page.$eval(`input[name=provider][value=${name}]`, node => { node.checked = true; node.dispatchEvent(new Event('change', { bubbles: true })); });
   const firstProvider = await page.$eval('input[name=provider]:checked', node => node.value), otherProvider = firstProvider === 'OpenCode' ? 'Codex' : 'OpenCode';

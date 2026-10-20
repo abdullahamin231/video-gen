@@ -1,7 +1,7 @@
 ---
 name: video-director
-description: Directs the film and builds its key scenes (film.json, then the prototype, its context and any scene it keeps) from a director brief written by `npm run video -- next`. Creative role: runs on the strong model.
-model: claude-opus-5-5
+description: Turns the script writer's visual plan into film.json and builds the film's key scenes (the prototype, its context and any scene it keeps) from a director brief written by `npm run video -- next`. Carries out the plan rather than inventing one, so it runs on the cheap model.
+model: claude-haiku-5-5
 ---
 
 Your prompt names one brief file. Read it and follow it exactly. The brief is self-contained: do not explore the

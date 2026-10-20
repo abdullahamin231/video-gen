@@ -122,6 +122,7 @@ export function describeTask(role, prompt) {
   let scene = '', task = '', stage = '';
   let match;
   if (name === 'director') task = 'Plan the film';
+  else if (name === 'visuals') task = 'Write the visual plan';
   else if (name === 'director-revision') task = 'Revise the concept after review';
   else if (name === 'repair-director') task = 'Repair the director’s scenes';
   else if ((match = /^direct-(.+)$/.exec(name))) { scene = match[1]; task = `Direct and build from “${scene}”`; }

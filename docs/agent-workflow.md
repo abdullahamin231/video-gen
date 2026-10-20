@@ -6,14 +6,17 @@ each stage does and where its rules are enforced, for people changing the pipeli
 | Stage | Command | Inputs → outputs | Enforced by |
 |---|---|---|---|
 | Prepare | `start` (wraps `prepare`) | audio + script (+ `--format`, `--length`, defaults from `video.config.json`) → `jobs/<slug>/`, named by `jobNameFor` in `lib/timing.mjs` (script file name, else its `#` title, else its folder, else its opening words; generic names like `script` are skipped; `--name` overrides) with clipped WAV, ASR words, `alignment.json`, kit copy, `briefs/director.md`; `job.json` records `format`, `width`, `height` | `scripts/video.mjs`, `lib/format.mjs resolveSettings` |
-| Plan | director sub-agent, `plan-check`, `asset` | → `film.json` (design theme, per-scene `owner`), `assets/` + `assets/SOURCES.json`; generated `STORYBOARD.md`, `briefs/build-<scene>.md` for delegated scenes | `lib/spec.mjs validateFilm` |
+| Visual plan | script writer (with the script, or `briefs/visuals.md` when a supplied script has none) | `VISUALS.md` beside the script → `inputs/visuals.md` (copied by `prepare`; `--visuals` names another file): concept, theme JSON, `### <scene-id>` sections with start phrase, stage, events at exact words, payoff, assets; thumbnail | `lib/visuals.mjs visualPlanErrors` |
+| Plan | director sub-agent, `plan-check`, `asset` | → `film.json` transcribed from the visual plan (design theme, per-scene `owner`), `assets/` + `assets/SOURCES.json`; generated `STORYBOARD.md`, `briefs/build-<scene>.md` for delegated scenes | `lib/spec.mjs validateFilm` |
+
 | Music | director, `music` (once per film, optional) | licensed track → `assets/music/<x>`, `assets/music/<x>.beats.json` (grid checked against the < 120 Hz kicks), `review/music/<x>-beats.png`; film.json `music` | `scripts/sfx/beats.py` (librosa, audio env from `setup-audio`) |
 | Build | director (owned scenes) and builder sub-agents, `build [--scene]` | `shots/*.json` (+ hooks, components, Manim) → `compositions/world.html`, `index.html`, `timing.json`, `assets/cues.js`, `review/motion.md`, `review/sounds.md` (effects, big moves, beat offsets), `review/inspect.json`, `review/build.json` | `lib/spec.mjs compileFilm` (sounds: masking vs the voice, coverage of big moves, beat sync), `lib/sfx.mjs`, `lib/inspect.mjs` |
 | Render | `render` | → `renders/picture.mp4` (HyperFrames), `renders/mix.wav` + `renders/video.mp4` (pipeline mix: narration untouched, effects, ducked music, master gain until -16 LUFS / peaks ≤ -4 dB on the MP4), `review/mix.json`, `review/sound/` (cue sheets, `listen.md`), `review/render-verification.json`, `review/pixels.json`, `review/render-source.json` | HyperFrames lint/render, `lib/mix.mjs`, `lib/sound-check.mjs` + `scripts/sfx/cue_sheet.py`, `lib/pixels.mjs`, `verify` (MP4 audio vs the mix) |
 | Review | `review-pack`, reviewer sub-agents, `review-template`, `review-submit` | → frozen pack, briefs, reports | `lib/review.mjs` |
 | Deliver | `deliver` | → `review/delivery.json`, `review/REPORT.md`, `job.status: complete` | `qualifyDelivery` + film audit + pixel checks |
 
-`next` (`lib/film.mjs nextStep`) derives the state from these files: missing/invalid plan → director; missing
+`next` (`lib/film.mjs nextStep`) derives the state from these files: no film.json and no complete visual plan → script
+writer (`briefs/visuals.md`; jobs that already have a film.json skip this); missing/invalid plan → director; missing
 prerequisite context and prototype shots → their owners in scene order (consecutive director-owned scenes share one
 `direct-<scene>.md` brief); stale build → build; build errors → repair briefs (one `repair-director.md` for director-owned
 scenes, one per delegated scene, in parallel); pixel and style findings are warnings for reviewers; stale render → render;
@@ -72,6 +75,9 @@ the clip, then play inside the world.
   counts in world coordinates (camera movement excluded), overlapping tweens on the same property, and seek-order consistency.
 - Pixels (`render`): content box, frozen picture and blank frames measured on the encoded MP4.
 - Media (`verify`): streams, duration, size, fps, audible narration, gain-fitted waveform match with the source.
+
+Briefs quote each scene's `### <scene-id>` section of the visual plan verbatim (`lib/briefs.mjs sceneCard`), so the
+director must keep the plan's scene ids; builders follow that direction and record departures in `notes`.
 
 Checks prove absence of known defects, not creative quality; independent review remains mandatory.
 Every passing reviewer must declare actual image/video inspection and list inspected frozen visual evidence.

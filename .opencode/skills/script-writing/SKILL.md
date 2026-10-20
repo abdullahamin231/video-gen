@@ -5,8 +5,9 @@ description: Write a narration script for a video from material the user supplie
 
 # Script writing
 
-You write the words a narrator will say. The film is built afterwards from the recording and this script, so the
-script carries the whole argument: if it is dull or generic, no animation will save it.
+You write the words a narrator will say, and the visual plan the film is built from. The film is built afterwards from
+the recording, this script and its visual plan by agents on a weaker model, so you carry the whole argument and the
+whole picture: if the script is dull or the plan is vague, no animation will save it.
 
 The bar is an accurate script that rewards the viewer's attention and sounds natural in the creator's voice.
 Choose its genre before drafting: explanation, argument, tutorial or reported story. An argument needs a defensible
@@ -34,6 +35,7 @@ Work in `jobs/scripts/<slug>/` (create it):
 | `sources/NN-<name>.md` | the extracted text of each source, with its URL |
 | `research.md` | facts worth using (each with source and a short verbatim quote), open questions, tensions, candidate angles and openings, the choice you made and why |
 | `SCRIPT.md` | the narration only: plain spoken text, one paragraph per beat, nothing a TTS voice would read wrongly |
+| `VISUALS.md` | the visual plan: concept, design theme, scenes with their on-screen events at exact words, assets, thumbnail (`references/visuals.md`) |
 | `review.md` | a fresh reviewer's quoted findings, evidence checks, and final disposition; not the writer's self-review |
 
 ## Process
@@ -118,17 +120,25 @@ Read the draft once per pass, each time looking for one thing only:
    Anecdotes stay anecdotes. No invented personal experience: "I" statements about doing things come only from creator
    notes.
 
-### 6. Fresh review and finish
+### 6. Write the visual plan
+
+Once the narration is final, write `VISUALS.md` following `references/visuals.md`. This is where your creative
+thinking about the picture goes: the whole-film concept, the one design theme, every scene's stage and events tied to
+exact words, the assets, the prototype scene and the thumbnail. Write it for builders who will do exactly what it says
+and invent little. The concrete artifacts you collected in `research.md` are your best material.
+
+### 7. Fresh review and finish
 
 Before delivering a newly researched script, ask the host to commission a fresh reviewer with no writing history.
-Give it the brief, script, saved sources and research notes, and `references/review.md`. The host can use any strong-model
+Give it the brief, script, visual plan, saved sources and research notes, and `references/review.md`. The host can use any strong-model
 sub-agent; never claim independent review from a self-check. Small wording-only edits need not repeat research review
 unless claims change. If delegation is unavailable, state that review is incomplete.
 
 Address concrete editorial or factual findings, then have the reviewer check the revision. Stop after two revision
 rounds and report unresolved blockers as a draft instead of silently passing it. No user approval step is introduced.
 
-`SCRIPT.md` is plain text: no headings, stage directions, timestamps, Markdown or emoji. Report the word count, the
+`SCRIPT.md` is plain text: no headings, stage directions, timestamps, Markdown or emoji; all visual direction goes
+in `VISUALS.md`. Report the word count, the
 estimated duration and speaking-rate assumption, the takeaway, review status, and anything unresolved. A duration based
 on word count is an estimate, not measured narration length. The lint checks format and budget, not truth or engagement.
 
@@ -137,4 +147,10 @@ on word count is an estimate, not measured narration length. The lint checks for
 - `references/craft.md`: how good spoken scripts are built (openings, structures, voice, rhythm, endings).
 - `references/tells.md`: patterns that mark text as AI-written, and how to fix each.
 - `references/speech-and-tts.md`: word budgets, and writing for a TTS voice.
+- `references/visuals.md`: the visual plan the film is built from, and its required structure.
 - `references/review.md`: the fresh reviewer's editorial and factual checks and report.
+
+## A visual plan for an existing script
+
+When the pipeline asks for a visual plan for a script it already has (a supplied recording or script), follow only
+`references/visuals.md` and its "For a supplied script" section: never change the narration.

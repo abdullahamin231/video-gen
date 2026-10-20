@@ -16,6 +16,7 @@ import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {setupManim} from '../lib/manim.mjs';
 import {SpecError} from '../lib/spec.mjs';
 import {directorBrief, writeBrief} from '../lib/briefs.mjs';
+import {findVisualPlan, VISUALS_FILE} from '../lib/visuals.mjs';
 import {loadConfig, resolveSettings} from '../lib/format.mjs';
 import {readdir} from 'node:fs/promises';
 
@@ -102,6 +103,9 @@ async function prepare(opts) {
   for (const dir of ['inputs', 'assets', 'compositions', 'review', 'renders', 'shots', 'components', 'briefs']) await mkdir(path.join(job, dir), {recursive: true});
   await installKit(job);
   await writeFile(path.join(job, 'inputs/source-script.md'), sourceScript);
+  // The writer's visual plan travels with the script; without one, `next` asks a writer for it before planning.
+  const visuals = opts.visuals ? path.resolve(ROOT, opts.visuals) : await findVisualPlan(script);
+  if (visuals) await copyFile(visuals, path.join(job, VISUALS_FILE));
   const narration = extractNarration(sourceScript);
   await writeFile(path.join(job, 'inputs/narration.txt'), narration);
   await run('ffmpeg', ['-v', 'error', '-i', audio, '-ss', String(start), '-t', String(duration),
@@ -114,6 +118,7 @@ async function prepare(opts) {
     audio: {path: 'assets/narration.wav', source: path.relative(ROOT, audio), sourceStart: start,
       sha256: await digest(path.join(job, 'assets/narration.wav'))},
     script: {path: 'inputs/source-script.md', source: path.relative(ROOT, script), sha256: await digest(script)},
+    ...(visuals ? {visuals: {path: VISUALS_FILE, source: path.relative(ROOT, visuals), sha256: await digest(visuals)}} : {}),
     transcription: {language, model, engine, suppliedWords: !!opts.words},
     creativeMode: 'agent-discretion', workflow: 'faceless-explainer', status: 'awaiting-transcription',
     review: {producerAgentIds: ['/root'], requiredRoles: ['visual-mechanism', 'narration-fidelity', 'continuity-legibility']},
@@ -158,6 +163,7 @@ async function resolveInput(given, label) {
 const normalizedName = name => name.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}.]/gu, '');
 async function start(opts) {
   const audio = await resolveInput(opts.audio || '', 'Audio'), script = await resolveInput(opts.script || '', 'Script');
+  if (opts.visuals) opts = {...opts, visuals: path.relative(ROOT, await resolveInput(opts.visuals, 'Visual plan'))};
   let name = opts.name || jobNameFor(script, await readFile(script, 'utf8'));
   if (!/^[a-z0-9]/.test(name)) name = 'film-' + name;
   let candidate = name, i = 2;
@@ -296,7 +302,7 @@ const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
 
-start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug --music <track>]   create a job
+start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md>]   create a job (a VISUALS.md beside the script is picked up automatically)
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
                                      the job is named from the script file, else its folder or title (e.g. jobs/scripts/<slug>/SCRIPT.md → <slug>); --name overrides
 next [--job jobs/<slug>]             print the single next step (state machine)

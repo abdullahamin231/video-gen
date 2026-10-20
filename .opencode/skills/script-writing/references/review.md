@@ -1,6 +1,6 @@
 # Fresh script review
 
-Review the brief, SCRIPT.md, research.md and saved sources in a fresh context. Do not use the writer's self-assessment
+Review the brief, SCRIPT.md, VISUALS.md, research.md and saved sources in a fresh context. Do not use the writer's self-assessment
 or lint scores as evidence of quality. Write your own `review.md` in the script's output directory. Do not rewrite
 the script yourself; give the writer concrete defects and desired outcomes.
 
@@ -14,6 +14,11 @@ Read it first as the intended viewer, then check the evidence. Address these que
   require that attribution and uncertainty in the script. Distinguish evidence from opinion and anecdote.
 - Are first-person experiences supported by creator notes? A source's experience must not become the narrator's.
 - Does it sound natural at the chosen speaking rate, and fit the target budget? Do not reward matching tell counters.
+- Is `VISUALS.md` buildable by someone who will invent little (see `visuals.md`)? Check that every scene's start and
+  event phrases occur in SCRIPT.md exactly, scenes cover the script in order, each central idea has a concrete visible
+  cause → consequence → payoff rather than a labelled box or on-screen sentence, real things are named with how to
+  find or draw them, and every shown number or claim is supported. Vague direction ("an engaging visual of X") on a
+  central idea is blocking; it is what the builders will otherwise produce generically.
 
 Record the inspected file paths and any unavailable evidence. For each finding, quote the script line, describe its
 effect on the viewer or the unsupported inference, cite the supporting passage where applicable, and suggest a repair.

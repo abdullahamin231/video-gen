@@ -34,6 +34,7 @@ export function modelFor(job, role, pins = {}) { return routeModel(job, role, pi
 function stepFor(job, role, task) {
   if (task.stage) return `${task.stage}-review`;
   if (/\/(director|director-revision)\.md$/.test(task.brief)) return 'plan';
+  if (/\/visuals\.md$/.test(task.brief)) return 'visuals';
   const current = job.pipeline?.current;
   if (task.scene) {
     if (current && current !== 'prepare' && current !== 'deliver') return current;

@@ -102,10 +102,12 @@ test('CLI arguments disable built-in sub-agents, use repo agent types, and route
   assert.equal(routeModel({ provider: 'Claude', directorModel: 'y' }, 'thumbnail-maker', pins).model, 'y');
   assert.equal(routeModel({ provider: 'Claude', main: 'sonnet', models: { director: 'z' } }, 'orchestrator', pins).model, 'sonnet');
   // Blank roles take the provider's default for their tier, not the orchestrator's model.
-  assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'reviewer', pins), { model: 'gpt-6.1-sol', source: 'Codex strong default' });
+  assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'reviewer', pins), { model: 'gpt-6-luna', source: 'Codex weak default' });
+  assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'script-writer', pins), { model: 'gpt-6.1-sol', source: 'Codex strong default' });
   assert.equal(routeModel({ provider: 'Codex', main: 'gpt' }, 'orchestrator', pins).model, 'gpt');
   assert.equal(routeModel({ provider: 'Codex', main: '' }, 'orchestrator', pins).model, 'gpt-6-luna');
-  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'director', pins).model, 'opencode/deepseek-v4.1-flash-free');
+  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'director', pins).model, 'opencode/glm-5.3-flash');
+  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'script-writer', pins).model, 'opencode/deepseek-v4.1-flash-free');
   assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'builder', pins).model, 'opencode/glm-5.3-flash');
   assert.equal(routeModel({ provider: 'Claude', main: '' }, 'orchestrator', pins).model, 'claude-haiku-5-5');
   assert.equal(routeModel({ provider: 'Pi', main: '' }, 'orchestrator', pins).model, 'anthropic/claude-haiku-5-5');
@@ -346,7 +348,7 @@ test('pipeline status is read-only and matches the state machine for an unprepar
   const folder = await workspace(); const jobDir = path.join(folder, 'empty-job'); await mkdir(jobDir);
   const output = execFileSync(process.execPath, [path.join(root, 'scripts/video.mjs'), 'status', '--json', '--job', jobDir], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
   const status = JSON.parse(output.trim().split('\n').at(-1));
-  assert.equal(status.state, 'not prepared'); assert.equal(status.current, 'prepare'); assert.equal(status.steps.length, 11);
+  assert.equal(status.state, 'not prepared'); assert.equal(status.current, 'prepare'); assert.equal(status.steps.length, 12);
   assert.equal((await readFile(path.join(root, 'scripts/video.mjs'), 'utf8')).includes("command === 'status'"), true);
 });
 
