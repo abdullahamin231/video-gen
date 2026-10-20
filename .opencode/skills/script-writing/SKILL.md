@@ -1,6 +1,6 @@
 ---
 name: script-writing
-description: Write a narration script for a video from material the user supplies (article links, Reddit posts, notes, files) and a target duration. The script must sound like a specific, informed person talking, not like AI. Use when asked to write, draft or rewrite a video script or voiceover from sources.
+description: Write a narration script for a video from material the user supplies (article links, Reddit posts, notes, files), at the length the user asks for or, when they name none, a length chosen to fit the material. The script must sound like a specific, informed person talking, not like AI. Use when asked to write, draft or rewrite a video script or voiceover from sources.
 ---
 
 # Script writing
@@ -16,15 +16,33 @@ position; a tutorial needs a usable outcome; a story needs an honest sequence of
 ## Inputs
 
 - **Sources**: links or files from the user. These are the research. Read every one in full.
-- **Duration**: target running time. Convert it to a word budget (see `references/speech-and-tts.md`).
+- **Duration** (optional): target running time. When the brief names none, you choose it (see *Choosing the length*).
+  Either way, convert it to a word budget (see `references/speech-and-tts.md`).
 - Optional: a title, an angle, an audience, and creator notes (their own results, opinions, earlier videos, how they
   talk). Creator notes are the only legitimate source of first-person experience. They are also the biggest single
   improvement available: reactions, frustrations, things the creator got wrong. When the notes are thin, say in your
   report which moments would benefit from a line of the creator's own experience, rather than inventing one.
 
 Use the duration in the brief; otherwise use a positive `length` from `video.config.json` (seconds). If both are absent
-or the config says null, ask for the missing duration. Respect explicit user choices. Record genre, audience, voice,
-target minutes and chosen words per minute in `research.md`; use that same rate for budgeting and linting.
+or the config says null, choose the length yourself; never stop to ask for one. Respect explicit user choices. Record
+genre, audience, voice, target minutes (and whether it was requested or chosen) and the words per minute in
+`research.md`; use that same rate for budgeting and linting.
+
+### Choosing the length
+
+Choose after research, not before: the length is the time the promise needs with the evidence you actually have.
+
+- **Count the beats.** List the steps the viewer must take (the question, each mechanism or test, the counterexample,
+  the answer) and give each the time it needs to land, usually 20 to 60 seconds in long-form. The sum is the length.
+- **Let the material set the range.** One surprising mechanism or one piece of news explained: 2 to 4 minutes. A
+  comparison, buying decision or multi-step tutorial: 5 to 10 minutes. An investigation backed by plenty of primary
+  evidence: 10 to 15 minutes. Thin sources make a short film, never a padded long one.
+- **Vertical short-form** (reel, short, `--format vertical`): one idea and one payoff in 30 to 60 seconds, never more
+  than `verticalMaxSeconds` in `video.config.json` (90 by default).
+- **When torn, go shorter.** A beat the viewer would not miss is cut, not stretched to fill time.
+
+Write in `research.md` the chosen target, the beat count and one sentence on why that length fits. Then budget and lint
+against it exactly as you would a requested length, and report it to the host as the chosen length.
 
 ## Outputs
 
@@ -139,7 +157,7 @@ rounds and report unresolved blockers as a draft instead of silently passing it.
 
 `SCRIPT.md` is plain text: no headings, stage directions, timestamps, Markdown or emoji; all visual direction goes
 in `VISUALS.md`. Report the word count, the
-estimated duration and speaking-rate assumption, the takeaway, review status, and anything unresolved. A duration based
+estimated duration (and whether the length was requested or chosen, with the reason) and speaking-rate assumption, the takeaway, review status, and anything unresolved. A duration based
 on word count is an estimate, not measured narration length. The lint checks format and budget, not truth or engagement.
 
 ## References

@@ -1,4 +1,5 @@
-// The target duration is part of the prompt ("a 3-minute explainer", "90 seconds", "1 min 30 sec"), not a form field.
+// A target duration, when the user wants one, is part of the prompt ("a 3-minute explainer", "90 seconds", "1 min 30 sec"),
+// not a form field. Without one, the agent chooses a length that fits the topic.
 // Shared by the browser (live hint, submit check) and the server (the authoritative check), so both read it the same way.
 export const MIN_SECONDS = 10, MAX_SECONDS = 3600;
 
@@ -39,10 +40,10 @@ export function parseDuration(text) {
 
 export const formatDuration = seconds => seconds >= 60 ? `${Math.floor(seconds / 60)} min${seconds % 60 ? ` ${seconds % 60} s` : ''}` : `${seconds} s`;
 
-/** The duration from the prompt, or an error a person can act on. */
+/** The duration from the prompt ({seconds: null} when it names none), or an error a person can act on. */
 export function durationFromPrompt(text) {
   const seconds = parseDuration(text);
-  if (seconds == null) return { error: 'Say how long the video should be in your description, e.g. “a 3-minute explainer” or “90 seconds”.' };
+  if (seconds == null) return { seconds: null };
   if (seconds < MIN_SECONDS || seconds > MAX_SECONDS) return { seconds, error: `The description asks for ${formatDuration(seconds)}; the target must be between ${MIN_SECONDS} seconds and ${MAX_SECONDS / 60} minutes.` };
   return { seconds };
 }

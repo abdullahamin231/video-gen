@@ -130,7 +130,8 @@ test('ideas for videos already in jobs/ are skipped; status changes persist; the
   assert.equal((await loadIdeas(root)).cards.find(c => c.id === cards[0].id).status, 'rejected');
   await assert.rejects(setIdeaStatus(root, cards[0].id, 'bogus'), /Status must be/);
   const prompt = videoPrompt(cards[0]);
-  assert.match(prompt, /^A 3-minute explainer: /);
+  assert.match(prompt, /^An explainer: /, 'the length is left to the agent');
+  assert.match(videoPrompt(cards[0], 5), /^A 5-minute explainer: /);
   for (const s of cards[0].sources) assert(prompt.includes(s.url));
 });
 

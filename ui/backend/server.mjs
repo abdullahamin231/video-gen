@@ -49,7 +49,7 @@ const detail = (store, job) => ({ ...summary(job), messages: job.messages, event
 
 export async function createApp({ root, directory = path.join(root, '.video/ui'), runnerFactory, ideaOptions = {}, ideasRoot = root } = {}) {
   let defaults = {};
-  try { const source = JSON.parse(await readFile(path.join(root, 'video.config.json'), 'utf8')); defaults = { defaultFormat: source.format === 'vertical' ? 'vertical' : 'landscape', defaultDuration: Number.isInteger(source.length) && source.length > 0 ? source.length : 180 }; } catch {}
+  try { const source = JSON.parse(await readFile(path.join(root, 'video.config.json'), 'utf8')); defaults = { defaultFormat: source.format === 'vertical' ? 'vertical' : 'landscape' }; } catch {}
   const store = new Store(directory, defaults);
   const runner = runnerFactory ? runnerFactory({ root, store }) : new Runner({ root, store });
   const clients = new Set();
@@ -116,8 +116,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
           const input = { ...store.settings(), ...await body(req) };
           if (!Number.isInteger(input.concurrency) || input.concurrency < 1 || input.concurrency > 3) throw fail('Choose 1–3 simultaneous jobs');
           if (!['landscape', 'vertical'].includes(input.defaultFormat)) throw fail('Choose landscape or portrait');
-          if (!Number.isInteger(input.defaultDuration) || input.defaultDuration < 10 || input.defaultDuration > 3600) throw fail('Default target must be 10–3600 seconds');
-          store.saveSettings({ concurrency: input.concurrency, defaultFormat: input.defaultFormat, defaultDuration: input.defaultDuration }); runner.pump(); return json(res, 200, store.settings());
+          store.saveSettings({ concurrency: input.concurrency, defaultFormat: input.defaultFormat }); runner.pump(); return json(res, 200, store.settings());
         }
       }
       if (url.pathname === '/api/ideas' && req.method === 'GET') return json(res, 200, await ideasState());
@@ -159,7 +158,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
           const input = await body(req);
           if (!string(input.prompt, 20000) || !input.prompt.trim()) throw fail('Describe the video you want');
           if (!['landscape', 'vertical'].includes(input.format)) throw fail('Choose landscape or vertical');
-          // The duration is read from the prompt itself; there is no separate field to fill in.
+          // A length named in the prompt is the target; with none, the agent chooses one that fits the topic.
           const target = durationFromPrompt(input.prompt);
           if (target.error) throw fail(target.error);
           const title = string(input.title, 150) && input.title.trim() ? input.title.trim() : input.prompt.replace(/\s+/g, ' ').trim().slice(0, 65);

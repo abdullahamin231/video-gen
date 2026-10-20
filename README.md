@@ -48,7 +48,7 @@ Defaults for new jobs. Flags on `start` override them per job.
 | Setting | Default | Flag | Effect |
 |---|---|---|---|
 | `format` | `"landscape"` | `--format landscape\|vertical` | `landscape` is 1920×1080 long-form; `vertical` is 1080×1920 for reels and shorts (briefs, checks and review add phone guidance and a safe area). |
-| `length` | `null` | `--length <s>` (alias `--duration`) | With a supplied recording, keep only the first N seconds (`--start` moves the window). A config length trims only longer recordings; a flag must fit the recording. When a script is written from sources, this is the target duration if the request names none. |
+| `length` | `null` | `--length <s>` (alias `--duration`) | With a supplied recording, keep only the first N seconds (`--start` moves the window). A config length trims only longer recordings; a flag must fit the recording. When a script is written from sources, this is the target duration if the request names none; left at `null`, the script writer chooses a length that fits the material. |
 | `verticalMaxSeconds` | `90` | | A vertical job longer than this gets a warning (it still runs). |
 | `fps` | `30` | `--fps` | 24, 30 or 60. |
 

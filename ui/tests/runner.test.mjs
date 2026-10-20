@@ -121,6 +121,7 @@ test('CLI arguments disable built-in sub-agents, use repo agent types, and route
 test('the orchestrator prompt names the job explicitly and a resume prompt is short', () => {
   const job = { id: 'abc', slug: 'my-video-abc123', jobPath: 'jobs/my-video-abc123', scriptPath: 'jobs/scripts/my-video-abc123', prompt: 'x', duration: 60, format: 'landscape' };
   assert.match(orchestratorPrompt(job), /start --name my-video-abc123 /);
+  assert.match(orchestratorPrompt(job), /Requested target duration: 60 seconds/);
   assert(orchestratorPrompt(job, { resume: true }).length < 800);
 });
 
@@ -288,8 +289,12 @@ test('API streams deltas, authorizes bridge tools, rejects cross-origin writes, 
   assert.equal((await post(url, '/api/jobs', defaults, { Origin: 'https://evil.example' })).status, 403);
   assert.equal((await fetch(url + '/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(defaults) })).status, 403);
   const sse = await fetch(url + '/api/stream'); const reader = sse.body.getReader(); assert.match(new TextDecoder().decode((await reader.read()).value), /connected/);
-  // The target duration must be in the prompt; a separate duration field is ignored.
-  const missing = await post(url, '/api/jobs', { ...defaults, prompt: 'A test fixture with no length', duration: 60 }); assert.equal(missing.status, 400); assert.match((await missing.json()).error, /how long/);
+  // A length is optional and read only from the prompt; a separate duration field is ignored.
+  const tooLong = await post(url, '/api/jobs', { ...defaults, prompt: 'A two-hour fixture' }); assert.equal(tooLong.status, 400); assert.match((await tooLong.json()).error, /between/);
+  const open = await post(url, '/api/jobs', { ...defaults, prompt: 'A test fixture with no length', duration: 60 }); assert.equal(open.status, 201);
+  const openJob = app.store.get((await open.json()).id); assert.equal(openJob.duration, null);
+  assert.match(orchestratorPrompt(openJob), /No target duration was requested: the length is the script writer's call/);
+  await until(() => !['queued', 'running'].includes(openJob.status), 'the open-length job to settle'); await app.runner.remove(openJob);
   const response = await post(url, '/api/jobs', defaults); assert.equal(response.status, 201); const created = await response.json(); const job = app.store.get(created.id);
   assert.equal(job.duration, 60);
   let streamed = '';

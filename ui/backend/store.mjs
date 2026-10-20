@@ -34,7 +34,7 @@ function tail(filename, count) {
 export class Store {
   constructor(directory, defaults = {}) {
     this.directory = directory;
-    this.defaults = { concurrency: 1, defaultFormat: 'landscape', defaultDuration: 180, ...defaults };
+    this.defaults = { concurrency: 1, defaultFormat: 'landscape', ...defaults };
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.jobs = new Map(); this.recent = new Map(); this.timers = new Map(); this.listeners = new Set();
     for (const name of readdirSync(directory).filter(name => /^[a-f0-9-]+\.json$/.test(name))) {

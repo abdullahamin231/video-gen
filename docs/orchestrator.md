@@ -165,17 +165,18 @@ every harness and lets you choose a different model for any role (`ui/shared/rou
 
 ## Writing a script
 
-When the user asks for a script ("Write a 5-minute script from these links"), it comes from the sources they supply
-and a target duration. Spawn a fresh `script-writer` sub-agent (or any strong-model sub-agent) whose prompt gives the
-sources, the duration and any creator notes, and tells it to follow the `script-writing` skill
+When the user asks for a script ("Write a 5-minute script from these links", or just "a video about X"), it comes from
+the sources they supply, at the duration they name if they name one. Spawn a fresh `script-writer` sub-agent (or any
+strong-model sub-agent) whose prompt gives the sources, the duration if there is one, and any creator notes, and tells it to follow the `script-writing` skill
 (`.opencode/skills/script-writing/SKILL.md`, linked into `.claude/skills` and `.agents/skills`). It writes
 `jobs/scripts/<slug>/SCRIPT.md` with its research notes and the visual plan `VISUALS.md` the film is built from. Give the user the script, its word count and estimated
 duration and the speaking-rate assumption. Before delivery, commission a fresh `script-reviewer` (or strong-model reviewer)
 with the brief, script, visual plan, saved sources and research notes, following the skill's `references/review.md`. Have the writer address blockers
 and the reviewer check revisions (at most two rounds); unresolved work is a draft, never an independently passed script.
-If the user names no duration, use a positive `length` from `video.config.json` (seconds); if it is null, ask for the
-missing target. For a reel, short or vertical video (or `"format": "vertical"` in the config), tell the writer it is
-vertical short-form. When choosing a default duration, respect `verticalMaxSeconds`; explicit user duration takes priority.
+If the user names no duration, use a positive `length` from `video.config.json` (seconds); if it is null, do not ask:
+tell the writer no length was requested, and it chooses one that fits the material (the skill's *Choosing the length*)
+and records why. For a reel, short or vertical video (or `"format": "vertical"` in the config), tell the writer it is
+vertical short-form; a chosen length then stays within `verticalMaxSeconds`. Explicit user duration takes priority.
 
 ## Generating narration (TTS)
 

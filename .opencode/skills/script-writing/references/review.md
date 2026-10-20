@@ -14,6 +14,9 @@ Read it first as the intended viewer, then check the evidence. Address these que
   require that attribution and uncertainty in the script. Distinguish evidence from opinion and anecdote.
 - Are first-person experiences supported by creator notes? A source's experience must not become the narrator's.
 - Does it sound natural at the chosen speaking rate, and fit the target budget? Do not reward matching tell counters.
+- When the writer chose the length (the brief named none), is it the right one? Name beats a viewer would not miss
+  (padding) or steps rushed past (too short), and suggest a target. A badly chosen length is a `revise` finding; a
+  requested length is the user's call and is not second-guessed.
 - Is `VISUALS.md` buildable by someone who will invent little (see `visuals.md`)? Check that every scene's start and
   event phrases occur in SCRIPT.md exactly, scenes cover the script in order, each central idea has a concrete visible
   cause → consequence → payoff rather than a labelled box or on-screen sentence, real things are named with how to

@@ -16,8 +16,8 @@ test('ordinary prose is not mistaken for a duration', () => {
     assert.equal(parseDuration(text), null, text);
 });
 
-test('a missing or out-of-range duration gives an actionable error', () => {
-  assert.match(durationFromPrompt('A video about grids').error, /how long/);
+test('no duration is fine (the agent chooses); an out-of-range one gives an actionable error', () => {
+  assert.deepEqual(durationFromPrompt('A video about grids'), { seconds: null }, 'no length is fine: the agent chooses');
   assert.match(durationFromPrompt('a 5 second clip').error, /between 10 seconds and 60 minutes/);
   assert.match(durationFromPrompt('a 2 hour documentary').error, /between/);
   assert.deepEqual(durationFromPrompt('a 90-second reel'), { seconds: 90 });

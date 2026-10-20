@@ -16,7 +16,7 @@ const ago = at => at ? `${span(Date.now() - Date.parse(at))} ago` : '';
 const since = at => at ? `<span data-since="${esc(at)}">${span(Date.now() - Date.parse(at))}</span>` : '';
 const sinceAgo = at => at ? `<span data-ago="${esc(at)}">${ago(at)}</span>` : '';
 const format = j => j.format === 'vertical' ? '9:16' : '16:9';
-const duration = j => j.duration >= 60 ? `${Math.floor(j.duration / 60)}m${j.duration % 60 ? ` ${j.duration % 60}s` : ''}` : `${j.duration}s`;
+const duration = j => !j.duration ? 'length: agent’s call' : j.duration >= 60 ? `${Math.floor(j.duration / 60)}m${j.duration % 60 ? ` ${j.duration % 60}s` : ''}` : `${j.duration}s`;
 const elapsedMs = j => (j.elapsedMs || 0) + (j.runStartedAt ? Date.now() - j.runStartedAt : 0);
 const short = (file, job) => String(file || '').replace(`${job.jobPath}/`, '').replace(`${job.scriptPath}/`, 'script/');
 const live = agent => ['running', 'starting', 'waiting'].includes(agent.status);
@@ -25,7 +25,7 @@ const statusIcon = status => ({ done: icon('check'), skipped: icon('check'), cur
 // ---------- state ----------
 const state = {
   jobs: new Map(), selected: null, job: null, messages: [], events: [], files: [], providers: [], usage: [],
-  settings: { concurrency: 1, defaultFormat: 'landscape', defaultDuration: 180 },
+  settings: { concurrency: 1, defaultFormat: 'landscape' },
   tab: 'thread', inspectorTab: 'overview', connected: false, loading: true, showArchived: false,
   activityFilter: 'all', activityAgent: '', olderLoaded: false, drawer: null,
   view: 'threads', ideas: null, ideaFilter: 'new', ideasBusy: false,
@@ -228,10 +228,10 @@ function ideaCard(card) {
   return `<article class="idea-card ${esc(card.status)}"><div class="idea-top"><span class="eyebrow">${esc(card.form.toUpperCase())}</span><span class="idea-score" title="${esc(Object.entries(card.scoreParts || {}).map(([key, value]) => `${key} ${value}`).join(' · '))}">${Math.round(card.score * 100)}</span></div><h3>${esc(card.title)}</h3><p>${esc(card.promise)}</p>${card.reasons?.length ? `<ul class="idea-reasons">${card.reasons.map(reason => `<li>${esc(reason)}</li>`).join('')}</ul>` : ''}<details class="idea-sources" data-key="src-${card.id}"><summary>${sources.length} source${sources.length === 1 ? '' : 's'} · ${esc([...new Set(sources.map(source => source.label))].join(', '))}</summary><ul>${sources.map(source => `<li><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}${icon('arrow')}</a><small>${esc(source.label)}${source.metric ? ` · ${esc(source.metric)}` : ''}</small></li>`).join('')}</ul></details>${card.status === 'used' ? `<small class="muted">A video thread was started from this idea.</small>` : ''}${card.status === 'rejected' && card.reason ? `<small class="muted">Rejected: ${esc(card.reason)}</small>` : ''}<div class="idea-actions">${actions}</div></article>`;
 }
 // The new-video form, filled in from an idea: its angle, plus the sources the script writer should start from.
+// No length: the agent chooses one that fits, unless the user adds one before starting.
 function ideaPrompt(card) {
-  const seconds = state.settings.defaultDuration || 180, length = seconds % 60 ? `${seconds}-second` : `${seconds / 60}-minute`;
   const links = [...new Set((card.sources || []).flatMap(source => [source.url, source.link]).filter(Boolean))];
-  return `A ${length} explainer: ${card.title}\n\n${card.promise}\n\nStart from these sources and check every claim against primary evidence:\n${links.map(link => `- ${link}`).join('\n')}`;
+  return `An explainer: ${card.title}\n\n${card.promise}\n\nStart from these sources and check every claim against primary evidence:\n${links.map(link => `- ${link}`).join('\n')}`;
 }
 async function findIdeas(focus = '') {
   state.ideasBusy = true; schedule();
@@ -441,16 +441,17 @@ function updateRoutingPreview(form) {
 }
 
 // What the description says about length, shown live under it; the submit check uses the same parser.
+// A length is optional: without one the agent decides how long the video should be.
 function durationHint(prompt) {
   const target = durationFromPrompt(prompt);
-  const text = target.seconds && !target.error ? `${icon('clock')}Target duration: ${formatDuration(target.seconds)}`
-    : !String(prompt).trim() ? 'Include the length in your description, e.g. “a 3-minute explainer” or “90 seconds”.'
-    : target.seconds ? target.error : 'No length found yet. Add one, e.g. “3 minutes” or “90 seconds”.';
-  return `<p id="duration-hint" class="duration-hint${target.seconds && !target.error ? ' found' : ''}" aria-live="polite">${text}</p>`;
+  const text = target.error ? target.error
+    : target.seconds ? `${icon('clock')}Target duration: ${formatDuration(target.seconds)}`
+    : `${icon('clock')}The agent will choose a length that fits the topic. To set one, say it, e.g. “a 3-minute explainer” or “90 seconds”.`;
+  return `<p id="duration-hint" class="duration-hint${target.seconds && !target.error ? ' found' : ''}${target.error ? ' missing' : ''}" aria-live="polite">${text}</p>`;
 }
 function newJob(idea = null) {
   const base = state.job || {};
-  openModal(`${modalHeading('What are we making?', 'One prompt. One thread. The entire production.')}<form id="new-job-form"><label class="field-label" for="new-prompt">Describe your video</label><textarea id="new-prompt" name="prompt" rows="4" placeholder="A 3-minute explainer about why batteries degrade. Make it visual and accessible…" required maxlength="20000" aria-describedby="duration-hint"></textarea>${durationHint('')}<div class="form-grid"><label>Title (optional)<input name="title" placeholder="Name this thread" maxlength="150"></label><label>Format<select name="format"><option value="landscape" ${state.settings.defaultFormat === 'landscape' ? 'selected' : ''}>Landscape · 16:9</option><option value="vertical" ${state.settings.defaultFormat === 'vertical' ? 'selected' : ''}>Portrait · 9:16</option></select></label></div><details class="advanced-options input-options"><summary>Use an existing script or recording ${icon('down')}</summary><div class="form-grid"><label>Script file<input type="file" name="scriptFile" accept=".md,.txt"><input name="inputScript" placeholder="Or repository-relative path"></label><label>Recording<input type="file" name="audioFile" accept="audio/*,.webm,.mp4"><input name="audioPath" placeholder="Or repository-relative path"></label></div><p class="model-caveat">A supplied recording is kept unchanged. Without one, the agent generates narration from the reviewed script. Uploads stay inside this repository (250 MB per file).</p></details><div class="form-divider"></div>${modelFields({ provider: base.provider, main: base.main || '', models: roleModels(base) })}<div class="modal-footer"><span>${icon('terminal')}Runs real CLI agents and production tools</span><button class="primary-button" type="submit">Start video ${icon('arrow')}</button></div><div id="form-error" class="form-error" role="alert"></div></form>`, true);
+  openModal(`${modalHeading('What are we making?', 'One prompt. One thread. The entire production.')}<form id="new-job-form"><label class="field-label" for="new-prompt">Describe your video</label><textarea id="new-prompt" name="prompt" rows="4" placeholder="An explainer about why batteries degrade. Make it visual and accessible… (add a length only if you want one)" required maxlength="20000" aria-describedby="duration-hint"></textarea>${durationHint('')}<div class="form-grid"><label>Title (optional)<input name="title" placeholder="Name this thread" maxlength="150"></label><label>Format<select name="format"><option value="landscape" ${state.settings.defaultFormat === 'landscape' ? 'selected' : ''}>Landscape · 16:9</option><option value="vertical" ${state.settings.defaultFormat === 'vertical' ? 'selected' : ''}>Portrait · 9:16</option></select></label></div><details class="advanced-options input-options"><summary>Use an existing script or recording ${icon('down')}</summary><div class="form-grid"><label>Script file<input type="file" name="scriptFile" accept=".md,.txt"><input name="inputScript" placeholder="Or repository-relative path"></label><label>Recording<input type="file" name="audioFile" accept="audio/*,.webm,.mp4"><input name="audioPath" placeholder="Or repository-relative path"></label></div><p class="model-caveat">A supplied recording is kept unchanged. Without one, the agent generates narration from the reviewed script. Uploads stay inside this repository (250 MB per file).</p></details><div class="form-divider"></div>${modelFields({ provider: base.provider, main: base.main || '', models: roleModels(base) })}<div class="modal-footer"><span>${icon('terminal')}Runs real CLI agents and production tools</span><button class="primary-button" type="submit">Start video ${icon('arrow')}</button></div><div id="form-error" class="form-error" role="alert"></div></form>`, true);
   if (idea) {
     const form = $('#new-job-form'), prompt = ideaPrompt(idea);
     form.dataset.idea = idea.id; form.elements.prompt.value = prompt; form.elements.title.value = idea.title.slice(0, 150);
@@ -543,7 +544,7 @@ document.addEventListener('submit', async e => {
   try {
     const data = new FormData(form);
     if (form.id === 'new-job-form') {
-      // The target duration comes from the description; stop here rather than send a prompt without one.
+      // A length in the description must be in range; no length at all is fine (the agent chooses).
       const target = durationFromPrompt(data.get('prompt'));
       if (target.error) { $('#form-error', form).textContent = target.error; const hint = $('#duration-hint', form); hint.textContent = target.error; hint.classList.add('missing'); $('#new-prompt', form).focus(); return; }
       const input = { ...readConfig(form), title: data.get('title'), prompt: data.get('prompt'), format: data.get('format'), audioPath: data.get('audioPath') || '', inputScript: data.get('inputScript') || '' };

@@ -21,7 +21,7 @@ Every `tts` call needs `HYPERFRAMES_PYTHON` pointing at that interpreter. The fi
 
 - Default voice: `am_michael` (male, American). `npx --no-install hyperframes tts --list` shows the others.
 - At speed 1.0, `am_michael` reads about 170 words per minute. Choose `--speed` from the script's word count and the
-  target duration: `speed = (words / minutes) / 170`. For example, 1,600 words in 8 minutes is 200 wpm, so speed 1.15–1.2.
+  target duration (requested, or the one the writer chose and recorded in `research.md`): `speed = (words / minutes) / 170`. For example, 1,600 words in 8 minutes is 200 wpm, so speed 1.15–1.2.
   Stay between 0.9 and 1.25; outside that range, cut or extend the script instead.
 
 ## Steps

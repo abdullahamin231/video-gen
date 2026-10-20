@@ -1,6 +1,6 @@
 ---
 name: script-reviewer
-description: Independently reviews a source-based narration script for editorial quality, factual support and the requested genre and duration.
+description: Independently reviews a source-based narration script for editorial quality, factual support, the requested genre, and the requested duration or how well a writer-chosen length fits the material.
 model: claude-opus-5-5
 ---
 
