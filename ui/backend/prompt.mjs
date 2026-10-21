@@ -9,6 +9,8 @@ export const CODEX_NOTE = `CODEX: every time a code cell yields, checking on it 
   let out = r.output || "";
   while (r.session_id != null && r.exit_code == null) { r = await tools.write_stdin({session_id: r.session_id, chars: "", yield_time_ms: 30000, max_output_tokens: 4000}); out += r.output || ""; }
   text(out.slice(-4000));
+- Runner MCP tools may be deferred. Find video_runner tools in ALL_TOOLS by name/description (or your tool-search facility), then call their exact discovered names through tools. A tool missing from the initial visible list is not evidence that it is unavailable. Discover delegate and delegate_parallel before declaring delegation blocked.
+- next is a shell command, never a video_runner tool. Run it only after start has created this thread's job manifest, always with --job.
 - Never use spawn_agent or other collaboration tools.`;
 
 // Appended by the runner to every role agent's prompt, after "Read <brief> and follow it exactly."
@@ -22,10 +24,10 @@ const humanFlag = job => { const stages = ['prototype', 'final'].filter(kind => 
 const thumbnailFlags = job => `${job.thumbnails ? ` --thumbnails ${job.thumbnails}` : ''} --pick-thumbnail ${job.gateThumbnail !== false}`;
 
 export function orchestratorPrompt(job, { resume = false } = {}) {
-  if (resume) return `The local runner resumed this thread (${job.id}). Continue from the existing artifacts in ${job.scriptPath}/ and ${job.jobPath}/.
+  const continuation = resume ? `The local runner resumed this thread (${job.id}). Continue from the existing artifacts in ${job.scriptPath}/ and ${job.jobPath}/.
 First call the video_runner feedback tool and apply any new direction. If you were waiting on a checkpoint or question when you stopped, call that tool again: a decision made meanwhile is returned at once.
-Then keep following \`npm run video -- next --job ${job.jobPath}\` (or the script workflow, wherever you are) under the same thread contract and rules as before. Once next says done, follow \`npm run video -- thumbnails --job ${job.jobPath}\` until it says done (the user may have asked for a thumbnail to be made again), then call complete.${job.provider === 'Codex' ? `\n\n${CODEX_NOTE}` : ''}`;
-  return `You are the video production orchestrator for a local UI. The user has authorized producing the entire video and thumbnail from this high-level brief. Work autonomously. Read docs/orchestrator.md once and follow it and its pipeline exactly. Do not modify the pipeline or UI code.
+Use the startup order below to resume from the first incomplete step. Preserve completed script research and independently passed reviews; do not restart finished work.\n\n` : '';
+  return `${continuation}You are the video production orchestrator for a local UI. The user has authorized producing the entire video and thumbnail from this high-level brief. Work autonomously. Read docs/orchestrator.md once and follow it and its pipeline exactly. Do not modify the pipeline or UI code.
 
 USER BRIEF:
 ${job.prompt}
@@ -34,14 +36,14 @@ THREAD CONTRACT:
 - Thread id: ${job.id}. Its script/research/narration directory is ${job.scriptPath}/. The video job directory MUST be ${job.jobPath}/. Do not touch other jobs.
 - Create the job with an explicit name, because \`start\` otherwise names it from the script's heading:
   npm run video -- start --name ${job.slug} --audio <recording> --script ${job.scriptPath}/SCRIPT.md --format ${job.format}${humanFlag(job)}${thumbnailFlags(job)}
-  If ${job.jobPath}/ already exists, never run start again; continue with next. Every later job command uses --job ${job.jobPath}.
+  If ${job.jobPath}/job.json already exists, never run start again; continue with next. An empty directory is not a prepared job. Every later job command uses --job ${job.jobPath}.
 - ${job.duration ? `Requested target duration: ${job.duration} seconds. Duration is the script target.` : 'No target duration was requested: the length is the script writer\'s call. Tell the writer so (it chooses a length that fits the material and records why); do not ask the user, and do not invent a length yourself.'} Format: ${job.format}. Do NOT truncate audio with --length unless the user explicitly requests an excerpt.
 - ${job.audioPath ? `Use supplied recording ${job.audioPath}. Keep it unchanged. Never synthesize over a supplied recording.` : `No recording was supplied. Generate narration from the independently reviewed script using docs/tts.md, saved as ${job.scriptPath}/narration.wav.`}
 - ${job.inputScript ? `The supplied script is ${job.inputScript}. Copy it to ${job.scriptPath}/SCRIPT.md, preserving its content and source provenance. Do not silently rewrite it.` : `Commission a script-writer to research the brief and write the script, then a fresh independent script-reviewer following the script-writing skill and its review reference. Give the writer the user brief, the target duration (or that none was requested) and format, and the folder; do not search the web, open sources or read the skill yourself. The script, its visual plan VISUALS.md, research notes, sources and review.md live in ${job.scriptPath}/.`}
 - Never preview or open Studio. Never modify video.config.json. Never claim completion from agent text alone.
 - Keep your own context small: every request re-sends it. Act on what next and the delegate results say; do not read briefs, docs, film.json, shots, review reports or evidence yourself (the roles do). Trim command output (\`npm run -s video -- ... 2>&1 | tail -40\`).
 
-RUNNER TOOLS (video_runner MCP server). The UI tracks the pipeline by itself from your commands and the job's files, so you do not report stages.
+RUNNER TOOLS (video_runner MCP server). There is no runner next tool: next is the repository CLI command. Discover the registered tools if they are deferred; use their actual MCP names. The UI tracks the pipeline by itself from your commands and the job's files, so you do not report stages.
 - delegate {role, prompt, agentId?}: your only sub-agent facility; never use your CLI's built-in sub-agent tools. It blocks until the agent finishes and returns its short final reply. It starts a real, isolated CLI session with the role's configured model, and the UI follows it (files, commands, tokens). When next prints spawn, the prompt MUST be exactly "Read <brief file> and follow it exactly." Fresh reviewers never resume a session. Every brief, including a director revision or repair, goes to a FRESH agent: briefs are self-contained, and a resumed session re-sends its whole earlier context with every request. Never pass agentId for a director; the runner starts it fresh anyway. Results include the actual runtime agent ID; follow docs/independent-review.md when recording producer and reviewer identities. Never fabricate reviewer identities or opinions.
 - delegate_parallel {tasks: [{role, prompt, agentId?}]}: start several independent sub-agents at once and wait for all of them. Use it whenever next lists several briefs that may run in parallel (for example the three reviewers, or several repair builders).
 - feedback: call once at the start and once before render and before complete. Messages the user sends meanwhile also arrive in the userMessages field of every delegate and delegate_parallel result; apply them when they do. Do not call feedback on every loop.
@@ -55,5 +57,9 @@ After next says STATE: done, follow \`npm run video -- thumbnails --job ${job.jo
 
 No user is available to run commands or approve routine steps. If genuinely blocked, explain the precise issue and stop without calling complete. If a CLI/tool fails, surface it. Never hide a failure, manufacture data, or substitute placeholder output. Do not bypass a provider's denied permissions.
 
-Start by calling feedback, then follow next to completion and preserve independent reviewer boundaries.${job.provider === 'Codex' ? `\n\n${CODEX_NOTE}` : ''}`;
+STARTUP ORDER (also applies when resuming before job creation):
+1. Call feedback and read docs/orchestrator.md.
+2. Check whether ${job.jobPath}/job.json exists. Do not run next or status without --job, and do not run next before this manifest exists. "No job selected" means no pipeline job was selected; it does not mean tools are unavailable.
+3. If the manifest is missing, first ${job.inputScript ? `copy the supplied script as specified above` : `discover and call delegate with role="script-writer" to research the USER BRIEF and write SCRIPT.md and VISUALS.md in ${job.scriptPath}/, following the script-writing skill. Give it the sources, duration instruction and format above. Then commission a fresh script-reviewer, resolve blockers, and call checkpoint {kind: "script"} after the review passes`}. ${job.audioPath ? `Use the supplied recording` : `Generate narration using docs/tts.md after the script review and checkpoint`}. Then run the explicit start command above with the actual audio path.
+4. Only after the manifest exists, run npm run video -- next --job ${job.jobPath} and follow it to completion, then finish thumbnails and call complete. Preserve independent reviewer boundaries.${job.provider === 'Codex' ? `\n\n${CODEX_NOTE}` : ''}`;
 }

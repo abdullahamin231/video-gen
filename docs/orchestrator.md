@@ -98,7 +98,7 @@ Never pick for the user, never reword their feedback, and do not change a qualif
 - Wait for a sub-agent or a long command with one blocking call. Do not check on it again and again from separate turns;
   each check costs a full request.
 - Never run `npx hyperframes`, `hyperframes upgrade`, or edit files in `node_modules`. Use only `npm run video -- ...`.
-  The one exception is `npx hyperframes tts` for generated narration, following [docs/tts.md](tts.md).
+  For generated narration use `npm run video -- tts`, following [docs/tts.md](tts.md); caches must stay in the repository `.cache/`.
 - Sound runs through the pipeline too: `npm run video -- setup-audio` (ffmpeg check, librosa), `music` and
   `library-search` / `library-use` for existing sound effects. See [docs/sound.md](sound.md).
 - Never read `scripts/` or `lib/` to work out what to do; `next`, the briefs and `docs/SCENE_SPEC.md` are the interface.

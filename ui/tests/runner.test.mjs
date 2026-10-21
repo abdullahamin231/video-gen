@@ -118,11 +118,24 @@ test('CLI arguments disable built-in sub-agents, use repo agent types, and route
   assert.equal(routeModel({ provider: 'Pi', main: '' }, 'orchestrator', pins).model, 'anthropic/claude-haiku-5-5');
 });
 
-test('the orchestrator prompt names the job explicitly and a resume prompt is short', () => {
+test('fresh and resumed orchestrators bootstrap before next and discover deferred runner tools', () => {
   const job = { id: 'abc', slug: 'my-video-abc123', jobPath: 'jobs/my-video-abc123', scriptPath: 'jobs/scripts/my-video-abc123', prompt: 'x', duration: 60, format: 'landscape' };
   assert.match(orchestratorPrompt(job), /start --name my-video-abc123 /);
   assert.match(orchestratorPrompt(job), /Requested target duration: 60 seconds/);
-  assert(orchestratorPrompt(job, { resume: true }).length < 800);
+  for (const resume of [false, true]) {
+    const prompt = orchestratorPrompt({ ...job, provider: 'Codex' }, { resume });
+    assert.match(prompt, /Check whether jobs\/my-video-abc123\/job\.json exists/);
+    assert.match(prompt, /do not run next before this manifest exists/);
+    assert.match(prompt, /first discover and call delegate with role="script-writer"/);
+    assert.match(prompt, /Then commission a fresh script-reviewer/);
+    assert.match(prompt, /Only after the manifest exists, run npm run video -- next --job jobs\/my-video-abc123/);
+    assert.match(prompt, /Find video_runner tools in ALL_TOOLS/);
+    assert.match(prompt, /There is no runner next tool/);
+    assert.match(prompt, /USER BRIEF:\nx/);
+  }
+  const supplied = orchestratorPrompt({ ...job, inputScript: 'inputs/script.md', audioPath: 'inputs/take.wav' });
+  assert.match(supplied, /first copy the supplied script/);
+  assert.match(supplied, /Use the supplied recording/);
 });
 
 test('store keeps events out of snapshots, batches writes, and restores recent events from the log', async () => {

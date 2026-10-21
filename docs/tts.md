@@ -3,7 +3,7 @@
 Use this when there is no recording: the script was written by the `script-writer` agent, or the user asks for a
 generated voice. Never use it to replace a supplied recording.
 
-The voice is Kokoro, run locally by `npx hyperframes tts`. This is the one allowed direct `npx hyperframes` command.
+The voice is Kokoro, run locally by `npm run video -- tts`. Always use this wrapper so model downloads and temporary files stay inside the repository cache.
 
 ## One-time setup
 
@@ -16,12 +16,14 @@ python3 -m venv .cache/video-gen/tts-env
 .cache/video-gen/tts-env/bin/pip install -q --no-cache-dir kokoro-onnx soundfile
 ```
 
-Every `tts` call needs `HYPERFRAMES_PYTHON` pointing at that interpreter. The first call downloads the voice data
-(about 27 MB) and takes a few minutes; later calls take about 30–60 s per paragraph.
+The wrapper selects that interpreter automatically and redirects HyperFrames’ hardcoded home-cache lookup
+into `.cache/video-gen/.cache/hyperframes/tts`. It also keeps Python and temporary caches in `.cache/video-gen`.
+Do not call `npx hyperframes tts` directly: this version ignores `XDG_CACHE_HOME` for model downloads.
+The first call downloads the model (about 311 MB) and voice data (about 27 MB) and takes a few minutes; later calls take about 30–60 s per paragraph.
 
 ## Voice and speed
 
-- Default voice: `am_michael` (male, American). `npx --no-install hyperframes tts --list` shows the others.
+- Default voice: `am_michael` (male, American). `npm run video -- tts --list` shows the others.
 - At speed 1.0, `am_michael` reads about 170 words per minute. Choose `--speed` from the script's word count and the
   target duration (requested, or the one the writer chose and recorded in `research.md`): `speed = (words / minutes) / 170`. For example, 1,600 words in 8 minutes is 200 wpm, so speed 1.15–1.2.
   Stay between 0.9 and 1.25; outside that range, cut or extend the script instead.
@@ -45,9 +47,8 @@ Run from the repository root, with `<slug>` the script's folder under `jobs/scri
 2. Synthesise each paragraph:
 
    ```bash
-   export HYPERFRAMES_PYTHON="$PWD/.cache/video-gen/tts-env/bin/python"
    for f in $S/tts/p*.txt; do
-     npx --no-install hyperframes tts "$f" -v am_michael -s 1.15 -o "${f%.txt}.wav" > "${f%.txt}.log" 2>&1 || echo "FAILED $f"
+     npm run video -- tts "$f" -v am_michael -s 1.15 -o "${f%.txt}.wav" > "${f%.txt}.log" 2>&1 || echo "FAILED $f"
    done
    ```
 
