@@ -55,7 +55,7 @@ function stepFor(job, role, task) {
     if (current && current !== 'prepare' && current !== 'deliver') return current;
     return job.pipeline?.scenes?.find(scene => scene.id === task.scene)?.prototypeCut ? 'prototype-scenes' : 'scenes';
   }
-  return { 'script-writer': 'script', 'script-reviewer': 'script-review', 'thumbnail-maker': 'thumbnail-art', 'thumbnail-reviewer': 'thumbnail-review' }[role] || current || '';
+  return { 'script-researcher': 'sources', 'script-writer': 'script', 'script-reviewer': 'script-review', 'thumbnail-maker': 'thumbnail-art', 'thumbnail-reviewer': 'thumbnail-review' }[role] || current || '';
 }
 
 export class Runner {

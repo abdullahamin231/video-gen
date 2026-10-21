@@ -33,9 +33,15 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
   const scriptExists = has(`${scriptDir}/SCRIPT.md`);
   // A writer sent by `next` for the visual plan (briefs/visuals.md) belongs to the film's "visuals" step, not the script.
   const writers = running(agents, 'script-writer').filter(agent => !/\/briefs\/visuals\.md$/.test(agent.brief || '')), reviewers = running(agents, 'script-reviewer');
+  const researchers = running(agents, 'script-researcher');
+  if (!job.inputScript) {
+    const saved = files.filter(f => f.path.startsWith(`${scriptDir}/sources/`)).length, indexed = has(`${scriptDir}/SOURCES.md`);
+    script.push(stepFrom('sources', 'Gather the sources', researchers.length ? 'current' : indexed || scriptExists ? 'done' : job.status === 'running' ? 'current' : 'pending',
+      researchers.length ? 'Researcher fetching sources' : indexed || scriptExists ? `${saved} saved sources` : 'Not started', { file: `${scriptDir}/SOURCES.md`, agents: ids(agents.filter(a => a.role === 'script-researcher')) }));
+  }
   if (job.inputScript) script.push(stepFrom('script', 'Script supplied', scriptExists || prepared ? 'done' : 'current', scriptExists ? `${scriptDir}/SCRIPT.md` : `Copying ${job.inputScript}`, { file: `${scriptDir}/SCRIPT.md` }));
-  else script.push(stepFrom('script', 'Research and write the script', writers.length ? 'current' : scriptExists ? 'done' : job.status === 'running' ? 'current' : 'pending',
-    writers.length ? 'Script writer at work' : scriptExists ? `${files.filter(f => f.path.startsWith(`${scriptDir}/sources/`)).length} saved sources` : 'Not started', { file: `${scriptDir}/SCRIPT.md`, agents: ids(agents.filter(a => a.role === 'script-writer')) }));
+  else script.push(stepFrom('script', 'Write the script', writers.length ? 'current' : scriptExists ? 'done' : job.status === 'running' && has(`${scriptDir}/SOURCES.md`) && !researchers.length ? 'current' : 'pending',
+    writers.length ? 'Script writer at work' : scriptExists ? `${scriptDir}/SCRIPT.md` : 'Not started', { file: `${scriptDir}/SCRIPT.md`, agents: ids(agents.filter(a => a.role === 'script-writer')) }));
   if (!job.inputScript) {
     const reviewed = has(`${scriptDir}/review.md`);
     const verdict = job.scriptReview;

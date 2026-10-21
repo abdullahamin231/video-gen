@@ -15,7 +15,9 @@ position; a tutorial needs a usable outcome; a story needs an honest sequence of
 
 ## Inputs
 
-- **Sources**: links or files from the user. These are the research. Read every one in full.
+- **Sources**: already gathered for you by the script researcher (a cheaper model) in `jobs/scripts/<slug>/sources/`,
+  indexed by `SOURCES.md` with the user's brief verbatim. These are the research. Read `SOURCES.md` and every source
+  file in full. You do not fetch links, search the web or open URLs yourself; when you need more, ask (see step 1).
 - **Duration** (optional): target running time. When the brief names none, you choose it (see *Choosing the length*).
   Either way, convert it to a word budget (see `references/speech-and-tts.md`).
 - Optional: a title, an angle, an audience, and creator notes (their own results, opinions, earlier videos, how they
@@ -50,7 +52,8 @@ Work in `jobs/scripts/<slug>/` (create it):
 
 | File | Contents |
 |---|---|
-| `sources/NN-<name>.md` | the extracted text of each source, with its URL |
+| `sources/NN-<name>.md` | the extracted text of each source, with its URL (saved by the researcher; you do not edit them) |
+| `SOURCES.md` | the researcher's index: brief, every source with its kind and completeness, unreachable primary evidence |
 | `research.md` | facts worth using (each with source and a short verbatim quote), open questions, tensions, candidate angles and openings, the choice you made and why |
 | `SCRIPT.md` | the narration only: plain spoken text, one paragraph per beat, nothing a TTS voice would read wrongly |
 | `VISUALS.md` | the visual plan: concept, design theme, scenes with their on-screen events at exact words, assets, thumbnail (`references/visuals.md`) |
@@ -60,10 +63,14 @@ Work in `jobs/scripts/<slug>/` (create it):
 
 ### 1. Read and take notes like a researcher, not a summariser
 
-Fetch each link with `node .opencode/skills/script-writing/scripts/fetch.mjs <url> <out.md>` (dependency-free text
-extraction; use your harness's fetch tool or a browser if a page is script-rendered). For a GitHub repository, read the
-files that matter, not just the README. The fetcher accepts ordinary Reddit post URLs or their `.json` forms and gets
-the post and top comments. Check the extraction covers the supplied material; a nonempty file is not proof of completeness.
+The researcher has already fetched every source, followed articles to their primary evidence and recorded what it
+could not reach (`references/sourcing.md`). Start from `SOURCES.md`, then read each source file in full. Note any
+extraction it marks incomplete and any primary evidence it could not reach: those limit what you can claim.
+
+**Need more evidence?** Do not fetch it yourself. Add a `## Evidence requests` section to `research.md` listing
+exactly what you need and why (a primary paper behind a number, a missing section, a counter-view), then stop and reply
+`NEEDS SOURCES` with that list. The host sends the researcher, then resumes you. After one such round, work with what
+you have: narrow the claim, attribute it to the secondary report, or leave it out.
 
 While reading, collect in `research.md`:
 
@@ -169,6 +176,7 @@ on word count is an estimate, not measured narration length. The lint checks for
 - `references/tells.md`: patterns that mark text as AI-written, and how to fix each.
 - `references/speech-and-tts.md`: word budgets, and writing for a TTS voice.
 - `references/visuals.md`: the visual plan the film is built from, and its required structure.
+- `references/sourcing.md`: how the script researcher gathers and saves the sources before you start.
 - `references/review.md`: the fresh reviewer's editorial and factual checks and report.
 
 ## A visual plan for an existing script

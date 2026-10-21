@@ -6,7 +6,7 @@ const token = process.env.VIDEO_RUNNER_TOKEN;
 const thread = process.env.VIDEO_THREAD_ID;
 const agentId = process.env.VIDEO_AGENT_ID;
 const role = process.env.VIDEO_AGENT_ROLE || 'orchestrator';
-const roles = ['director', 'builder', 'reviewer', 'script-writer', 'script-reviewer', 'thumbnail-maker', 'thumbnail-reviewer'];
+const roles = ['director', 'builder', 'reviewer', 'script-researcher', 'script-writer', 'script-reviewer', 'thumbnail-maker', 'thumbnail-reviewer'];
 const task = { type: 'object', properties: { role: { type: 'string', enum: roles }, prompt: { type: 'string' }, agentId: { type: 'string', description: 'Resume this earlier script-writer session. Directors always start fresh.' } }, required: ['role', 'prompt'], additionalProperties: false };
 const orchestratorTools = [
   { name: 'delegate', description: 'Run one isolated role-specific CLI sub-agent and wait until it finishes (one call, no polling). Use a fresh agent for every brief (directors always start fresh); optionally resume a previous script writer by its actual agentId. Returns the actual runtime identity, the agent\'s short final reply, and any new user messages (userMessages).', inputSchema: task },

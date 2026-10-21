@@ -47,7 +47,7 @@ sub-agents do the creative work from self-contained brief files. This works the 
   a new session). Several briefs may run in parallel. Wait for them to finish. Do not do their work yourself, do not edit
   their files, and do not pass them your own opinions.
   Reviewer sub-agents must be new agents that did not build anything.
-  The step names a role (`script-writer`, `video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
+  The step names a role (`script-researcher`, `script-writer`, `video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
   that name, use it: it pins the role's model (see "Models per role" below). Otherwise use any fresh sub-agent.
 - **`STATE: human review of the prototype/final`** — the user asked to watch the film at this stage (`start
   --human-review prototype,final`). In the video UI, call the runner's `checkpoint` tool with that kind; the user watches
@@ -94,7 +94,7 @@ Never pick for the user, never reword their feedback, and do not change a qualif
 
 - Keep your own context small: every request re-sends all of it. Act on what `next` prints and what sub-agents reply;
   do not read briefs, other docs, `film.json`, `shots/`, review reports or evidence yourself. Trim long command output
-  (`npm run -s video -- ... 2>&1 | tail -40`). Research belongs to the script writer, not to you.
+  (`npm run -s video -- ... 2>&1 | tail -40`). Fetching sources belongs to the script researcher, not to you.
 - Wait for a sub-agent or a long command with one blocking call. Do not check on it again and again from separate turns;
   each check costs a full request.
 - Never run `npx hyperframes`, `hyperframes upgrade`, or edit files in `node_modules`. Use only `npm run video -- ...`.
@@ -117,6 +117,7 @@ Never pick for the user, never reword their feedback, and do not change a qualif
 
 | Role | Brief | Writes | Checked by |
 |---|---|---|---|
+| Script researcher (new script) | the user's request | `jobs/scripts/<slug>/sources/`, `SOURCES.md` | the writer and script reviewer |
 | Script writer (visual plan for a supplied script) | `briefs/visuals.md` | `inputs/visuals.md`: concept, theme, every scene's events at exact words, assets, thumbnail | `next` (required sections) |
 | Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` transcribed from the visual plan (its theme, concept, scenes, who builds each) and the assets it needs, then the scenes it owns: the prototype, its context, and any later scene it keeps | `plan-check`, `build --scene` |
 | Scene builder (one per delegated scene) | `briefs/build-<scene>.md` | `shots/<scene>.json` (+ hook, components, Manim file) built from the visual plan's section for that scene (quoted in the brief); departures recorded in `notes` | `build --scene` (spec errors, browser checks, motion transcript) |
@@ -135,13 +136,14 @@ served the film. Missing scenes never qualify for final review or delivery.
 
 ## Models per role
 
-Only script generation runs on the strong model. The script writer puts all of the film's creative thinking into the
+Only script writing and its review run on the strong model; gathering the sources does not. The script writer puts all of the film's creative thinking into the
 script and its visual plan (`VISUALS.md`: concept, design theme, every scene's stage and events at exact words, assets,
 thumbnail), so every later role carries out a written design instead of inventing one.
 
 | Role | Tier | Why |
 |---|---|---|
 | orchestrator (main session) | weak | `next` decides every step |
+| `script-researcher` | weak | fetches every source, follows it to primary evidence and saves the text; the writer reads only what it saved |
 | `script-writer`, `script-reviewer` | strong | the script and the visual plan are where creative thinking pays off; the reviewer checks both |
 | `video-director`, `video-builder`, thumbnail maker | weak | transcribe the visual plan into film.json and build it; `plan-check` and `build --scene` catch broken output |
 | `video-reviewer`, thumbnail reviewer | weak | check frames of the built film against the plan and the quality standard; raise one to strong if weak reviews pass weak films |
@@ -162,13 +164,26 @@ every harness and lets you choose a different model for any role (`ui/shared/rou
 ## Writing a script
 
 When the user asks for a script ("Write a 5-minute script from these links", or just "a video about X"), it comes from
-the sources they supply, at the duration they name if they name one. Spawn a fresh `script-writer` sub-agent (or any
-strong-model sub-agent) whose prompt gives the sources, the duration if there is one, and any creator notes, and tells it to follow the `script-writing` skill
-(`.opencode/skills/script-writing/SKILL.md`, linked into `.claude/skills` and `.agents/skills`). It writes
-`jobs/scripts/<slug>/SCRIPT.md` with its research notes and the visual plan `VISUALS.md` the film is built from. Give the user the script, its word count and estimated
+the sources they supply, at the duration they name if they name one. It takes two steps, in this order:
+
+1. **Gather the sources (weak model).** Spawn a fresh `script-researcher` sub-agent whose prompt gives the user's
+   request verbatim (links, files, topic, creator notes) and the folder `jobs/scripts/<slug>/`, and tells it to follow
+   the `script-writing` skill's `references/sourcing.md`. It fetches every source, follows articles to their primary
+   evidence, searches the web when the request names only a topic, and saves `sources/NN-*.md` and `SOURCES.md`.
+   Do not fetch or search anything yourself.
+2. **Write the script (strong model), only once the sources are saved.** Spawn a fresh `script-writer` sub-agent (or
+   any strong-model sub-agent) whose prompt names the folder, the duration if there is one, the format and any creator
+   notes, and tells it to follow the `script-writing` skill (`.opencode/skills/script-writing/SKILL.md`, linked into
+   `.claude/skills` and `.agents/skills`). It reads only the saved sources, never the web, and writes `SCRIPT.md`,
+   `research.md` and the visual plan `VISUALS.md` the film is built from. If it replies `NEEDS SOURCES` with a list,
+   send that list to a fresh `script-researcher` for the same folder, then resume the writer (once; after that it
+   works with what it has).
+
+Give the user the script, its word count and estimated
 duration and the speaking-rate assumption. Before delivery, commission a fresh `script-reviewer` (or strong-model reviewer)
 with the brief, script, visual plan, saved sources and research notes, following the skill's `references/review.md`. Have the writer address blockers
 and the reviewer check revisions (at most two rounds); unresolved work is a draft, never an independently passed script.
+A review marked `incomplete` for a missing source goes to the researcher first, then back to the reviewer.
 If the user names no duration, use a positive `length` from `video.config.json` (seconds); if it is null, do not ask:
 tell the writer no length was requested, and it chooses one that fits the material (the skill's *Choosing the length*)
 and records why. For a reel, short or vertical video (or `"format": "vertical"` in the config), tell the writer it is

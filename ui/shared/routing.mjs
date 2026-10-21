@@ -2,7 +2,8 @@
 // `tier` picks the provider default below; `legacy` is the shared field older threads used before each role had its own model.
 export const ROLES = [
   { role: 'orchestrator', label: 'Orchestrator', hint: 'Follows the pipeline and starts every other role', tier: 'weak' },
-  { role: 'script-writer', label: 'Script writer', hint: 'Research, narration script and visual plan', tier: 'strong', legacy: 'directorModel', pin: 'script-writer' },
+  { role: 'script-researcher', label: 'Script researcher', hint: 'Fetches every source and its primary evidence before the writer starts', tier: 'weak', pin: 'script-researcher' },
+  { role: 'script-writer', label: 'Script writer', hint: 'Narration script and visual plan, from the saved sources', tier: 'strong', legacy: 'directorModel', pin: 'script-writer' },
   { role: 'script-reviewer', label: 'Script reviewer', hint: 'Independent script review', tier: 'strong', legacy: 'reviewerModel', pin: 'script-reviewer' },
   { role: 'director', label: 'Director', hint: 'Turns the visual plan into film.json; builds the prototype scenes', tier: 'weak', legacy: 'directorModel', pin: 'video-director' },
   { role: 'builder', label: 'Scene builders', hint: 'Delegated scenes and their repairs', tier: 'weak', legacy: 'sub', pin: 'video-builder' },
@@ -10,7 +11,7 @@ export const ROLES = [
   { role: 'thumbnail-maker', label: 'Thumbnail maker', hint: 'Thumbnail brief and design', tier: 'weak', legacy: 'directorModel', pin: 'video-director' },
   { role: 'thumbnail-reviewer', label: 'Thumbnail reviewer', hint: 'Independent thumbnail review', tier: 'weak', legacy: 'reviewerModel', pin: 'video-reviewer' },
 ];
-// Only script generation runs on the strong model: the writer puts the film's creative thinking into the script and its
+// Only script writing and its review run on the strong model (the researcher fetches the sources first, on the weak one): the writer puts the film's creative thinking into the script and its
 // visual plan (VISUALS.md), and every later role carries that plan out on the weak model.
 export const DEFAULT_MODELS = {
   Codex: { strong: 'gpt-6.1-sol', weak: 'gpt-6-luna' },
@@ -21,7 +22,7 @@ export const DEFAULT_MODELS = {
 export const DELEGATE_ROLES = ROLES.filter(item => item.role !== 'orchestrator').map(item => item.role);
 
 // Claude runs these roles as the repository's own agent types (.claude/agents/*.md); Pi appends their instructions.
-export const CLAUDE_AGENT_TYPES = { director: 'video-director', builder: 'video-builder', reviewer: 'video-reviewer', 'script-writer': 'script-writer', 'script-reviewer': 'script-reviewer' };
+export const CLAUDE_AGENT_TYPES = { director: 'video-director', builder: 'video-builder', reviewer: 'video-reviewer', 'script-researcher': 'script-researcher', 'script-writer': 'script-writer', 'script-reviewer': 'script-reviewer' };
 
 // The per-role overrides a thread has chosen. Older threads stored shared fields; they map onto the same roles.
 export function roleModels(job = {}) {

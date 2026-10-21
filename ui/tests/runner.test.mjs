@@ -113,6 +113,8 @@ test('CLI arguments disable built-in sub-agents, use repo agent types, and route
   assert.equal(routeModel({ provider: 'Codex', main: '' }, 'orchestrator', pins).model, 'gpt-6-luna');
   assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'director', pins).model, 'opencode/glm-5.3-flash');
   assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'script-writer', pins).model, 'opencode/deepseek-v4.1-flash-free');
+  assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'script-researcher', pins), { model: 'gpt-6-luna', source: 'Codex weak default' });
+  assert.equal(routeModel({ provider: 'Claude', main: '' }, 'script-researcher', { 'script-researcher': 'claude-haiku-5-5' }).model, 'claude-haiku-5-5');
   assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'builder', pins).model, 'opencode/glm-5.3-flash');
   assert.equal(routeModel({ provider: 'Claude', main: '' }, 'orchestrator', pins).model, 'claude-haiku-5-5');
   assert.equal(routeModel({ provider: 'Pi', main: '' }, 'orchestrator', pins).model, 'anthropic/claude-haiku-5-5');
@@ -126,7 +128,7 @@ test('fresh and resumed orchestrators bootstrap before next and discover deferre
     const prompt = orchestratorPrompt({ ...job, provider: 'Codex' }, { resume });
     assert.match(prompt, /Check whether jobs\/my-video-abc123\/job\.json exists/);
     assert.match(prompt, /do not run next before this manifest exists/);
-    assert.match(prompt, /first discover and call delegate with role="script-writer"/);
+    assert.match(prompt, /first discover and call delegate with role="script-researcher"[\s\S]*then, once SOURCES\.md exists, delegate with role="script-writer"/);
     assert.match(prompt, /Then commission a fresh script-reviewer/);
     assert.match(prompt, /Only after the manifest exists, run npm run video -- next --job jobs\/my-video-abc123/);
     assert.match(prompt, /Find video_runner tools in ALL_TOOLS/);
@@ -271,7 +273,10 @@ test('progress joins script, pipeline, thumbnail and delivery; health reads fact
   const files = [{ path: 'jobs/scripts/v/SCRIPT.md' }, { path: 'jobs/scripts/v/review.md' }, { path: 'jobs/scripts/v/narration.wav' }];
   const progress = computeProgress(job, { files });
   assert.deepEqual(progress.phases.map(phase => phase.id), ['script', 'film', 'thumbnail', 'delivery']);
-  assert.deepEqual(progress.phases[0].steps.map(step => step.status), ['done', 'done', 'done']);
+  assert.deepEqual(progress.phases[0].steps.map(step => step.id), ['sources', 'script', 'script-review', 'narration']);
+  assert.deepEqual(progress.phases[0].steps.map(step => step.status), ['done', 'done', 'done', 'done']);
+  const fresh = computeProgress({ ...job, pipeline: undefined, agents: [{ id: 'r1', role: 'script-researcher', status: 'running' }] }, { files: [] });
+  assert.deepEqual(fresh.phases[0].steps.slice(0, 2).map(step => step.status), ['current', 'pending']);
   assert.deepEqual(progress.phases[1].steps.map(step => step.id), ['prepare', 'prototype-review', 'prototype-gate', 'scenes', 'deliver']);
   assert.deepEqual(progress.phases[1].steps.find(step => step.id === 'scenes').agents, ['b1']);
   assert.equal(progress.current.id, 'scenes'); assert.equal(progress.phases[1].steps[2].status, 'pending');
