@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import {nextStep, buildFilm, jobProgress} from '../lib/film.mjs';
+import {nextStep, buildFilm, jobProgress, writeReviewerBriefs} from '../lib/film.mjs';
 import {sourceFingerprint, fileHash, loadReviewPack, submitReview, qualifyDelivery, REVIEW_ROLES} from '../lib/review.mjs';
 import {recordHumanReview, humanDecision, humanFindings, parseNote, parseStages} from '../lib/human.mjs';
 
@@ -148,4 +148,30 @@ test('human review settings and notes parse strictly, and the setting is not a p
   assert.equal(await sourceFingerprint(job), before);
   const findings = humanFindings({notes: [{start: null, end: null, sceneIds: [], text: 'Whole thing'}]}, {interval: {start: 0, end: 18}, scenes: [{id: 'opening'}, {id: 'ending'}]});
   assert.deepEqual(findings[0].sceneIds, ['opening', 'ending']);
+});
+
+test('a complete third failed round advances to render; partial rounds never trigger repairs', async t => {
+  const job = await fixture(t);
+  await buildFilm(job, {inspect:false, print:false});
+  await htmlPack(job,'prototype',{start:6,end:16});
+  await nextStep(job);
+  await buildFilm(job, {inspect:false, print:false});
+  const context = await htmlPack(job,'final');
+  const report = await read(job,'review/final/reviews/visual-mechanism.json');
+  report.verdict = 'revise';
+  report.findings = [{id:'F1',severity:'blocking',start:6,end:7,scope:'scene',sceneIds:['comparison'],
+    subject:'Label',requirement:'Legibility',observed:'Label overlaps.',repair:'Separate it.',evidence:[context.pack.evidence[0].path]}];
+  await submitReview(job,report);
+  await writeReviewerBriefs(job,context.pack,path.join(job,'review/final/pack.json'),context.packSha256);
+  await rm(path.join(job,'review/final/reviews/continuity-legibility.json'));
+  assert.equal((await nextStep(job)).state,'review final');
+  assert.equal((await read(job,'job.json')).reviewRounds,undefined);
+  const manifest = await read(job,'job.json');manifest.reviewRounds={final:2};await put(job,'job.json',manifest);
+  const missing = {...report,role:'continuity-legibility',reviewer:{agentId:'/fixture/continuity',independent:true}};
+  await submitReview(job,missing);
+  assert.equal((await nextStep(job)).state,'render');
+  assert.equal((await read(job,'job.json')).reviewRounds.final,3);
+  assert.equal((await nextStep(job)).state,'render');
+  assert.equal((await read(job,'job.json')).reviewRounds.final,3,'repeated next does not spend another round');
+  assert.match((await jobProgress(job)).steps.find(s => s.id === 'final-review').detail,/Review limit reached/);
 });

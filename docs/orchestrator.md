@@ -56,15 +56,15 @@ sub-agents do the creative work from self-contained brief files. This works the 
   they said with `human-review --decision approve` or `--decision revise --note "12.5: <their words>"`. Never decide for
   them and never reword a note: `next` sends each note to the scene at its moment.
 
-Nothing is rendered until the final reviews (and the user's final review, if they asked for one) pass: reviewers judge
+Nothing is rendered until final review completes (passing or reaching its three-round creative review budget), and the user approves if they asked for final review: reviewers judge
 frames taken from the built HTML, and `next` then asks for one `render`.
 
 When it prints `STATE: done`, complete the thumbnail workflow, then give the user the MP4 and thumbnail paths and a short verification note from `review/delivery.json`
-(its limitations and advisory findings), the soundtrack's measurements (`soundtrack`: integrated LUFS and peaks,
+(its reviewDisposition, unresolvedFindings, limitations and advisory findings), the soundtrack's measurements (`soundtrack`: integrated LUFS and peaks,
 measured on the MP4) and the five `headphoneChecks` timestamps with what to listen for. Nobody in this pipeline can
 hear: never say the film sounds good, only what was measured. Do not run `preview` or open HyperFrames Studio: it rewrites job files and
 makes the delivered job look stale. The final MP4 is the deliverable.
-If it prints `STATE: blocked`, report honestly; never call an unqualified draft complete.
+Creative review has a three-round budget per stage. After the third complete failed round, continue to render and delivery with unresolved findings disclosed in `review/delivery.json`; never describe this outcome as independently passed. Missing inspection/evidence and failed technical checks still block. If it prints `STATE: blocked`, report the actual reason.
 
 ## Thumbnail at the end of every video
 

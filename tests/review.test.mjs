@@ -191,3 +191,58 @@ test('a report with several problems lists them all, each with its field', async
   });
   void error;
 });
+
+function blockedReview(context, role) {
+  const report = review(context, role);
+  report.verdict = 'revise';
+  report.findings = [{id:'F1', severity:'blocking', scope:'scene', start:1, end:2,
+    subject:'Essential label', requirement:'Readable content', observed:'The label is obscured.',
+    repair:'Separate the label.', evidence:[context.pack.evidence.find(e => e.kind === 'frames').path]}];
+  return report;
+}
+
+test('three failed rounds continue with disclosed findings, never fabricated passing verdicts', async t => {
+  const job = await fixture(t);
+  const manifest = JSON.parse(await readFile(path.join(job,'job.json')));
+  manifest.reviewRounds = {prototype:3, final:3};
+  await put(job,'job.json',manifest);
+  const prototype = await freeze(job,'prototype');
+  for (const role of REVIEW_ROLES) await submitReview(job,blockedReview(prototype,role));
+  assert.equal((await acceptedPrototype(job)).disposition,'review-limit-reached');
+  const final = await freeze(job,'final');
+  for (const role of REVIEW_ROLES.slice(0,2)) await submitReview(job,blockedReview(final,role));
+  assert.equal((await reviewStatus(job,'final')).ok,false, 'never skip pending reviewers');
+  await submitReview(job,blockedReview(final,REVIEW_ROLES[2]));
+  const status = await reviewStatus(job,'final');
+  assert.equal(status.ok,true);
+  assert.equal(status.independentPassed,false);
+  assert(status.reports.every(r => r.verdict === 'revise'));
+  const result = await qualifyDelivery(job);
+  assert.equal(result.reviewDisposition,'review-limit-reached');
+  assert.equal(result.independentReviewPassed,false);
+  assert.equal(result.unresolvedFindings.length,6);
+  await writeFile(path.join(job,'renders/video.mp4'),'tampered');
+  await assert.rejects(qualifyDelivery(job));
+});
+
+test('review limit cannot bypass incomplete inspection or invalid evidence', async t => {
+  const job = await fixture(t), manifest = JSON.parse(await readFile(path.join(job,'job.json')));
+  manifest.reviewRounds = {final:3};await put(job,'job.json',manifest);
+  const context = await freeze(job,'final');
+  for (const role of REVIEW_ROLES) {
+    const report = blockedReview(context,role);
+    if (role === REVIEW_ROLES[2]) {report.verdict = 'incomplete';report.inspection.visual = 'unavailable';}
+    await submitReview(job,report);
+  }
+  assert.equal((await reviewStatus(job,'final')).ok,false);
+});
+
+test('later review must resolve or dispute prior blockers explicitly', async t => {
+  const job = await fixture(t), first = await freeze(job,'final');
+  await submitReview(job,blockedReview(first,REVIEW_ROLES[0]));
+  await writeFile(path.join(job,'index.html'),'<div>Repaired label</div>');
+  const second = await freeze(job,'final'), report = review(second,REVIEW_ROLES[0]);
+  await assert.rejects(submitReview(job,report),/Respond to prior blocking finding F1/);
+  report.priorFindingResponses = [{sourceHash:first.pack.sourceHash,findingId:'F1',disposition:'resolved',reason:'Current frame shows the label separated from the card.'}];
+  await submitReview(job,report);
+});

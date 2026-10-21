@@ -154,7 +154,7 @@ export function computeHealth(job, events, now = Date.now()) {
   if (job.pipeline?.steps?.some(step => step.status === 'blocked')) add('error', `Pipeline blocked: ${job.pipeline.steps.find(step => step.status === 'blocked').detail}`);
   for (const step of job.pipeline?.steps || []) if (step.status === 'repair') add('warning', `${step.label}: ${step.detail}`);
   const rounds = Math.max(job.pipeline?.reviews?.prototype?.rounds || 0, job.pipeline?.reviews?.final?.rounds || 0);
-  if (rounds >= 2) add('warning', `Independent review has failed ${rounds} rounds (the pipeline stops at 4)`);
+  if (rounds >= 2) add('warning', `Independent review has failed ${rounds} rounds (after 3 rounds, continues with disclosed findings)`);
   if (job.status === 'running' && live.length && quietFor > (longCommand ? 30 : 8) * 60000)
     add('warning', `No activity for ${Math.round(quietFor / 60000)} min${longCommand ? ` while ${longCommand.command} runs` : ''}`);
   if (recentFailures.length >= 4) add('warning', `${recentFailures.length} tool calls failed in the last 10 min`);

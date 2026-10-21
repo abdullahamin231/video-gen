@@ -158,19 +158,11 @@ current final reports; prior reports remain history and cannot qualify changed
 output. Reviewers can use prior findings to target attention, but must account
 for the full new artifact, including unintended regressions.
 
-Use an explicit repair budget, normally three repair-and-review rounds per
-mechanism. A repeated defect should trigger a different mechanism or construction,
-not decorative additions to the same weak scene. If the budget is exhausted,
-retain the draft and findings, report the job as incomplete, and state the
-remaining blocker. A bounded loop limits resource use; it does not relax the
-definition of a completed video. The director may reserve additional resources
-or change approach autonomously when available. Do not require routine user
-approval for repairs already authorized by the production request.
-
-Qualification requires passing technical checks, full current independent
-coverage, no unresolved blocking findings, and honest capability limitations.
-Advisories may remain with a recorded disposition. Preserve every review round
-and reference the exact delivered artifact in `review/REPORT.md`.
+Use a three-round creative review budget per stage. Collect all three role reports before repairs.
+After three complete failed rounds, finish the film with unresolved findings disclosed, as specified in
+"Bounded creative review policy" below. Never manufacture a passing verdict. Independent passing qualification
+requires no unresolved blockers; bounded completion records a separate review-limit-reached disposition.
+Both require current valid independent coverage and passing technical verification.
 
 ## Commands and machine-readable contract
 
@@ -328,3 +320,19 @@ qualification strictly matches the current source and delivered MP4. Changing
 scenes, assets, cues, narration, camera behavior, or the final render invalidates
 the corresponding current qualification. Re-run review after such changes;
 do not copy old hashes into a new report.
+
+## Bounded creative review policy
+
+Each prototype/final stage gets at most three complete failed review rounds. Wait for all three role reports
+before producing one combined repair brief; repeated `next` on the same pack does not consume another round.
+After the third failed round, proceed with a `review-limit-reached` disposition and preserve blocking findings
+in delivery metadata. Reviewer verdicts stay unchanged; this is completion with disclosed findings, not a pass.
+Invalid/stale evidence, missing reviewers, unavailable inspection, incomplete coverage, build failures and failed
+narration/render verification still require repair. Human review gates remain explicit user decisions.
+
+Fresh reviewer briefs include prior decisions after the blind visual inspection instructions. Reviewers must
+record a resolved/unresolved/disputed response, with a reason, for each blocker in their latest prior report.
+Assess truth and understanding consistently; supporting action may anticipate or finish around a spoken cue.
+Loading SSD rows copies them into RAM without deleting the persistent copy. Cosmetic timing and temporary
+overlap that leaves essential content understandable are advisory. Reversing an accepted repair requires
+a concrete contradiction or regression in current evidence.
