@@ -21,6 +21,8 @@ belong to the API project. Selecting Gemini does not enforce a free billing plan
 Gemini requests use IPv4. On this server, Google accepts IPv4 but rejects IPv6 with
 `User location is not supported for the API use.` This choice is confined to the TTS request and does not
 change system networking or other providers. Other API errors include Google's message with the API key redacted.
+Temporary HTTP 500/502/503/504 errors are retried up to three attempts on the same Gemini model. A persistent
+service failure stops generation; only HTTP 429 switches to Kokoro.
 
 On HTTP 429 (usage/rate limit), the wrapper immediately switches to Kokoro and regenerates **every paragraph**
 so one narration never mixes the two voices. It records `tts-status.json` beside the narration, prints a notice,

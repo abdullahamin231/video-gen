@@ -79,6 +79,22 @@ test('only usage-limit errors trigger quota fallback; provider diagnostics redac
   /HTTP 400: User location is not supported for the API use/);
 });
 
+test('temporary Gemini overload is retried on the same provider, with a bounded attempt count', async () => {
+  let calls = 0; const delays = [], audio = wav();
+  const options = { env: { GEMINI_API_KEY: 'fixture' }, retryDelay: async ms => { delays.push(ms); },
+    fetchImpl: async () => ++calls < 3 ? { ok: false, status: 503 } : { ok: true, status: 200,
+      json: async () => ({ steps: [{ type: 'model_output', content: [{ type: 'audio', data: audio.toString('base64') }] }] }) } };
+  assert.deepEqual(await geminiSpeech('test', options), audio);
+  assert.equal(calls, 3); assert.deepEqual(delays, [1000, 2000]);
+  calls = 0;
+  await assert.rejects(geminiSpeech('test', { ...options, fetchImpl: async () => { calls++; return { ok: false, status: 503,
+    json: async () => ({ error: { message: 'Model overloaded' } }) }; } }), /HTTP 503: Model overloaded/);
+  assert.equal(calls, 3, 'persistent service errors stop instead of silently using another voice');
+  calls = 0;
+  await assert.rejects(geminiSpeech('test', { ...options, fetchImpl: async () => { calls++; return { ok: false, status: 429 }; } }), { code: 'TTS_QUOTA' });
+  assert.equal(calls, 1, 'quota failures still switch to Kokoro immediately');
+});
+
 test('a quota failure after one Gemini paragraph regenerates everything with Kokoro, joins real WAVs and persists fallback', async t => {
   const files = await fixture(t), kokoroTexts = [], notices = [];
   let geminiCalls = 0;
