@@ -46,9 +46,11 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
     const reviewed = has(`${scriptDir}/review.md`);
     const verdict = job.scriptReview;
     const passed = reviewed && verdict?.status === 'pass' && !verdict.stale;
-    const status = reviewers.length ? 'current' : reviewed && (writers.length || verdict?.stale || ['revise', 'incomplete'].includes(verdict?.status)) ? 'repair' : passed ? 'done' : reviewed || scriptExists && !writers.length ? 'current' : 'pending';
+    // After the review rounds run out, the pipeline continues with the last verdict; once narration or the film exists, the review is over.
+    const movedOn = !reviewers.length && !writers.length && reviewed && !passed && (prepared || has(`${scriptDir}/narration.wav`));
+    const status = reviewers.length ? 'current' : movedOn ? 'done' : reviewed && (writers.length || verdict?.stale || ['revise', 'incomplete'].includes(verdict?.status)) ? 'repair' : passed ? 'done' : reviewed || scriptExists && !writers.length ? 'current' : 'pending';
     script.push(stepFrom('script-review', 'Independent script review', status,
-      reviewers.length ? 'Fresh reviewer at work' : reviewed ? (writers.length ? 'Writer addressing review findings' : verdict?.stale ? 'Script or research changed after review · re-check required' : verdict?.status ? `${verdict.status} · ${finished(agents, 'script-reviewer').length} review round(s)` : 'Review saved · no explicit verdict found') : '', { file: `${scriptDir}/review.md`, agents: ids(agents.filter(a => a.role === 'script-reviewer')) }));
+      reviewers.length ? 'Fresh reviewer at work' : movedOn ? `Continued after ${finished(agents, 'script-reviewer').length} review round(s) · last verdict ${verdict?.status || 'none'}` : reviewed ? (writers.length ? 'Writer addressing review findings' : verdict?.stale ? 'Script or research changed after review · re-check required' : verdict?.status ? `${verdict.status} · ${finished(agents, 'script-reviewer').length} review round(s)` : 'Review saved · no explicit verdict found') : '', { file: `${scriptDir}/review.md`, agents: ids(agents.filter(a => a.role === 'script-reviewer')) }));
   }
   if (job.gateScript) script.push(gateStep(job, 'script', 'Your script checkpoint'));
   if (job.audioPath) script.push(stepFrom('narration', 'Recording supplied', 'done', 'Kept unchanged'));
