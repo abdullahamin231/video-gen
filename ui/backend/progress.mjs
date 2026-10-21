@@ -157,14 +157,16 @@ export function computeHealth(job, events, now = Date.now()) {
   if (job.scriptReview?.stale) add('warning', 'Script or research changed after the independent review');
   const scriptRounds = finished(job.agents || [], 'script-reviewer').length;
   if (scriptRounds > 3) add('warning', `Script review exceeded two revision rounds (${scriptRounds} reviews)`);
-  if (job.pipeline?.steps?.some(step => step.status === 'blocked')) add('error', `Pipeline blocked: ${job.pipeline.steps.find(step => step.status === 'blocked').detail}`);
-  for (const step of job.pipeline?.steps || []) if (step.status === 'repair') add('warning', `${step.label}: ${step.detail}`);
+  // A delivered thread is final: warnings from the pipeline's history (review rounds, repairs) no longer apply.
+  const delivered = job.status === 'complete';
+  if (!delivered && job.pipeline?.steps?.some(step => step.status === 'blocked')) add('error', `Pipeline blocked: ${job.pipeline.steps.find(step => step.status === 'blocked').detail}`);
+  if (!delivered) for (const step of job.pipeline?.steps || []) if (step.status === 'repair') add('warning', `${step.label}: ${step.detail}`);
   const rounds = Math.max(job.pipeline?.reviews?.prototype?.rounds || 0, job.pipeline?.reviews?.final?.rounds || 0);
-  if (rounds >= 2) add('warning', `Independent review has failed ${rounds} rounds (after 3 rounds, continues with disclosed findings)`);
+  if (!delivered && rounds >= 2) add('warning', `Independent review has failed ${rounds} rounds (after 3 rounds, continues with disclosed findings)`);
   if (job.status === 'running' && live.length && quietFor > (longCommand ? 30 : 8) * 60000)
     add('warning', `No activity for ${Math.round(quietFor / 60000)} min${longCommand ? ` while ${longCommand.command} runs` : ''}`);
   if (recentFailures.length >= 4) add('warning', `${recentFailures.length} tool calls failed in the last 10 min`);
-  if (failedAgents.length) add('warning', `${failedAgents.length} sub-agent run(s) failed: ${failedAgents.slice(-3).map(agent => agent.task || agent.role).join('; ')}`);
+  if (!delivered && failedAgents.length) add('warning', `${failedAgents.length} sub-agent run(s) failed: ${failedAgents.slice(-3).map(agent => agent.task || agent.role).join('; ')}`);
   const helpers = (job.agents || []).reduce((sum, agent) => sum + (agent.usage?.helperAgents || 0), 0);
   const attempts = (job.agents || []).filter(agent => agent.builtinAgentCalls);
   if (helpers) add('warning', `${helpers} untracked helper agent${helpers === 1 ? '' : 's'} started through a CLI's own sub-agent tool (their tokens are counted)`);

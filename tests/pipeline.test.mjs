@@ -122,7 +122,12 @@ test('CLI qualifies real encoded media only after prototype and final independen
   const qualified=JSON.parse(await readFile(path.join(job,'review/delivery.json')));
   assert.equal(qualified.reviewerIds.length,3);
   await writeFile(path.join(job,'compositions/opening.html'),(await readFile(path.join(job,'compositions/opening.html'),'utf8'))+'\n<!-- revised -->');
-  const stale=run('deliver',job);
+  // A delivered job is final: production commands refuse it unless explicitly reopened.
+  const refused=run('deliver',job);
+  assert.equal(refused.status,1);
+  assert.match(refused.stderr,/is delivered.*--reopen true/);
+  assert.equal(JSON.parse(await readFile(path.join(job,'job.json'))).status,'complete');
+  const stale=spawnSync(process.execPath,[path.join(ROOT,'scripts/video.mjs'),'deliver','--job',job,'--reopen','true'],{encoding:'utf8'});
   assert.equal(stale.status,1);
   assert.match(stale.stderr,/stale/);
   assert.notEqual(JSON.parse(await readFile(path.join(job,'job.json'))).status,'complete');

@@ -28,6 +28,11 @@ async function syncThumbnailSettings(dir, job) {
 export const humanStagesOf = job => FILM_GATES.filter(kind => kind === 'prototype' ? job.gatePrototype : job.gateFinal);
 const MAX_PROCESSES = 4; // per job, including the orchestrator: enough for three parallel reviewers
 const STATUS_INTERVAL = 5000;
+// The pipeline view of a verified delivery: every node done, nothing next.
+function deliveredSnapshot(pipeline) {
+  const steps = (pipeline.steps || []).map(step => ({ ...step, status: 'done', ...(step.id === 'deliver' ? { detail: 'Delivered and qualified' } : {}) }));
+  return { ...pipeline, state: 'done', current: 'deliver', next: null, errors: [], steps };
+}
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 function signal(child, name) { try { process.kill(process.platform === 'win32' ? child.pid : -child.pid, name); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
@@ -482,6 +487,12 @@ export class Runner {
     const state = this.status.get(job.id) || { last: 0 };
     this.status.set(job.id, state);
     if (state.running) { state.dirty = true; return state.running; }
+    // A delivered thread is final: later work in its job folder (a re-render, a pipeline test) must not move its steps
+    // back to an earlier node. It keeps the pipeline snapshot taken when delivery was verified.
+    if (job.status === 'complete' && job.pipeline) {
+      if (job.pipeline.state !== 'done') job.pipeline = deliveredSnapshot(job.pipeline);
+      return this.recompute(job, files);
+    }
     if (!force && !state.dirty && job.pipeline !== undefined && Date.now() - state.last < 60000) return this.recompute(job, files);
     if (!force && Date.now() - state.last < STATUS_INTERVAL) return this.recompute(job, files);
     state.dirty = false;

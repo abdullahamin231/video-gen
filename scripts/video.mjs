@@ -54,6 +54,22 @@ function run(command, args, {cwd = ROOT, capture = false, env = {}} = {}) {
 }
 const hf = (args, opts) => run(process.execPath, [HF, ...args], opts);
 const probe = async file => JSON.parse(await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], {capture: true}));
+// Commands that change a film's sources, reviews or render. Once a job is delivered they would quietly send it back into
+// production (status → rendering/draft-rendered, stale reviews), so they need an explicit --reopen true.
+const PRODUCTION_COMMANDS = new Set(['transcribe', 'plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'kit-update',
+  'alignment-approve', 'compile', 'assemble', 'check', 'review-pack', 'human-review', 'review-submit', 'deliver', 'render', 'library-use']);
+async function guardDelivered(job, command, opts) {
+  if (!PRODUCTION_COMMANDS.has(command)) return;
+  if (command === 'human-review' && opts.want !== undefined) return;
+  const manifest = await json(path.join(job, 'job.json')).catch(() => null);
+  if (manifest?.status !== 'complete') return;
+  if (opts.reopen !== 'true') throw new Error(`${path.relative(ROOT, job)} is delivered; \`${command}\` would send it back into production. ` +
+    'Make a new job, or pass --reopen true if you really mean to reopen this one (it then has to be reviewed and delivered again).');
+  manifest.status = 'reopened'; manifest.reopenedAt = new Date().toISOString();
+  await save(path.join(job, 'job.json'), manifest);
+  console.log(`Reopened ${path.relative(ROOT, job)}: it is no longer delivered until it passes review and deliver again.`);
+}
+
 function options(args) {
   const result = {};
   while (args.length) {
@@ -452,10 +468,12 @@ try {
   }
   else if (command === 'library-use') {
     if (!opts.job) throw new Error('library-use requires an explicit --job.');
+    await guardDelivered(await jobPath(opts), command, opts);
     console.log(JSON.stringify(await useBundle(LIBRARY, opts.item, await jobPath(opts)), null, 2));
   }
   else {
     const job = await jobPath(opts);
+    await guardDelivered(job, command, opts);
     if (command === 'transcribe') {
       const manifest = await json(path.join(job,'job.json'));
       if (await exists(path.join(job,'beats.json'))) throw new Error('Prepared job already exists; create a new job to change transcription.');
