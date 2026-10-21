@@ -1,9 +1,32 @@
-# Narration with HyperFrames TTS
+# Generated narration: Kokoro or Gemini
 
 Use this when there is no recording: the script was written by the `script-writer` agent, or the user asks for a
 generated voice. Never use it to replace a supplied recording.
 
-The voice is Kokoro, run locally by `npm run video -- tts`. Always use this wrapper so model downloads and temporary files stay inside the repository cache.
+New UI jobs choose **Kokoro** (default, local) or **Gemini** (Google API). Always generate the whole
+narration with `npm run video -- tts <script> --narration --provider kokoro|gemini`. The wrapper handles
+paragraphs, pauses, output format and fallback. Keep every input and output inside the repository.
+
+## Gemini setup
+
+Set `GEMINI_API_KEY` in the server environment or the ignored repository `.env`, then restart the UI server
+when no jobs are running. `GOOGLE_API_KEY` is also accepted. Never put a key in a job, prompt, command-line
+argument or committed file. The standalone TTS command reads the same `.env`.
+
+The default model is `gemini-3.8-flash-tts`, using the `Charon` voice. Optional server settings are
+`GEMINI_TTS_MODEL` and `GEMINI_TTS_VOICE`. Requests use Google's Interactions REST API with the transcript
+separate from delivery instructions. The script is sent to Google; billing, free-tier availability and quotas
+belong to the API project. Selecting Gemini does not enforce a free billing plan.
+
+On HTTP 429 (usage/rate limit), the wrapper immediately switches to Kokoro and regenerates **every paragraph**
+so one narration never mixes the two voices. It records `tts-status.json` beside the narration, prints a notice,
+and the UI displays that notice in the conversation and Progress. Retries and resumes of that job keep using
+Kokoro. New jobs can try Gemini again. Missing keys, authentication failures, invalid requests, network failures
+and empty audio are surfaced as errors rather than disguised as quota exhaustion.
+
+Keep the Kokoro environment below ready even for Gemini jobs, so fallback can run without setup.
+Google references: [TTS REST format](https://ai.google.dev/gemini-api/docs/speech-generation),
+[pricing](https://ai.google.dev/gemini-api/docs/pricing), [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits).
 
 ## One-time setup
 
@@ -32,48 +55,35 @@ The first call downloads the model (about 311 MB) and voice data (about 27 MB) a
 
 Run from the repository root, with `<slug>` the script's folder under `jobs/scripts/`.
 
-1. Split the script into paragraphs. Long input times out after about five minutes, so synthesise one paragraph at a
-   time:
+1. Complete the Kokoro setup above (also needed as Gemini's fallback), then choose a speed using the word count.
+2. Run one command for the entire reviewed narration. Use the provider selected in the job; outside the UI,
+   omitting `--provider` uses Kokoro:
 
    ```bash
-   S=jobs/scripts/<slug>; mkdir -p $S/tts
-   python3 -c "
-   import sys; s=sys.argv[1]
-   ps=[p.strip() for p in open(s+'/SCRIPT.md').read().split('\n\n') if p.strip()]
-   for i,p in enumerate(ps): open(f'{s}/tts/p{i:02d}.txt','w').write(p+'\n')
-   " $S
+   npm run video -- tts jobs/scripts/<slug>/SCRIPT.md --narration --provider gemini -s 1.0 -o jobs/scripts/<slug>/narration.wav
    ```
 
-2. Synthesise each paragraph:
+   `-v` / `--voice` selects the Kokoro voice, including when used as fallback. `-s` / `--speed` sets Kokoro's
+   speed and Gemini's requested speaking pace. Gemini's pace is an instruction, so measure the result.
+   The command reads paragraphs, normalises them to 24 kHz mono PCM WAV, joins them with 0.6 s pauses and
+   adds 1.5 s of trailing silence. It replaces the output only after the full recording is ready.
+
+   The UI sets `VIDEO_TTS_PROVIDER` and `VIDEO_TTS_STATUS` for each job; its explicit command also includes
+   `--status jobs/scripts/<slug>/tts-status.json`. Do not override these or synthesize paragraphs separately.
+   Older standalone `tts <paragraph.txt> -v am_michael -s 1.15 -o <paragraph.wav>` calls remain supported.
+
+3. Measure duration with `ffprobe -v error -show_entries format=duration -of csv=p=0 jobs/scripts/<slug>/narration.wav`.
+   If it is more than about 7% off target, adjust speed within 0.9–1.25 and regenerate the whole recording,
+   or revise the script through its writing/review workflow.
+4. Start the film with the finished audio and the same script:
 
    ```bash
-   for f in $S/tts/p*.txt; do
-     npm run video -- tts "$f" -v am_michael -s 1.15 -o "${f%.txt}.wav" > "${f%.txt}.log" 2>&1 || echo "FAILED $f"
-   done
+   npm run video -- start --audio jobs/scripts/<slug>/narration.wav --script jobs/scripts/<slug>/SCRIPT.md
    ```
 
-3. Join them with a 0.6 s pause between paragraphs, and add 1.5 s of silence at the end. The pipeline rejects a
-   transcript whose last word ends at, or after, the end of the audio:
-
-   ```bash
-   ffmpeg -v error -y -f lavfi -i anullsrc=r=24000:cl=mono -t 0.6 -c:a pcm_s16le $S/tts/gap.wav
-   ls $S/tts/p*.wav | sed '$!s/$/\ngap/' | sed "s|^gap$|$S/tts/gap.wav|; s|^|file '$PWD/|; s|$|'|" > $S/tts/list.txt
-   ffmpeg -v error -y -f concat -safe 0 -i $S/tts/list.txt -af apad=pad_dur=1.5 -c:a pcm_s16le $S/narration.wav
-   ffprobe -v error -show_entries format=duration -of csv=p=0 $S/narration.wav
-   ```
-
-4. Check the duration against the target. If it is more than about 7% off, change `--speed` and repeat step 2 (or
-   trim the script). Keep the audio and script inside the repository.
-
-5. Make the film from the generated audio and the same script:
-
-   ```bash
-   npm run video -- start --audio "$S/narration.wav" --script "$S/SCRIPT.md"
-   ```
-
-   If preparation fails with "Invalid/nonmonotonic measured interval" on a symbol such as `%`, the default transcriber
-   split a token. Write the symbol as a word in the script ("percent") and regenerate that paragraph, or prepare with
-   the other engine: `npm run video -- prepare --name <slug> --audio ... --script ... --engine hyperframes`.
+   Preserve supplied recordings; the narration provider choice applies only when no recording was supplied.
+   If preparation fails on a symbol such as `%`, write the symbol as a word in the script ("percent") and
+   regenerate, or use the other transcription engine with `prepare --engine hyperframes`.
 
 ## Writing for the voice
 

@@ -1,32 +1,49 @@
-// Compatibility adapter for HyperFrames 0.8.156, which hardcodes homedir()/.cache.
-// Run in a dedicated process so the orchestrator's home/auth lookup stays intact.
-import os from 'node:os';
+// Repository TTS entry point: keep the legacy Kokoro options, with Gemini and whole-script narration added.
+import { readFile, access } from 'node:fs/promises';
 import path from 'node:path';
-import {syncBuiltinESMExports} from 'node:module';
-import {mkdir, realpath} from 'node:fs/promises';
-import {fileURLToPath} from 'node:url';
-import {cacheDir} from '../lib/cache.mjs';
+import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import { generateSpeech, TTS_PROVIDERS } from '../lib/tts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const cache = cacheDir();
-await mkdir(path.join(root, '.cache'), {recursive: true});
-await mkdir(cache, {recursive: true});
-const allowed = await realpath(path.join(root, '.cache'));
-if (allowed !== path.join(await realpath(root), '.cache'))
-  throw new Error('Repository .cache must not be a symlink outside the repository.');
-const actual = await realpath(cache);
-const relative = path.relative(allowed, actual);
-if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
-  throw new Error('TTS cache must resolve inside the repository .cache directory.');
-
-process.env.XDG_CACHE_HOME = actual;
-process.env.HF_HOME = path.join(actual, 'huggingface');
-process.env.NUMBA_CACHE_DIR = path.join(actual, 'numba');
-process.env.TMPDIR = path.join(actual, 'tmp');
-await mkdir(process.env.TMPDIR, {recursive: true});
-process.env.HYPERFRAMES_PYTHON = path.join(actual, 'tts-env/bin/python');
-// HyperFrames appends .cache itself. This stays beneath the repository cache.
-os.homedir = () => actual;
-syncBuiltinESMExports();
-process.argv = [process.execPath, path.join(root, 'node_modules/hyperframes/bin/hyperframes.mjs'), 'tts', ...process.argv.slice(2)];
-await import('../node_modules/hyperframes/bin/hyperframes.mjs');
+// The UI loads .env too; standalone `npm run video -- tts` uses the same credentials.
+if (await access(path.join(root, '.env')).then(() => true, () => false)) process.loadEnvFile(path.join(root, '.env'));
+try {
+  const args = process.argv.slice(2), kokoroArgs = [];
+  let provider = process.env.VIDEO_TTS_PROVIDER || 'kokoro', narration = false, statusFile = process.env.VIDEO_TTS_STATUS || '';
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--narration') narration = true;
+    else if (['--provider', '--status'].includes(args[i])) {
+      const flag = args[i], value = args[++i];
+      if (!value || value.startsWith('-')) throw new Error(`${flag} needs a value.`);
+      if (flag === '--provider') provider = value; else statusFile = value;
+    } else kokoroArgs.push(args[i]);
+  }
+  if (!TTS_PROVIDERS.includes(provider)) throw new Error('Choose kokoro or gemini for narration.');
+  if (!narration && provider === 'kokoro') {
+    const code = await new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [path.join(root, 'scripts/tts-kokoro.mjs'), ...kokoroArgs], { stdio: 'inherit' });
+      child.on('error', reject); child.on('close', resolve);
+    });
+    process.exitCode = code ?? 1;
+  } else {
+    const opts = { voice: 'am_michael', speed: 1 };
+    let input;
+    for (let i = 0; i < kokoroArgs.length; i++) {
+      const arg = kokoroArgs[i];
+      if (['-v', '--voice', '-s', '--speed', '-o', '--output'].includes(arg)) {
+        const value = kokoroArgs[++i];
+        if (!value || value.startsWith('-')) throw new Error(`${arg} needs a value.`);
+        if (['-v', '--voice'].includes(arg)) opts.voice = value;
+        else if (['-s', '--speed'].includes(arg)) opts.speed = Number(value);
+        else opts.output = path.resolve(value);
+      } else if (arg.startsWith('-') || input) throw new Error(`Unsupported TTS argument: ${arg}`);
+      else input = arg;
+    }
+    if (!input) throw new Error('Pass a script file to generate narration.');
+    opts.output ||= path.resolve(path.dirname(input), narration ? 'narration.wav' : `${path.basename(input, path.extname(input))}.wav`);
+    const status = await generateSpeech({ ...opts, text: await readFile(input, 'utf8'), provider, narration,
+      ...(statusFile ? { statusFile: path.resolve(statusFile) } : {}) });
+    console.log(`Narration saved: ${opts.output} (${status.usedProvider}${status.fallback ? '; Gemini quota fallback' : ''}).`);
+  }
+} catch (error) { console.error(error.message); process.exitCode = 1; }

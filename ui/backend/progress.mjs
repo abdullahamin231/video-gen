@@ -56,7 +56,10 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
   if (job.audioPath) script.push(stepFrom('narration', 'Recording supplied', 'done', 'Kept unchanged'));
   else {
     const narration = has(`${scriptDir}/narration.wav`), tts = commandRunning('tts');
-    script.push(stepFrom('narration', 'Narration (TTS)', tts ? 'current' : narration ? 'done' : 'pending', tts ? 'Generating speech' : narration ? `${scriptDir}/narration.wav` : '', { file: narration ? `${scriptDir}/narration.wav` : '' }));
+    const provider = (job.ttsStatus?.usedProvider || job.ttsProvider || 'kokoro') === 'gemini' ? 'Gemini' : 'Kokoro';
+    const notice = job.ttsStatus?.fallback ? ' · Gemini usage limit reached; using Kokoro' : '';
+    script.push(stepFrom('narration', `Narration (${provider})`, tts ? 'current' : narration ? 'done' : 'pending',
+      `${tts ? 'Generating speech' : narration ? `${scriptDir}/narration.wav` : provider}${notice}`, { file: narration ? `${scriptDir}/narration.wav` : '' }));
   }
   phases.push({ id: 'script', label: 'Script & narration', steps: script });
 

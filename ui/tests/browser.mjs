@@ -28,7 +28,11 @@ const click = async (page, selector) => { await page.waitForSelector(selector); 
 try {
   const page = await browser.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.setViewport({ width: 1440, height: 1000 });
   await page.goto(url, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('.welcome');
-  await click(page, '.new-job'); await page.select('select[name=format]', 'vertical'); await page.type('#new-prompt', 'A test fixture video about power grids.'); assert(/agent will choose a length/.test(await page.$eval('#duration-hint', node => node.textContent)), 'a prompt without a length leaves it to the agent'); await page.type('#new-prompt', ' Make it 2 minutes.'); assert((await page.$eval('#duration-hint', node => node.textContent)).includes('2 min'), 'the hint shows the length read from the prompt'); await page.type('input[name=title]', 'Browser integration fixture');
+  await click(page, '.new-job');
+  assert.equal(await page.$eval('select[name=ttsProvider]', node => node.value), 'kokoro', 'local narration is the default');
+  await page.select('select[name=ttsProvider]', 'gemini');
+  await page.screenshot({ path: path.join(shots, 'narration-picker.png') });
+  await page.select('select[name=format]', 'vertical'); await page.type('#new-prompt', 'A test fixture video about power grids.'); assert(/agent will choose a length/.test(await page.$eval('#duration-hint', node => node.textContent)), 'a prompt without a length leaves it to the agent'); await page.type('#new-prompt', ' Make it 2 minutes.'); assert((await page.$eval('#duration-hint', node => node.textContent)).includes('2 min'), 'the hint shows the length read from the prompt'); await page.type('input[name=title]', 'Browser integration fixture');
   await page.type('input[name=main]', 'fixture-main'); await page.type('input[name="model:builder"]', 'fixture-builder');
   assert((await page.$eval('.role-route[data-role=builder]', node => node.textContent)).includes('fixture-builder'), 'role row shows the chosen model');
   assert(/weak default|repo pin/.test(await page.$eval('.role-route[data-role=director]', node => node.textContent)), 'unset roles show their default');
@@ -45,6 +49,10 @@ try {
   await click(page, '#new-job-form button[type=submit]');
   await page.waitForSelector('.status-badge.needs_attention', { timeout: 20000 });
   const job = app.store.all()[0]; assert.equal(job.main, 'fixture-main'); assert.equal(job.models.builder, 'fixture-builder'); assert.equal(job.models.director, ''); assert.equal(job.format, 'vertical');
+  assert.equal(job.ttsProvider, 'gemini', 'new-job form submits the narration provider');
+  await writeFile(path.join(root, job.scriptPath, 'tts-status.json'), JSON.stringify({ requestedProvider: 'gemini', usedProvider: 'kokoro', status: 'complete', fallback: { reason: 'quota' } }));
+  await app.runner.syncNarration(job);
+  await page.waitForFunction(() => document.querySelector('.thread-content')?.textContent.includes('Gemini’s usage limit was reached'));
   assert.equal(job.agents.filter(agent => agent.role === 'builder').length, 2);
   await page.screenshot({ path: path.join(shots, 'thread.png') });
 
@@ -85,7 +93,7 @@ try {
   await page.waitForSelector('.file-row');
   await delayedRequest.respond({ status: 200, contentType: 'application/json', body: '[]' });
   await new Promise(resolve => setTimeout(resolve, 200));
-  assert.equal(await page.$$eval('.file-row', nodes => nodes.length), 1, 'an old file poll replaced the newer response');
+  assert.equal(await page.$$eval('.file-row', nodes => nodes.length), 2, 'an old file poll replaced the script and narration status from the newer response');
   page.off('request', intercept); await page.setRequestInterception(false);
 
   await click(page, '[data-action=tab][data-tab=thread]'); await page.waitForSelector('#message-input'); await page.type('#message-input', 'Use fewer labels.'); await click(page, '.send-button'); await page.waitForFunction(() => document.querySelector('.thread-content').textContent.includes('Use fewer labels.'));

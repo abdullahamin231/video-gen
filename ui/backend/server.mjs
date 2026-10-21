@@ -15,6 +15,7 @@ import { durationFromPrompt } from '../shared/duration.mjs';
 import { findIdeas, loadIdeas, setIdeaStatus, loadProfile, newestFirst, STATUSES } from '../../lib/ideas.mjs';
 import { servePlayer, playerPage } from '../../lib/player.mjs';
 import { createAccess, isLoopback } from './access.mjs';
+import { TTS_PROVIDERS } from '../../lib/tts.mjs';
 
 // The film plays from its built HTML inside the player's own frame: the kit's inline scripts need a looser policy
 // than the workspace page, and only this server may embed it.
@@ -39,6 +40,10 @@ async function body(req) {
 }
 const string = (value, max = 120) => typeof value === 'string' && value.length <= max && !value.includes('\0');
 function config(input, existing) {
+  const ttsProvider = input.ttsProvider ?? existing?.ttsProvider ?? 'kokoro';
+  if (!TTS_PROVIDERS.includes(ttsProvider)) throw fail('Choose Kokoro or Gemini for narration');
+  if (existing && ttsProvider !== (existing.ttsProvider || 'kokoro') && existing.agents.length)
+    throw fail('Narration provider cannot change after production starts. Choose it when creating a new video.');
   if (!providerNames.includes(input.provider)) throw fail('Choose Codex, Claude, OpenCode, or Pi');
   if (!string(input.main ?? '')) throw fail('Invalid main model');
   const models = input.models ?? {};
@@ -50,7 +55,7 @@ function config(input, existing) {
   if (typeof input.gateScript !== 'boolean' || typeof input.gatePrototype !== 'boolean' || !['boolean', 'undefined'].includes(typeof input.gateFinal) || !['boolean', 'undefined'].includes(typeof input.gateThumbnail)) throw fail('Invalid checkpoint settings');
   if (input.thumbnails !== undefined && (!Number.isInteger(input.thumbnails) || input.thumbnails < 1 || input.thumbnails > 6)) throw fail('Choose 1–6 thumbnails');
   if (existing && input.provider !== existing.provider && existing.agents.length) throw fail('Provider cannot change after its first agent starts. Create a new thread to use a different CLI.');
-  return { provider: input.provider, main: (input.main || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (models[role] || '').trim()])), gateScript: input.gateScript, gatePrototype: input.gatePrototype, gateFinal: Boolean(input.gateFinal),
+  return { ttsProvider, provider: input.provider, main: (input.main || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (models[role] || '').trim()])), gateScript: input.gateScript, gatePrototype: input.gatePrototype, gateFinal: Boolean(input.gateFinal),
     gateThumbnail: input.gateThumbnail ?? existing?.gateThumbnail ?? true, thumbnails: input.thumbnails ?? existing?.thumbnails };
 }
 

@@ -23,6 +23,7 @@ const keyFiles = [
   ['script', 'research.md', 'Research notes'],
   ['script', 'review.md', 'Script review'],
   ['script', 'narration.wav', 'Narration'],
+  ['script', 'tts-status.json', 'Narration provider'],
   ['job', 'inputs/visuals.md', 'Visual plan'],
   ['job', 'film.json', 'Film plan'],
   ['job', 'review/REPORT.md', 'Build report'],

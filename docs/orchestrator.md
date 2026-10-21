@@ -192,9 +192,11 @@ vertical short-form; a chosen length then stays within `verticalMaxSeconds`. Exp
 ## Generating narration (TTS)
 
 When the user has a script but no recording (a script the `script-writer` wrote, or "make a video from this script"),
-generate the narration with HyperFrames TTS (local Kokoro) by following [docs/tts.md](tts.md) exactly: one-time
-Python setup, `am_michael` at a speed chosen from the word count, one paragraph per call, joined with short pauses and
-1.5 s of trailing silence. Then run the loop above with `--audio jobs/scripts/<slug>/narration.wav` and the same
+generate the narration with `npm run video -- tts <script> --narration` by following [docs/tts.md](tts.md) exactly.
+Use the job's selected `--provider kokoro|gemini` (Kokoro by default) and a speed chosen from the word count.
+The command generates paragraphs, joins them with short pauses and 1.5 s of trailing silence, and regenerates the
+entire narration with Kokoro if Gemini's usage limit is reached. Keep Kokoro's one-time Python setup available as
+the fallback. Then run the loop above with `--audio jobs/scripts/<slug>/narration.wav` and the same
 script. Never use TTS when the user supplied a recording.
 
 ## References
