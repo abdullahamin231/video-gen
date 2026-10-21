@@ -4,8 +4,9 @@ Use this when there is no recording: the script was written by the `script-write
 generated voice. Never use it to replace a supplied recording.
 
 New UI jobs choose **Kokoro** (default, local) or **Gemini** (Google API). Always generate the whole
-narration with `npm run video -- tts <script> --narration --provider kokoro|gemini`. The wrapper handles
-paragraphs, pauses, output format and fallback. Keep every input and output inside the repository.
+narration with `npm run video -- tts <script> --narration --provider kokoro|gemini`. Gemini receives the whole
+script in one request per model attempt, preserving paragraph breaks. The wrapper handles Kokoro paragraphs,
+output format and fallback. Keep every input and output inside the repository.
 
 ## Gemini setup
 
@@ -27,7 +28,7 @@ or persistent service overload then tries the backup Gemini model. Authenticatio
 errors stop immediately. If the backup also hits quota, generation switches to Kokoro; a persistent backup service
 failure is surfaced instead of being labelled quota exhaustion.
 
-Every model or provider switch regenerates **every paragraph** so one narration never mixes the models or voices.
+Every model or provider switch regenerates **the entire narration** so one recording never mixes models or voices.
 The wrapper records the requested and active model and fallback reason in `tts-status.json` beside the narration,
 prints a notice, and the UI displays it in the conversation and Progress. Retries and resumes of that job keep the
 selected fallback model or Kokoro. New jobs try the primary Gemini model again. Missing keys, authentication failures, invalid requests, network failures
@@ -74,8 +75,10 @@ Run from the repository root, with `<slug>` the script's folder under `jobs/scri
 
    `-v` / `--voice` selects the Kokoro voice, including when used as fallback. `-s` / `--speed` sets Kokoro's
    speed and Gemini's requested speaking pace. Gemini's pace is an instruction, so measure the result.
-   The command reads paragraphs, normalises them to 24 kHz mono PCM WAV, joins them with 0.6 s pauses and
-   adds 1.5 s of trailing silence. It replaces the output only after the full recording is ready.
+   Gemini receives all paragraphs together in one request and controls the pauses naturally. Kokoro generates
+   paragraphs separately and joins them with 0.6 s pauses. Both produce 24 kHz mono PCM WAV with 1.5 s of
+   trailing silence. Retries or backup models may require additional requests. The output is replaced only after
+   the full recording is ready.
 
    The UI sets `VIDEO_TTS_PROVIDER` and `VIDEO_TTS_STATUS` for each job; its explicit command also includes
    `--status jobs/scripts/<slug>/tts-status.json`. Do not override these or synthesize paragraphs separately.

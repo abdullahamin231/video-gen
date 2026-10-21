@@ -194,8 +194,9 @@ vertical short-form; a chosen length then stays within `verticalMaxSeconds`. Exp
 When the user has a script but no recording (a script the `script-writer` wrote, or "make a video from this script"),
 generate the narration with `npm run video -- tts <script> --narration` by following [docs/tts.md](tts.md) exactly.
 Use the job's selected `--provider kokoro|gemini` (Kokoro by default) and a speed chosen from the word count.
-The command generates paragraphs, joins them with short pauses and 1.5 s of trailing silence, and regenerates the
-entire narration with Kokoro if Gemini's usage limit is reached. Keep Kokoro's one-time Python setup available as
+Gemini receives the whole script in one request per model attempt. Kokoro generates paragraphs and joins them
+with short pauses. Both add 1.5 s of trailing silence. Gemini tries its backup model on quota exhaustion or persistent
+overload, then regenerates the entire narration with Kokoro if the backup also hits quota. Keep Kokoro's Python setup available as
 the fallback. Then run the loop above with `--audio jobs/scripts/<slug>/narration.wav` and the same
 script. Never use TTS when the user supplied a recording.
 

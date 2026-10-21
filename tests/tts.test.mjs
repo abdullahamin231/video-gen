@@ -95,12 +95,12 @@ test('temporary Gemini overload is retried on the same provider, with a bounded 
   assert.equal(calls, 1, 'quota failures still switch to Kokoro immediately');
 });
 
-test('a quota failure after one Gemini paragraph regenerates everything with Kokoro, joins real WAVs and persists fallback', async t => {
+test('a whole-script Gemini quota failure uses Kokoro paragraphs, joins real WAVs and persists fallback', async t => {
   const files = await fixture(t), kokoroTexts = [], notices = [];
   let geminiCalls = 0;
   const options = { ...files, provider: 'gemini', narration: true, text: '> First paragraph.\n\n> Second paragraph.', env: { GEMINI_TTS_FALLBACK_MODEL: GEMINI_TTS_MODEL } };
   const engines = {
-    gemini: async () => { if (++geminiCalls === 2) throw Object.assign(new Error('quota'), { code: 'TTS_QUOTA' }); return wav(-1000); },
+    gemini: async text => { geminiCalls++; assert.equal(text, 'First paragraph.\n\nSecond paragraph.'); throw Object.assign(new Error('quota'), { code: 'TTS_QUOTA' }); },
     kokoro: async (text, output) => {
       assert.equal((await readTtsStatus(files.statusFile)).usedProvider, 'kokoro', 'UI can show fallback before local synthesis finishes');
       kokoroTexts.push(text); await writeFile(output, wav(2000));
@@ -112,12 +112,12 @@ test('a quota failure after one Gemini paragraph regenerates everything with Kok
   assert.deepEqual(kokoroTexts, ['First paragraph.', 'Second paragraph.']);
   assert.deepEqual(notices, [QUOTA_NOTICE]);
   const bytes = await readFile(files.output), data = bytes.indexOf(Buffer.from('data')) + 8;
-  assert.equal(bytes.readInt16LE(data), 2000, 'first paragraph was replaced, not left as Gemini');
+  assert.equal(bytes.readInt16LE(data), 2000, 'first paragraph is Kokoro');
   assert.equal(bytes.readInt16LE(data + 24000 * 2 * 0.7), 2000, 'second paragraph is also Kokoro');
   assert.equal(bytes.readUInt32LE(data - 4) / 48000, 2.3, '0.1 + 0.6 + 0.1 seconds, plus 1.5 seconds trailing silence');
   assert.equal((await readTtsStatus(files.statusFile)).fallback.reason, 'quota');
   const resumed = await generateSpeech(options, engines);
-  assert.equal(resumed.usedProvider, 'kokoro'); assert.equal(geminiCalls, 2, 'a resumed job does not spend more quota');
+  assert.equal(resumed.usedProvider, 'kokoro'); assert.equal(geminiCalls, 1, 'a resumed job does not spend more quota');
   assert.equal(notices.length, 1);
 });
 
@@ -139,13 +139,13 @@ test('successful Gemini narration stays Gemini; authentication and local fallbac
   assert.equal(failed.status, 'failed'); assert.equal(failed.usedProvider, 'kokoro'); assert.equal(failed.fallback.reason, 'quota');
 });
 
-test('quota partway through primary Gemini regenerates all paragraphs on the backup and resumes on that model', async t => {
+test('each Gemini model receives one request for the full script, and resumes stay on the backup', async t => {
   const files = await fixture(t), calls = [], notices = [];
   const options = { ...files, provider: 'gemini', narration: true, text: 'First paragraph.\n\nSecond paragraph.', env: {} };
   const engines = {
     gemini: async (text, { model }) => {
       calls.push({ text, model });
-      if (model === GEMINI_TTS_MODEL && text.startsWith('Second')) throw Object.assign(new Error('quota'), { code: 'TTS_QUOTA' });
+      if (model === GEMINI_TTS_MODEL) throw Object.assign(new Error('quota'), { code: 'TTS_QUOTA' });
       return wav(model === GEMINI_TTS_MODEL ? -1000 : 3000);
     },
     kokoro: async () => assert.fail('The backup Gemini model succeeded; do not use Kokoro'),
@@ -154,16 +154,27 @@ test('quota partway through primary Gemini regenerates all paragraphs on the bac
   const status = await generateSpeech(options, engines);
   assert.equal(status.usedProvider, 'gemini'); assert.equal(status.model, GEMINI_TTS_FALLBACK_MODEL);
   assert.equal(status.requestedModel, GEMINI_TTS_MODEL); assert.equal(status.modelFallback.reason, 'quota'); assert.equal(status.fallback, null);
-  assert.deepEqual(calls.map(c => c.model), [GEMINI_TTS_MODEL, GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL, GEMINI_TTS_FALLBACK_MODEL]);
+  assert.deepEqual(calls.map(c => c.model), [GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL]);
+  assert(calls.every(call => call.text === 'First paragraph.\n\nSecond paragraph.'), 'both models receive the entire script, with paragraph breaks');
   const bytes = await readFile(files.output), data = bytes.indexOf(Buffer.from('data')) + 8;
-  assert.equal(bytes.readInt16LE(data), 3000, 'the primary model’s first paragraph was replaced');
-  assert.equal(bytes.readInt16LE(data + 24000 * 2 * 0.7), 3000);
+  assert.equal(bytes.readInt16LE(data), 3000, 'the entire recording uses the backup model');
+  assert.equal(bytes.readUInt32LE(data - 4) / 48000, 1.6, 'one Gemini clip plus trailing silence, without artificial inter-paragraph gaps');
   const saved = await readTtsStatus(files.statusFile);
   assert.equal(saved.model, GEMINI_TTS_FALLBACK_MODEL); assert.equal(notices.length, 1);
   calls.length = 0;
   await generateSpeech(options, engines);
-  assert.deepEqual(calls.map(c => c.model), [GEMINI_TTS_FALLBACK_MODEL, GEMINI_TTS_FALLBACK_MODEL]);
+  assert.deepEqual(calls.map(c => c.model), [GEMINI_TTS_FALLBACK_MODEL]);
   assert.equal(notices.length, 1, 'resumes do not repeat the model-switch notification');
+});
+
+test('successful Gemini narration combines all paragraph text into exactly one request', async t => {
+  const files = await fixture(t), calls = [];
+  const paragraphs = Array.from({ length: 7 }, (_, index) => `Paragraph ${index + 1}.`);
+  await generateSpeech({ ...files, provider: 'gemini', narration: true, text: paragraphs.join('\n\n'), env: {} }, {
+    gemini: async text => { calls.push(text); return wav(); },
+    kokoro: async () => assert.fail('Gemini succeeded'),
+  });
+  assert.deepEqual(calls, [paragraphs.join('\n\n')]);
 });
 
 test('both Gemini quotas exhausted use Kokoro, and subsequent retries skip both exhausted models', async t => {
