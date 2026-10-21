@@ -6,7 +6,7 @@ import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues, jobNameFor} from '../lib/timing.mjs';
 import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies, saveToLibrary, saveAll} from '../lib/library.mjs';
-import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
+import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, qualityGates, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
 import {parseStages, parseNote, recordHumanReview} from '../lib/human.mjs';
 import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail, MAX_THUMBNAILS} from '../lib/thumbnails.mjs';
@@ -318,7 +318,9 @@ async function verify(job) {
       samplePeakDb: mixReport.samplePeakDb, mono: mixReport.mono, peaksOk: mixReport.peaksOk, limitedBy: mixReport.limitedBy}, soundEffects: mixReport.soundEffects,
     music: mixReport.music, voiceMasked: mixReport.voiceMasked, voiceClose: mixReport.voiceClose, soundsUnderMusic: mixReport.soundsUnderMusic} : null;
   const narrationIntegrity = {...await compareNarration(file, reference), ...(soundtrack ? {reference: soundtrack.reference} : {})};
-  const report = {ok: true, output: path.relative(ROOT, file), duration: Number(metadata.format.duration),
+  const {frameStats} = await import('../lib/pixels.mjs');
+  const density = await frameStats(file);
+  const report = {ok: true, output: path.relative(ROOT, file), duration: Number(metadata.format.duration), density,
     width: video.width, height: video.height, fps: video.avg_frame_rate, audioCodec: audio.codec_name,
     meanVolumeDb: mean, sha256: await fileHash(file), narrationIntegrity, ...(soundtrack ? {soundtrack} : {})};
   await writeReviewFile(job,'review/render-verification.json',JSON.stringify(report,null,2)+'\n');
@@ -423,7 +425,7 @@ thumbnail-choose --variant v1 [--by you]   make a passing variant the thumbnail 
 thumbnail-feedback --variant v1 --note "<their words>"   ask for that variant again with the person's feedback
 review-submit --file <report.json>   validate an independent sub-agent report
 review-status --stage prototype|final  check independent review qualification
-deliver                             qualify current reviews and mark complete
+deliver [--accept-quiet true] [--accept-dense true]  qualify current reviews and mark complete (the flags accept a quiet soundtrack or a crowded frame by name)
 preview [--port 3002]                persistent HyperFrames Studio
 library-search [--query "packet flow" --limit 8]  search shared artifact metadata
 library-info --item <id@version>     inspect one bundle, usage and provenance
@@ -628,6 +630,11 @@ try {
       if (mixed) qualification.soundtrack = {integratedLufs: mixed.integratedLufs, truePeakDb: mixed.truePeakDb, samplePeakDb: mixed.samplePeakDb, monoTruePeakDb: mixed.mono.truePeakDb,
         target: mixed.target, peaksOk: mixed.peaksOk, limitedBy: mixed.limitedBy, soundEffects: mixed.soundEffects, music: mixed.music ? {src: mixed.music.src} : null, measuredOn: mixed.measuredOn};
       if (listen?.listen?.length) qualification.headphoneChecks = listen.listen;
+      const verification = await json(path.join(job,'review/render-verification.json'));
+      const acceptances = {quiet: opts.acceptQuiet === 'true', dense: opts.acceptDense === 'true'};
+      const problems = qualityGates({mix: mixed, density: verification.density}, acceptances);
+      if (problems.length) throw new Error(`Delivery blocked:\n${problems.join('\n')}`);
+      qualification.acceptedQuality = acceptances;
       await writeReviewFile(job,'review/delivery.json',JSON.stringify(qualification,null,2)+'\n');
       manifest.status = 'complete'; manifest.completedAt = new Date().toISOString();
       manifest.delivery = {videoSha256:qualification.videoSha256, sourceHash:qualification.sourceHash,
