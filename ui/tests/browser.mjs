@@ -117,6 +117,9 @@ try {
 
   await page.setViewport({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await click(page, '[data-action=sidebar]'); await page.waitForSelector('.sidebar-open .sidebar'); await click(page, '.new-job'); await page.waitForSelector('#new-job-form'); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false); await click(page, '[data-action=close]');
+  // Phone drawers get out of the way: opening a dialog closes the thread list, and a tap outside closes it too.
+  assert.equal(await page.$('.sidebar-open'), null, 'the thread list stays open behind a dialog');
+  await click(page, '[data-action=sidebar]'); await page.waitForSelector('.sidebar-open .drawer-scrim'); await page.mouse.click(370, 400); assert.equal(await page.$('.sidebar-open'), null, 'a tap outside the thread list closes it');
   await page.screenshot({ path: path.join(shots, 'mobile.png') });
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ passed: true, checks: ['create thread via fixture CLI', 'routing preview', 'agent tree + drawer', 'progress phases + pipeline state', 'activity filters', 'model settings', 'file inspector', 'feedback', 'agent question + answer', 'token counts + quotas', 'video survives live updates', 'delete thread removes its artifacts', 'mobile layout'], runtimeErrors: errors, screenshots: '.video/ui-qa/' }));

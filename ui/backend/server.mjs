@@ -2,7 +2,7 @@ import http from 'node:http';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { readFile, mkdir, stat, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { Store, summary } from './store.mjs';
@@ -53,11 +53,16 @@ function config(input, existing) {
   return { provider: input.provider, main: (input.main || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (models[role] || '').trim()])), gateScript: input.gateScript, gatePrototype: input.gatePrototype, gateFinal: Boolean(input.gateFinal),
     gateThumbnail: input.gateThumbnail ?? existing?.gateThumbnail ?? true, thumbnails: input.thumbnails ?? existing?.thumbnails };
 }
-const detail = (store, job) => ({ ...summary(job), messages: job.messages, events: store.events(job.id) });
 
 export async function createApp({ root, directory = path.join(root, '.video/ui'), runnerFactory, ideaOptions = {}, ideasRoot = root, password } = {}) {
   // Without a password the workspace answers loopback only; with one it may listen on the network behind a login.
   const access = createAccess(password);
+  // The film runs sandboxed, so its requests carry no session cookie; a per-thread key in the URL admits them instead.
+  // Keys change on restart, and every thread summary the signed-in client receives carries the current one.
+  const playerSecret = randomBytes(32);
+  const playerKey = id => createHmac('sha256', playerSecret).update(id).digest('hex').slice(0, 32);
+  const view = job => ({ ...summary(job), playerKey: playerKey(job.id) });
+  const detail = (store, job) => ({ ...view(job), messages: job.messages, events: store.events(job.id) });
   let defaults = {};
   try { const source = JSON.parse(await readFile(path.join(root, 'video.config.json'), 'utf8')); defaults = { defaultFormat: source.format === 'vertical' ? 'vertical' : 'landscape', defaultThumbnails: Number.isInteger(source.thumbnails) ? source.thumbnails : 3 }; } catch {}
   const store = new Store(directory, defaults);
@@ -71,7 +76,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
   let flushTimer = null;
   const flush = () => {
     flushTimer = null;
-    const jobs = [...pending.jobs].map(id => store.jobs.get(id)).filter(Boolean).map(summary);
+    const jobs = [...pending.jobs].map(id => store.jobs.get(id)).filter(Boolean).map(view);
     const payload = { jobs, events: pending.events, messages: pending.messages, removed: pending.removed };
     pending.jobs.clear(); pending.events = []; pending.messages = []; pending.removed = [];
     const data = `event: update\ndata: ${JSON.stringify(payload)}\n\n`;
@@ -102,16 +107,20 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
   const ideasState = async () => { const data = await loadIdeas(ideasRoot), profile = await loadProfile(ideasRoot); return { niche: profile.niche, cards: newestFirst(data.cards), lastRun: data.runs?.at(-1) || null, running: Boolean(ideaRun) }; };
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'no-referrer');
+    // `no-referrer` would make browsers send `Origin: null` on the login form post, which the origin check refuses.
+    res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
     try {
       const host = req.headers.host;
       if (!host || (!access && !/^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host))) throw fail('Local requests only', 403);
       const url = new URL(req.url, `http://${host}`);
+      const player = /^\/api\/jobs\/([a-f0-9-]+)\/player\/([a-f0-9]{32})\/(.*)$/.exec(url.pathname);
+      const playerAllowed = Boolean(player && ['GET', 'HEAD'].includes(req.method) && timingSafeEqual(Buffer.from(player[2]), Buffer.from(playerKey(player[1]))));
       // Behind an HTTPS proxy the origin's scheme differs from ours, so compare hosts.
       let originHost = null; try { originHost = req.headers.origin && new URL(req.headers.origin).host; } catch { originHost = '?'; }
-      if (originHost && originHost !== host && originHost !== req.headers['x-forwarded-host']) throw fail('Cross-origin requests are not allowed', 403);
-      if (req.headers['sec-fetch-site'] === 'cross-site') throw fail('Cross-site requests are not allowed', 403);
+      // The sandboxed film's own requests come from an opaque origin (`null`); its key admits them, read-only.
+      if (!playerAllowed && originHost && originHost !== host && originHost !== req.headers['x-forwarded-host']) throw fail('Cross-origin requests are not allowed', 403);
+      if (!playerAllowed && req.headers['sec-fetch-site'] === 'cross-site') throw fail('Cross-site requests are not allowed', 403);
       if (access && url.pathname === '/login') return req.method === 'POST' ? await access.login(req, res) : access.authenticated(req) ? (res.writeHead(303, { Location: '/' }), res.end()) : access.page(res);
       if (access && url.pathname === '/logout') return access.logout(req, res);
       if (url.pathname === '/api/internal/tool' && req.method === 'POST') {
@@ -120,7 +129,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
         if (!runner.authorize(token, input.thread, input.agentId)) throw fail('Invalid runner credential', 403);
         return json(res, 200, await runner.tool(store.get(input.thread), input.agentId, input.name, input.arguments || {}));
       }
-      if (access && !access.authenticated(req)) {
+      if (access && !playerAllowed && !access.authenticated(req)) {
         if (url.pathname.startsWith('/api/')) throw fail('Sign in first', 401);
         res.writeHead(303, { Location: '/login' }); return res.end();
       }
@@ -172,7 +181,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
         return json(res, 201, { path: relative, size, name: filename });
       }
       if (url.pathname === '/api/jobs') {
-        if (req.method === 'GET') return json(res, 200, store.all().map(summary));
+        if (req.method === 'GET') return json(res, 200, store.all().map(view));
         if (req.method === 'POST') {
           const input = await body(req);
           if (!string(input.prompt, 20000) || !input.prompt.trim()) throw fail('Describe the video you want');
@@ -185,12 +194,16 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
           return json(res, 201, detail(store, job));
         }
       }
-      const player = /^\/api\/jobs\/([a-f0-9-]+)\/player\/(.*)$/.exec(url.pathname);
-      if (player && ['GET', 'HEAD'].includes(req.method)) {
-        const job = store.get(player[1]), base = `/api/jobs/${job.id}/player/`;
-        res.setHeader('Content-Security-Policy', PLAYER_POLICY);
-        if (!player[2]) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(playerPage(job.title || job.slug)); }
-        if (await servePlayer(req, res, path.join(root, job.jobPath), player[2], { base })) return;
+      if (player && !playerAllowed) throw fail('Not found', 404);
+      if (playerAllowed) {
+        const job = store.get(player[1]), base = `/api/jobs/${job.id}/player/${player[2]}/`;
+        // A sandboxed document fetches its own assets cross-origin; the key is what guards them.
+        if (player[3].startsWith('film/')) res.setHeader('Access-Control-Allow-Origin', '*');
+        // The film's HTML is written by agents that read the web, so it runs in an opaque origin: it cannot read
+        // the workspace page, its cookie, or call this API as the signed-in person.
+        res.setHeader('Content-Security-Policy', player[3].startsWith('film/') ? `${PLAYER_POLICY}; sandbox allow-scripts` : PLAYER_POLICY);
+        if (!player[3]) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(playerPage(job.title || job.slug)); }
+        if (await servePlayer(req, res, path.join(root, job.jobPath), player[3], { base })) return;
         throw fail('Not found', 404);
       }
       const match = /^\/api\/jobs\/([a-f0-9-]+)(?:\/(file|files|artifact|messages|control|log|events)(?:\/([a-f0-9-]+))?)?$/.exec(url.pathname);
@@ -214,7 +227,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
         if (operation === 'control' && req.method === 'POST') {
           const input = await body(req);
           for (const field of ['feedback', 'answer']) if (input[field] !== undefined && !string(input[field], 20000)) throw fail('Text too long');
-          return json(res, 200, summary(await runner.control(job, input.action, input)));
+          return json(res, 200, view(await runner.control(job, input.action, input)));
         }
         if (operation === 'log' && req.method === 'GET') {
           res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Content-Disposition': `attachment; filename="${job.slug}-events.jsonl"` });
@@ -228,6 +241,8 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
             return json(res, 200, { path: url.searchParams.get('path'), text: await readFile(file.path, 'utf8') });
           }
           const range = parseRange(req.headers.range, file.info.size);
+          // Artifacts are agent-written (an SVG can carry script); opened on their own they render inert.
+          res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'");
           const headers = { 'Content-Type': file.type, 'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes', 'Content-Length': range ? range.end - range.start + 1 : file.info.size, 'Content-Disposition': `${url.searchParams.has('download') ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(path.basename(file.path))}` };
           if (range) headers['Content-Range'] = `bytes ${range.start}-${range.end}/${file.info.size}`;
           res.writeHead(range ? 206 : 200, headers);

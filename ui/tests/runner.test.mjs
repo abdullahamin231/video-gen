@@ -501,3 +501,30 @@ test('network mode needs a password, signs in with a cookie and still rejects cr
   assert.equal(await status({ Host: 'server.tailnet.ts.net', Cookie: cookie }), 200);
   assert.equal(await status({ Host: 'localhost' }), 401, 'a spoofed local Host header does not skip the login');
 });
+
+test('the film plays sandboxed behind a per-thread key, artifacts open inert, and login guesses count before they finish', async t => {
+  const folder = await workspace();
+  const app = await createApp({ root, directory: path.join(folder, 'state'), password: 'correct horse battery', runnerFactory: options => fakeRunner(options) });
+  const url = await app.start(0, '127.0.0.1'); t.after(() => app.close());
+  const film = path.join(folder, 'film'); await mkdir(film, { recursive: true });
+  await writeFile(path.join(film, 'index.html'), '<html><head></head><body><script>fetch("/api/jobs")</script></body></html>');
+  await writeFile(path.join(film, 'mark.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+  const job = app.store.create({ ...defaults, title: 'Sandbox fixture' }); job.jobPath = path.relative(root, film); app.store.save(job);
+  const login = password => fetch(url + '/login', { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: url }, body: new URLSearchParams({ password }) });
+  const cookie = (await login('correct horse battery')).headers.get('set-cookie').split(';')[0];
+  const [summary] = await (await fetch(url + '/api/jobs', { headers: { Cookie: cookie } })).json();
+  assert.match(summary.playerKey, /^[a-f0-9]{32}$/);
+  // The sandboxed film has no cookie and an opaque origin: its key admits it, read-only, and nothing else does.
+  const filmUrl = `${url}/api/jobs/${job.id}/player/${summary.playerKey}/film/index.html`;
+  const page = await fetch(filmUrl, { headers: { Origin: 'null' } });
+  assert.equal(page.status, 200); assert.match(page.headers.get('content-security-policy'), /sandbox allow-scripts/);
+  assert.doesNotMatch(page.headers.get('content-security-policy'), /allow-same-origin/);
+  assert.equal((await fetch(`${url}/api/jobs/${job.id}/player/${'0'.repeat(32)}/film/index.html`)).status, 401, 'a wrong key is refused');
+  assert.equal((await fetch(filmUrl, { method: 'POST', headers: { Origin: 'null' } })).status, 403, 'the key never admits a write');
+  assert.equal((await fetch(url + '/api/jobs', { headers: { Origin: 'null', Cookie: cookie } })).status, 403, 'an opaque origin cannot use the API');
+  const svg = await fetch(`${url}/api/jobs/${job.id}/artifact?path=${encodeURIComponent(job.jobPath + '/mark.svg')}`, { headers: { Cookie: cookie } });
+  assert.equal(svg.status, 200); assert.match(svg.headers.get('content-security-policy'), /^sandbox;/);
+  // Parallel wrong guesses are all counted: at most five get checked in one window.
+  const statuses = await Promise.all(Array.from({ length: 12 }, () => login('wrong password!!').then(r => r.status)));
+  assert.equal(statuses.filter(s => s === 401).length, 5); assert.equal(statuses.filter(s => s === 429).length, 7);
+});

@@ -104,7 +104,7 @@ function set(element, html) {
 }
 function schedule() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); }
 function render() {
-  if (!$('#sidebar')) $('#app').innerHTML = '<aside id="sidebar" class="sidebar" aria-label="Video threads"></aside><main class="main-panel" id="main"><div id="topbar"></div><div id="heading"></div><div class="content-scroll" id="content-scroll"></div><div id="footer"></div></main><aside id="inspector" class="inspector" aria-label="Job inspector"></aside>';
+  if (!$('#sidebar')) $('#app').innerHTML = '<aside id="sidebar" class="sidebar" aria-label="Video threads"></aside><main class="main-panel" id="main"><div id="topbar"></div><div id="heading"></div><div class="content-scroll" id="content-scroll"></div><div id="footer"></div></main><aside id="inspector" class="inspector" aria-label="Job inspector"></aside><div class="drawer-scrim" data-action="close-drawers"></div>';
   $('#app').classList.toggle('no-job', !state.job || state.view === 'ideas');
   set($('#sidebar'), sidebar());
   set($('#topbar'), topbar());
@@ -112,7 +112,8 @@ function render() {
   if (state.view === 'ideas') { set($('#heading'), ''); set(scroller, ideasView()); set($('#footer'), ''); set($('#inspector'), ''); return; }
   const atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80, top = scroller.scrollTop;
   if (!state.job) { set($('#heading'), ''); set(scroller, welcome()); set($('#footer'), ''); set($('#inspector'), ''); return; }
-  set($('#heading'), heading());
+  // A rebuilt tab row starts scrolled left; on narrow screens bring the open tab back into view.
+  if (set($('#heading'), heading())) { const tabs = $('.content-tabs'), active = $('.content-tab.active'); if (tabs && active) tabs.scrollLeft = active.offsetLeft - (tabs.clientWidth - active.offsetWidth) / 2; }
   const changed = set(scroller, { thread, progress: progressView, agents: agentsView, activity, files: fileView, outputs }[state.tab]());
   if (changed) scroller.scrollTop = state.tab === 'thread' && atBottom ? scroller.scrollHeight : top;
   set($('#footer'), state.tab === 'thread' ? composer() : `<div class="view-footer">${icon('info')}Local artifacts · ${esc(state.job.jobPath)}</div>`);
@@ -209,7 +210,7 @@ function gate() {
 // The film plays from its built HTML in HyperFrames' own player (served read-only by the UI server), inside a modal so
 // live thread updates never restart it. Notes are kept per checkpoint until you send them.
 const FILM_GATES = ['prototype', 'final'];
-const playerBase = () => `/api/jobs/${state.job.id}/player/`;
+const playerBase = () => `/api/jobs/${state.job.id}/player/${state.job.playerKey}/`;
 const notesKey = gateId => `video-film-notes:${state.job?.id}:${gateId}`;
 const filmNoteStore = new Map();
 function filmNotes(gateId) {
@@ -240,13 +241,13 @@ async function openFilmReview(gate) {
   const deciding = gate && FILM_GATES.includes(gate.kind) && !gate.decision;
   state.review = { gateId: deciding ? gate.id : null, kind: deciding ? gate.kind : null, timing };
   const total = timing.duration || 1;
-  const strip = timing.scenes.map(scene => `<button class="film-scene ${timing.missing.includes(scene.id) ? 'missing' : ''}" style="flex-grow:${Math.max(0.4, scene.end - scene.start).toFixed(2)}" data-action="film-seek" data-at="${scene.start}" data-scene="${esc(scene.id)}" title="${esc(`${scene.id} · ${seconds(scene.start)}–${seconds(scene.end)}${timing.missing.includes(scene.id) ? ' · not built yet' : ''}`)}">${esc(scene.id)}</button>`).join('');
+  const strip = timing.scenes.map(scene => `<button class="film-scene ${timing.missing.includes(scene.id) ? 'missing' : ''}" style="flex-grow:${Math.max(0.4, scene.end - scene.start).toFixed(2)}" data-action="film-seek" data-at="${esc(scene.start)}" data-scene="${esc(scene.id)}" title="${esc(`${scene.id} · ${seconds(scene.start)}–${seconds(scene.end)}${timing.missing.includes(scene.id) ? ' · not built yet' : ''}`)}">${esc(scene.id)}</button>`).join('');
   const title = !deciding ? 'The current build.' : gate.kind === 'prototype' ? 'Watch the prototype.' : 'Watch the whole film.';
   const sub = !deciding ? 'Straight from the built HTML, with the narration. Nothing is rendered.' : esc(gate.summary);
   const notes = deciding ? `<div class="film-notes"><label class="field-label" for="note-text">Your note</label><textarea id="note-text" rows="2" maxlength="4000" placeholder="What should change here? Pause where it happens, then add the note."></textarea><div class="note-actions"><button class="secondary-button small" data-action="note-add">${icon('plus')}Add note at <span id="note-at">0.0 s</span></button><label class="note-whole"><input type="checkbox" id="note-whole">About the whole ${gate.kind === 'prototype' ? 'prototype' : 'film'}</label></div><ol id="note-list" class="note-list"></ol></div>
     <div class="modal-footer"><span class="muted">Notes go to the scenes they point at, in your words. A request for changes sends the film back for repair and review.</span><button class="secondary-button" data-action="film-revise">Request changes</button><button class="primary-button" data-action="film-approve">${icon('check')}Approve</button></div>`
     : `<div class="modal-footer"><span class="muted">${state.job.gate && FILM_GATES.includes(state.job.gate.kind) ? 'Leave notes from the checkpoint in the thread.' : 'When the agents ask for your review, you can leave notes at any moment.'}</span><button class="secondary-button" data-action="close">Close</button></div>`;
-  openModal(`${modalHeading(title, sub)}<div class="film-review"><hyperframes-player id="film-player" class="film-player" src="${playerBase()}film/index.html" controls style="aspect-ratio:${timing.width}/${timing.height}"></hyperframes-player><div class="film-strip">${strip}<span class="film-head" id="film-head"></span></div><div class="film-now"><strong id="film-now">0.0 s</strong><span id="film-scene" class="muted"></span></div><p class="film-spoken" id="film-spoken"></p></div>${notes}`, true, () => { filmPlayer()?.pause?.(); state.review = null; });
+  openModal(`${modalHeading(title, sub)}<div class="film-review"><hyperframes-player id="film-player" class="film-player" src="${playerBase()}film/index.html" controls sandbox-origin style="aspect-ratio:${Number(timing.width) || 16}/${Number(timing.height) || 9}"></hyperframes-player><div class="film-strip">${strip}<span class="film-head" id="film-head"></span></div><div class="film-now"><strong id="film-now">0.0 s</strong><span id="film-scene" class="muted"></span></div><p class="film-spoken" id="film-spoken"></p></div>${notes}`, true, () => { filmPlayer()?.pause?.(); state.review = null; });
   const player = filmPlayer();
   const update = () => {
     const t = player.currentTime || 0, scene = timing.scenes.find(item => t >= item.start && t < item.end) || timing.scenes.at(-1);
@@ -321,7 +322,7 @@ function ideaCard(card) {
   const sources = card.sources || [];
   const actions = card.status === 'rejected' ? `<button class="secondary-button small" data-action="idea-status" data-id="${card.id}" data-status="new">${icon('retry')}Restore</button>`
     : `<button class="primary-button small" data-action="idea-make" data-id="${card.id}">${icon('film')}Make video</button>${card.status === 'saved' ? `<button class="secondary-button small" data-action="idea-status" data-id="${card.id}" data-status="new">Unsave</button>` : `<button class="secondary-button small" data-action="idea-status" data-id="${card.id}" data-status="saved">${icon('star')}Save</button>`}<button class="text-button" data-action="idea-reject" data-id="${card.id}">${icon('x')}Not for us</button>`;
-  return `<article class="idea-card ${esc(card.status)}"><div class="idea-top"><span class="eyebrow">${esc(card.form.toUpperCase())}</span><span class="idea-score" title="${esc(Object.entries(card.scoreParts || {}).map(([key, value]) => `${key} ${value}`).join(' · '))}">${Math.round(card.score * 100)}</span></div><h3>${esc(card.title)}</h3><p>${esc(card.promise)}</p>${card.reasons?.length ? `<ul class="idea-reasons">${card.reasons.map(reason => `<li>${esc(reason)}</li>`).join('')}</ul>` : ''}<details class="idea-sources" data-key="src-${card.id}"><summary>${sources.length} source${sources.length === 1 ? '' : 's'} · ${esc([...new Set(sources.map(source => source.label))].join(', '))}</summary><ul>${sources.map(source => `<li><a href="${esc(source.url)}" target="_blank" rel="noopener noreferrer">${esc(source.title)}${icon('arrow')}</a><small>${esc(source.label)}${source.metric ? ` · ${esc(source.metric)}` : ''}</small></li>`).join('')}</ul></details>${card.status === 'used' ? `<small class="muted">A video thread was started from this idea.</small>` : ''}${card.status === 'rejected' && card.reason ? `<small class="muted">Rejected: ${esc(card.reason)}</small>` : ''}<div class="idea-actions">${actions}</div></article>`;
+  return `<article class="idea-card ${esc(card.status)}"><div class="idea-top"><span class="eyebrow">${esc(card.form.toUpperCase())}</span><span class="idea-score" title="${esc(Object.entries(card.scoreParts || {}).map(([key, value]) => `${key} ${value}`).join(' · '))}">${Math.round(card.score * 100)}</span></div><h3>${esc(card.title)}</h3><p>${esc(card.promise)}</p>${card.reasons?.length ? `<ul class="idea-reasons">${card.reasons.map(reason => `<li>${esc(reason)}</li>`).join('')}</ul>` : ''}<details class="idea-sources" data-key="src-${card.id}"><summary>${sources.length} source${sources.length === 1 ? '' : 's'} · ${esc([...new Set(sources.map(source => source.label))].join(', '))}</summary><ul>${sources.map(source => `<li><a href="${/^https?:\/\//i.test(source.url) ? esc(source.url) : '#'}" target="_blank" rel="noopener noreferrer">${esc(source.title)}${icon('arrow')}</a><small>${esc(source.label)}${source.metric ? ` · ${esc(source.metric)}` : ''}</small></li>`).join('')}</ul></details>${card.status === 'used' ? `<small class="muted">A video thread was started from this idea.</small>` : ''}${card.status === 'rejected' && card.reason ? `<small class="muted">Rejected: ${esc(card.reason)}</small>` : ''}<div class="idea-actions">${actions}</div></article>`;
 }
 // The new-video form, filled in from an idea: its angle, plus the sources the script writer should start from.
 // No length: the agent chooses one that fits, unless the user adds one before starting.
@@ -497,7 +498,10 @@ function quotaWindow(window) {
 
 // ---------- modals ----------
 let onModalClose = null;
-function openModal(content, wide = false, onClose = null) { lastFocus = document.activeElement; onModalClose = onClose; $('#overlay').innerHTML = `<div class="modal-backdrop"><section class="modal ${wide ? 'wide-modal' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">${content}</section></div>`; ($('textarea,input,select', $('.modal')) || $('.modal')).focus(); }
+// On touch screens, focusing a field opens the keyboard over the dialog; focus the dialog instead.
+const touch = matchMedia('(pointer: coarse)');
+const closeDrawers = () => document.body.classList.remove('sidebar-open', 'inspector-open');
+function openModal(content, wide = false, onClose = null) { closeDrawers(); lastFocus = document.activeElement; onModalClose = onClose; $('#overlay').innerHTML = `<div class="modal-backdrop"><section class="modal ${wide ? 'wide-modal' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">${content}</section></div>`; ((!touch.matches && $('textarea,input,select', $('.modal'))) || $('.modal')).focus(); }
 function closeModal() { $('#overlay').innerHTML = ''; onModalClose?.(); onModalClose = null; if (lastFocus?.isConnected) lastFocus.focus(); }
 const modalHeading = (title, description) => `<div class="modal-heading"><div><h2 id="modal-title">${title}</h2><p>${description}</p></div><button class="icon-button" data-action="close" aria-label="Close dialog">${icon('close')}</button></div>`;
 function modelFields(j = {}) {
@@ -587,16 +591,16 @@ document.addEventListener('click', async e => {
     switch (action) {
       case 'new': newJob(); break;
       case 'close': closeModal(); break;
-      case 'ideas': state.view = 'ideas'; document.body.classList.remove('sidebar-open'); schedule(); await loadIdeas(); if (!state.ideas.cards.length && !state.ideas.lastRun) await findIdeas(); break;
+      case 'ideas': state.view = 'ideas'; closeDrawers(); schedule(); await loadIdeas(); if (!state.ideas.cards.length && !state.ideas.lastRun) await findIdeas(); break;
       case 'ideas-find': await findIdeas(); break;
       case 'idea-filter': state.ideaFilter = button.dataset.filter; schedule(); break;
       case 'idea-status': await ideaStatus(button.dataset.id, button.dataset.status); toast(button.dataset.status === 'saved' ? 'Saved.' : 'Moved back to new.'); break;
       case 'idea-reject': openModal(`${modalHeading('Why not this one?', 'The reason is kept with the idea, so it is clear later why it was passed over.')}<div class="reject-reasons">${REJECT_REASONS.map(reason => `<button class="secondary-button" data-action="idea-reject-reason" data-id="${esc(button.dataset.id)}" data-reason="${esc(reason)}">${esc(reason)}</button>`).join('')}</div><div class="modal-footer"><button class="text-button" data-action="idea-reject-reason" data-id="${esc(button.dataset.id)}" data-reason="">Skip the reason</button><button class="secondary-button" data-action="close">Keep it</button></div>`); break;
       case 'idea-reject-reason': await ideaStatus(button.dataset.id, 'rejected', button.dataset.reason); closeModal(); toast('Rejected. It will not come back.'); break;
       case 'idea-make': newJob(state.ideas.cards.find(card => card.id === button.dataset.id)); break;
-      case 'select': state.view = 'threads'; state.selected = button.dataset.id; state.tab = 'thread'; state.files = []; document.body.classList.remove('sidebar-open'); await loadDetail(); break;
+      case 'select': state.view = 'threads'; state.selected = button.dataset.id; state.tab = 'thread'; state.files = []; closeDrawers(); await loadDetail(); break;
       case 'toggle-archived': state.showArchived = !state.showArchived; schedule(); break;
-      case 'tab': state.tab = button.dataset.tab; if (['files', 'outputs'].includes(state.tab)) await loadFiles(); schedule(); break;
+      case 'tab': state.tab = button.dataset.tab; closeDrawers(); if (['files', 'outputs'].includes(state.tab)) await loadFiles(); schedule(); break;
       case 'inspector-tab': state.inspectorTab = button.dataset.tab; schedule(); break;
       case 'file': await inspectFile(button.dataset.file); break;
       case 'agent': await openAgent(button.dataset.id); break;
@@ -644,8 +648,9 @@ document.addEventListener('click', async e => {
       case 'note-remove': removeFilmNote(Number(button.dataset.index)); break;
       case 'film-approve': case 'film-revise': await decideFilm(action === 'film-approve' ? 'approve' : 'revise'); break;
       case 'gate': state.tab = 'thread'; schedule(); requestAnimationFrame(() => $('.gate-card')?.scrollIntoView({ block: 'center' })); break;
-      case 'sidebar': document.body.classList.toggle('sidebar-open'); break;
-      case 'inspector': document.body.classList.toggle('inspector-open'); break;
+      case 'sidebar': document.body.classList.remove('inspector-open'); document.body.classList.toggle('sidebar-open'); break;
+      case 'inspector': document.body.classList.remove('sidebar-open'); document.body.classList.toggle('inspector-open'); break;
+      case 'close-drawers': closeDrawers(); break;
       case 'refresh-providers': button.disabled = true; state.providers = await api('/api/providers?refresh=1'); await settings(); toast('Provider status refreshed.'); break;
       case 'measurements': await measurements(); break;
     }
@@ -679,8 +684,8 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => { if (e.target.id === 'new-prompt') { $('#duration-hint').outerHTML = durationHint(e.target.value); const error = $('#form-error', e.target.form); if (error) error.textContent = ''; } if (e.target.form && ['new-job-form', 'configure-form'].includes(e.target.form.id) && (e.target.name === 'main' || e.target.name.startsWith('model:'))) updateRoutingPreview(e.target.form); });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if ($('.modal')) closeModal(); else document.body.classList.remove('sidebar-open', 'inspector-open'); }
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.target.id === 'message-input') { e.preventDefault(); $('#message-form').requestSubmit(); }
+  if (e.key === 'Escape') { if ($('.modal')) closeModal(); else closeDrawers(); }
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !touch.matches && e.target.id === 'message-input') { e.preventDefault(); $('#message-form').requestSubmit(); }
   if ($('.modal') && e.key === 'Tab') { const items = [...$('.modal').querySelectorAll('button,input,textarea,select,summary,a[href]')].filter(item => !item.disabled && item.getClientRects().length); const first = items[0], last = items.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } }
   if (!e.target.matches('input,textarea,select,[contenteditable]') && !$('.modal') && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newJob(); }
 });

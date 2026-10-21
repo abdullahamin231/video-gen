@@ -33,11 +33,13 @@ export function createAccess(password) {
     async login(req, res) {
       const ip = client(req);
       if (locked(ip)) return this.page(res, 'Too many attempts. Try again in 15 minutes.', 429);
+      // Count the attempt before any waiting, so parallel guesses cannot all slip in under the limit.
+      if (failures.size > 10000) failures.clear();
+      const entry = failures.get(ip) || { count: 0, first: Date.now() }; entry.count++; failures.set(ip, entry);
       let body = '';
       for await (const chunk of req) { body += chunk; if (body.length > 4096) return this.page(res, 'Request too large', 413); }
       const given = new URLSearchParams(body).get('password') || '';
       if (!same(createHmac('sha256', given).update('video-workspace-session-v1').digest('hex'), token)) {
-        const entry = failures.get(ip) || { count: 0, first: Date.now() }; entry.count++; failures.set(ip, entry);
         await new Promise(resolve => setTimeout(resolve, 800));
         return this.page(res, 'Wrong password', 401);
       }
