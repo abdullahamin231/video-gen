@@ -489,7 +489,8 @@ test('network mode needs a password, signs in with a cookie and still rejects cr
   const page = await fetch(url + '/', { redirect: 'manual' }); assert.equal(page.status, 303); assert.equal(page.headers.get('location'), '/login');
   assert.equal((await fetch(url + '/api/jobs')).status, 401);
   assert.equal((await post(url, '/api/jobs', defaults)).status, 401);
-  const login = password => fetch(url + '/login', { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ password }) });
+  assert.equal((await fetch(url + '/login')).headers.get('referrer-policy'), 'same-origin');
+  const login = password => fetch(url + '/login', { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: url }, body: new URLSearchParams({ password }) });
   assert.equal((await login('wrong password!!')).status, 401);
   const ok = await login('correct horse battery'); assert.equal(ok.status, 303);
   const cookie = ok.headers.get('set-cookie').split(';')[0]; assert.match(ok.headers.get('set-cookie'), /HttpOnly/);
