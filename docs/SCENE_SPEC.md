@@ -366,3 +366,16 @@ use `Text`, or put equations in `tex` objects of the world.
 
 **HTML scenes** — a whole scene can be a hand-written HyperFrames composition (`"kind": "html"`, `"file"` in
 film.json) for 3D or other runtimes. It is layered over the world for its interval; follow the hyperframes-core skill.
+
+## Enforced scene lifetimes
+
+The compiler assigns every object an allowed interval from its owning scene plus scenes that explicitly carry or
+use it. Part targets (for example `price.text`), grouped children, plot children, labels and runtime effects inherit
+that ownership. Cleanup-only `hide`/`fadeOut` actions in a later scene do not carry an old subject into that scene.
+`persist: true` deliberately keeps a background after its owning scene begins; use it only for a film-wide element.
+
+An independent parent visibility gate closes at the scene boundary. It cannot be reopened by a late count, fill,
+component or hook opacity tween on the child. Authored exits can finish earlier; exit staggering cannot extend the
+allowed interval. The full build measures lifecycle violations as hard errors, including the first encoded frame
+of each scene. They cannot be waived by the creative review round limit. After a runtime fix, refresh an existing
+job's pinned runtime with `npm run video -- kit-update --job <job>` and rebuild.

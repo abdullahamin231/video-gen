@@ -31,7 +31,9 @@ const state = {
   view: 'threads', ideas: null, ideaFilter: 'new', ideasBusy: false,
 };
 try { state.selected = localStorage.getItem('video-workspace-selected'); } catch {}
-let toastTimer, lastFocus, renderQueued = false, filesTimer, filesRequest = 0;
+const messageDrafts = new Map();
+let drawerFocus;
+let toastTimer, lastFocus, renderQueued = false, filesTimer, filesRequest = 0, chatScroll;
 
 function toast(text) { $('#toast').textContent = text; $('#toast').classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), 4500); }
 async function api(url, { method = 'GET', data, raw } = {}) {
@@ -87,6 +89,75 @@ function applyUpdate(update) {
   schedule();
 }
 
+// One owner for chat position. Restore only after every region has laid out,
+// including the composer; async font/media/keyboard resizes follow the same rule.
+function createChatScroll(scroller, {onFollowChange = () => {}} = {}) {
+  let view = '', following = true, restoring = false, userScrolling = false, frame = 0;
+  const positions = new Map();
+  const isThread = () => view.startsWith('threads:') && !view.includes(':welcome:') && view.endsWith(':thread');
+  const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 48;
+  function notify() { onFollowChange(isThread() && !following); }
+  function pin() {
+    if (isThread() && following) scroller.scrollTop = scroller.scrollHeight;
+  }
+  scroller.addEventListener('scroll', () => {
+    if (restoring) return;
+    if (isThread()) {
+      if (nearBottom()) { following = true; userScrolling = false; }
+      else if (userScrolling) following = false;
+    }
+    positions.set(view, scroller.scrollTop);
+    notify();
+  }, {passive:true});
+  // User gestures cancel a queued restoration so reading history always wins.
+  function interrupt() { restoring = false; cancelAnimationFrame(frame); }
+  scroller.addEventListener('touchstart', interrupt, {passive:true});
+  function userScroll() { interrupt(); userScrolling = true; }
+  scroller.addEventListener('touchmove', userScroll, {passive:true});
+  scroller.addEventListener('wheel', userScroll, {passive:true});
+  scroller.addEventListener('pointerdown', event => { if (event.pointerType === 'mouse') userScroll(); }, {passive:true});
+  scroller.addEventListener('keydown', event => {
+    if (['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key)) userScroll();
+  });
+  const observer = new ResizeObserver(() => { pin(); notify(); });
+  observer.observe(scroller);
+  let content;
+  return {
+    capture(nextView) {
+      positions.set(view, scroller.scrollTop);
+      const changed = nextView !== view;
+      const top = changed ? positions.get(nextView) || 0 : scroller.scrollTop;
+      const anchor = !changed && !following ? [...scroller.querySelectorAll('[data-scroll-key]')]
+        .find(node => node.getBoundingClientRect().bottom > scroller.getBoundingClientRect().top) : null;
+      const snapshot = {top, key:anchor?.dataset.scrollKey, offset:anchor ? anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top : 0};
+      if (changed) { view = nextView; following = true; userScrolling = false; }
+      restoring = true;
+      return snapshot;
+    },
+    restore(snapshot) {
+      cancelAnimationFrame(frame);
+      const restore = () => {
+        if (isThread() && following) pin();
+        else {
+          const anchor = snapshot.key && [...scroller.querySelectorAll('[data-scroll-key]')].find(node => node.dataset.scrollKey === snapshot.key);
+          scroller.scrollTop = anchor ? scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top - snapshot.offset : snapshot.top;
+        }
+        notify();
+      };
+      if (content) observer.unobserve(content);
+      content = scroller.firstElementChild;
+      if (content) observer.observe(content);
+      restore();
+      frame = requestAnimationFrame(() => {
+        restore();
+        frame = requestAnimationFrame(() => { restoring = false; });
+      });
+    },
+    latest() { following = true; userScrolling = false; pin(); notify(); },
+    resize() { pin(); notify(); },
+  };
+}
+
 // ---------- rendering ----------
 // Regions are replaced only when their HTML changes, so a playing video or an open menu is left alone.
 function set(element, html) {
@@ -97,27 +168,32 @@ function set(element, html) {
   for (const draft of drafts) {
     const input = element.querySelector('#' + CSS.escape(draft.id)); if (!input) continue;
     input.value = draft.value;
-    if (draft.focused && !$('.modal')) { input.focus(); try { input.setSelectionRange(draft.start, draft.end); } catch {} }
+    if (draft.focused && !$('.modal')) { input.focus({preventScroll:true}); try { input.setSelectionRange(draft.start, draft.end); } catch {} }
   }
   for (const key of open) { const item = element.querySelector(`details[data-key="${CSS.escape(key)}"]`); if (item) item.open = true; }
   return true;
 }
 function schedule() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); }
 function render() {
+  const oldComposer = $('#message-form'), oldInput = $('#message-input');
+  if (oldComposer && oldInput) messageDrafts.set(oldComposer.dataset.thread, oldInput.value);
   if (!$('#sidebar')) $('#app').innerHTML = '<aside id="sidebar" class="sidebar" aria-label="Video threads"></aside><main class="main-panel" id="main"><div id="topbar"></div><div id="heading"></div><div class="content-scroll" id="content-scroll"></div><div id="footer"></div></main><aside id="inspector" class="inspector" aria-label="Job inspector"></aside><div class="drawer-scrim" data-action="close-drawers"></div>';
+  const scroller = $('#content-scroll');
+  chatScroll ||= createChatScroll(scroller, {onFollowChange: visible => { const button = $('#jump-latest'); if (button) button.hidden = !visible; }});
+  const position = chatScroll.capture(`${state.view}:${state.job?.id || 'welcome'}:${state.tab}`);
   $('#app').classList.toggle('no-job', !state.job || state.view === 'ideas');
   set($('#sidebar'), sidebar());
   set($('#topbar'), topbar());
-  const scroller = $('#content-scroll');
-  if (state.view === 'ideas') { set($('#heading'), ''); set(scroller, ideasView()); set($('#footer'), ''); set($('#inspector'), ''); return; }
-  const atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80, top = scroller.scrollTop;
-  if (!state.job) { set($('#heading'), ''); set(scroller, welcome()); set($('#footer'), ''); set($('#inspector'), ''); return; }
+  if (state.view === 'ideas') { set($('#heading'), ''); set(scroller, ideasView()); set($('#footer'), ''); set($('#inspector'), ''); chatScroll.restore(position); return; }
+  if (!state.job) { set($('#heading'), ''); set(scroller, welcome()); set($('#footer'), ''); set($('#inspector'), ''); chatScroll.restore(position); return; }
   // A rebuilt tab row starts scrolled left; on narrow screens bring the open tab back into view.
   if (set($('#heading'), heading())) { const tabs = $('.content-tabs'), active = $('.content-tab.active'); if (tabs && active) tabs.scrollLeft = active.offsetLeft - (tabs.clientWidth - active.offsetWidth) / 2; }
-  const changed = set(scroller, { thread, progress: progressView, agents: agentsView, activity, files: fileView, outputs }[state.tab]());
-  if (changed) scroller.scrollTop = state.tab === 'thread' && atBottom ? scroller.scrollHeight : top;
+  set(scroller, { thread, progress: progressView, agents: agentsView, activity, files: fileView, outputs }[state.tab]());
   set($('#footer'), state.tab === 'thread' ? composer() : `<div class="view-footer">${icon('info')}Local artifacts · ${esc(state.job.jobPath)}</div>`);
   set($('#inspector'), inspector());
+  if ($('#message-input')) $('#message-input').value = messageDrafts.get(state.job.id) || '';
+  sizeComposer();
+  chatScroll.restore(position);
 }
 // Live clocks update in place every second instead of re-rendering.
 setInterval(() => {
@@ -131,7 +207,7 @@ function sidebar() {
   const all = [...state.jobs.values()], archivedCount = all.filter(job => job.archived).length;
   const list = all.filter(job => Boolean(job.archived) === state.showArchived);
   const fresh = state.ideas?.cards.filter(card => card.status === 'new').length || 0;
-  return `<button class="new-job" data-action="new">${icon('plus')}New video<span class="keycap">N</span></button>
+  return `<button class="icon-button drawer-close" data-action="close-drawers" aria-label="Close threads">${icon('close')}</button><button class="new-job" data-action="new">${icon('plus')}New video<span class="keycap">N</span></button>
   <button class="ideas-nav ${state.view === 'ideas' ? 'selected' : ''}" data-action="ideas" ${state.view === 'ideas' ? 'aria-current="page"' : ''}>${icon('bulb')}Ideas${fresh ? `<span class="tab-count">${fresh}</span>` : ''}</button>
   <nav class="job-list" aria-label="Threads">${list.map(job => {
     const progress = job.progress, current = progress?.current;
@@ -147,7 +223,7 @@ function sidebar() {
 const jobIcon = job => job.status === 'running' ? '<span class="running-ring"></span>' : icon(job.status === 'complete' ? 'check' : ['failed', 'interrupted', 'needs_attention'].includes(job.status) ? 'warning' : job.status === 'queued' ? 'clock' : job.status === 'gate' ? 'question' : 'pause');
 const badge = job => `<span class="status-badge ${esc(job.status)}">${jobIcon(job)}${labels[job.status] || job.status}</span>`;
 function topbar() {
-  return `<header class="topbar"><button class="icon-button mobile-menu" data-action="sidebar" aria-label="Toggle threads">${icon('menu')}</button><div class="breadcrumbs"><span>video-gen</span>${state.view === 'ideas' ? `${icon('chevron')}<span>Ideas</span>` : state.job ? `${icon('chevron')}<span>${esc(state.job.title)}</span>` : ''}</div><div class="topbar-right"><span class="connection-label ${state.connected ? 'connected' : ''}"><span class="tiny-dot"></span>${state.connected ? 'Live' : 'Reconnecting…'}</span><button class="text-button usage-trigger" data-action="usage">${icon('pulse')}Usage</button><button class="icon-button" data-action="settings" aria-label="Workspace settings">${icon('sliders')}</button></div></header>`;
+  return `<header class="topbar"><button class="icon-button mobile-menu" data-action="sidebar" aria-label="Toggle threads" aria-controls="sidebar" aria-expanded="${document.body.classList.contains('sidebar-open')}">${icon('menu')}</button><div class="breadcrumbs"><span>video-gen</span>${state.view === 'ideas' ? `${icon('chevron')}<span>Ideas</span>` : state.job ? `${icon('chevron')}<span>${esc(state.job.title)}</span>` : ''}</div><div class="topbar-right"><span class="connection-label ${state.connected ? 'connected' : ''}"><span class="tiny-dot"></span>${state.connected ? 'Live' : 'Reconnecting…'}</span><button class="text-button usage-trigger" data-action="usage">${icon('pulse')}Usage</button><button class="icon-button" data-action="settings" aria-label="Workspace settings">${icon('sliders')}</button></div></header>`;
 }
 function welcome() {
   return `<div class="welcome"><div class="welcome-content"><span class="welcome-symbol">${icon('film')}</span><h1>What are we making?</h1><p>Give your agent an idea. Follow every step, every agent and every file, from the first brief to the final video.</p><button class="primary-button" data-action="new">${icon('plus')}New video</button><div class="welcome-features"><span>${icon('terminal')}Your CLI, your models</span><span>${icon('layers')}Every pipeline step</span><span>${icon('users')}Every sub-agent</span></div>${state.loading ? '<p class="muted">Loading your workspace…</p>' : ''}</div></div>`;
@@ -155,7 +231,7 @@ function welcome() {
 function heading() {
   const job = state.job, liveAgents = job.agents.filter(live).length;
   const tabs = [['thread', 'chat', 'Thread'], ['progress', 'layers', 'Progress'], ['agents', 'users', 'Agents', liveAgents ? `${liveAgents} live` : job.agents.length || ''], ['activity', 'pulse', 'Activity', job.eventSeq || ''], ['files', 'folder', 'Files'], ['outputs', 'grid', 'Outputs']];
-  return `<div class="job-heading"><div><div class="eyebrow">VIDEO THREAD <span>/ ${job.id.slice(0, 6)}</span></div><h1>${esc(job.title)}</h1><div class="job-meta"><span>${icon('film')}${format(job)} · ${duration(job)}</span><span class="meta-separator"></span><span>${marks[job.provider]} ${job.provider}</span><span class="meta-separator"></span><span>${icon('pulse')}${job.usage?.reports ? count(job.usage.total) + ' tokens' : 'Tokens pending'}</span><span class="meta-separator"></span><span>${icon('clock')}<span id="elapsed">${span(elapsedMs(job))}</span></span></div></div><div class="heading-actions">${badge(job)}<button class="icon-button inspector-toggle" data-action="inspector" aria-label="Toggle inspector">${icon('sliders')}</button></div></div>
+  return `<div class="job-heading"><div><div class="eyebrow">VIDEO THREAD <span>/ ${job.id.slice(0, 6)}</span></div><h1>${esc(job.title)}</h1><div class="job-meta"><span>${icon('film')}${format(job)} · ${duration(job)}</span><span class="meta-separator"></span><span>${marks[job.provider]} ${job.provider}</span><span class="meta-separator"></span><span>${icon('pulse')}${job.usage?.reports ? count(job.usage.total) + ' tokens' : 'Tokens pending'}</span><span class="meta-separator"></span><span>${icon('clock')}<span id="elapsed">${span(elapsedMs(job))}</span></span></div></div><div class="heading-actions">${badge(job)}<button class="icon-button inspector-toggle" data-action="inspector" aria-label="Toggle inspector" aria-controls="inspector" aria-expanded="${document.body.classList.contains('inspector-open')}">${icon('sliders')}</button></div></div>
   <nav class="content-tabs" aria-label="Thread views">${tabs.map(([key, image, label, n]) => `<button class="content-tab ${state.tab === key ? 'active' : ''}" data-action="tab" data-tab="${key}" ${state.tab === key ? 'aria-current="page"' : ''}>${icon(image)}${label}${n ? `<span class="tab-count">${esc(n)}</span>` : ''}</button>`).join('')}<span class="tab-spacer"></span><a class="text-button" href="/api/jobs/${job.id}/log" download aria-label="Download full event log">${icon('download')}</a></nav>`;
 }
 
@@ -172,15 +248,15 @@ function thread() {
 function message(item) {
   const user = item.role === 'You';
   const pending = user && !item.deliveredAt && item !== state.messages[0] && !['complete', 'cancelled'].includes(state.job.status);
-  return `<article class="message ${user ? 'user-message' : ''}"><div class="avatar ${user ? 'user-avatar' : 'agent-avatar'}">${user ? 'Y' : icon('bolt')}</div><div class="message-body"><div class="message-heading"><strong>${user ? 'You' : 'Orchestrator'}</strong>${user ? '' : `<span class="agent-label">${esc(agentById(item.agentId)?.model || state.job.provider)}</span>`}<time>${time(item.at)}</time></div><p class="message-text">${esc(item.text)}</p>${pending ? '<span class="feedback-pending">Queued for the orchestrator’s next feedback check</span>' : ''}</div></article>`;
+  return `<article data-scroll-key="message-${esc(item.id)}" class="message ${user ? 'user-message' : ''}"><div class="avatar ${user ? 'user-avatar' : 'agent-avatar'}">${user ? 'Y' : icon('bolt')}</div><div class="message-body"><div class="message-heading"><strong>${user ? 'You' : 'Orchestrator'}</strong>${user ? '' : `<span class="agent-label">${esc(agentById(item.agentId)?.model || state.job.provider)}</span>`}<time>${time(item.at)}</time></div><p class="message-text">${esc(item.text)}</p>${pending ? '<span class="feedback-pending">Queued for the orchestrator’s next feedback check</span>' : ''}</div></article>`;
 }
 function threadEvent(event) {
   if (event.type === 'agent') {
     const agent = agentById(event.agentId);
-    return `<button class="thread-event agent-event ${esc(event.status || '')}" data-action="agent" data-id="${esc(event.agentId)}">${icon('branch')}<span><strong>${esc(roleLabel(event.role))}</strong> · ${esc(event.text)}${event.status && agent && !live(agent) && agent.finishedAt && agent.startedAt ? ` <span class="muted">(${span(Date.parse(agent.finishedAt) - Date.parse(agent.startedAt))})</span>` : ''}</span><time>${time(event.at)}</time></button>`;
+    return `<button data-scroll-key="event-${esc(event.id)}" class="thread-event agent-event ${esc(event.status || '')}" data-action="agent" data-id="${esc(event.agentId)}">${icon('branch')}<span><strong>${esc(roleLabel(event.role))}</strong> · ${esc(event.text)}${event.status && agent && !live(agent) && agent.finishedAt && agent.startedAt ? ` <span class="muted">(${span(Date.parse(agent.finishedAt) - Date.parse(agent.startedAt))})</span>` : ''}</span><time>${time(event.at)}</time></button>`;
   }
   const image = { delivery: 'check', checkpoint: 'question', pipeline: 'layers', error: 'warning', progress: 'bolt' }[event.type] || 'pulse';
-  return `<div class="thread-event ${event.type === 'error' ? 'error' : ''} ${event.type === 'pipeline' ? 'pipeline-event' : ''}">${icon(image)}<span>${esc(event.text)}</span><time>${time(event.at)}</time></div>`;
+  return `<div data-scroll-key="event-${esc(event.id)}" class="thread-event ${event.type === 'error' ? 'error' : ''} ${event.type === 'pipeline' ? 'pipeline-event' : ''}">${icon(image)}<span>${esc(event.text)}</span><time>${time(event.at)}</time></div>`;
 }
 // The live answer to "what is happening right now?"
 function nowCard() {
@@ -297,7 +373,7 @@ function thumbnailGrid(job, deciding = false) {
   }).join('')}</div>`;
 }
 function composer() {
-  return `<div class="composer-area"><form id="message-form" class="composer"><label class="sr-only" for="message-input">Send direction to this thread</label><textarea id="message-input" placeholder="Add direction or leave feedback…" rows="1" maxlength="20000"></textarea><div class="composer-toolbar"><button type="button" class="text-button provider-trigger" data-action="configure"><span class="provider-mark">${marks[state.job.provider]}</span>${state.job.provider}${icon('down')}</button><span class="composer-hint">Delivered at the orchestrator’s next feedback check</span><button class="send-button" type="submit" aria-label="Send">${icon('send')}</button></div></form></div>`;
+  return `<button id="jump-latest" class="latest-button" data-action="latest" hidden>${icon('down')}Latest</button><div class="composer-area"><form id="message-form" class="composer" data-thread="${esc(state.job.id)}"><label class="sr-only" for="message-input">Send direction to this thread</label><textarea id="message-input" enterkeyhint="enter" placeholder="Add direction or leave feedback…" rows="1" maxlength="20000"></textarea><div class="composer-toolbar"><button type="button" class="text-button provider-trigger" data-action="configure"><span class="provider-mark">${marks[state.job.provider]}</span>${state.job.provider}${icon('down')}</button><span class="composer-hint">Delivered at the orchestrator’s next feedback check</span><button class="send-button" type="submit" aria-label="Send">${icon('send')}</button></div></form></div>`;
 }
 
 // ---------- ideas ----------
@@ -450,7 +526,7 @@ function outputs() {
 // ---------- inspector ----------
 function inspector() {
   const job = state.job;
-  return `<div class="inspector-tabs"><button data-action="inspector-tab" data-tab="overview" class="${state.inspectorTab === 'overview' ? 'active' : ''}">Overview</button><button data-action="inspector-tab" data-tab="models" class="${state.inspectorTab === 'models' ? 'active' : ''}">Models</button></div><div class="inspector-scroll">${state.inspectorTab === 'models' ? modelsPanel() : overviewPanel()}</div><div class="inspector-footer">${footerActions()}</div>`;
+  return `<button class="icon-button inspector-close" data-action="close-drawers" aria-label="Close inspector">${icon('close')}</button><div class="inspector-tabs"><button data-action="inspector-tab" data-tab="overview" class="${state.inspectorTab === 'overview' ? 'active' : ''}">Overview</button><button data-action="inspector-tab" data-tab="models" class="${state.inspectorTab === 'models' ? 'active' : ''}">Models</button></div><div class="inspector-scroll">${state.inspectorTab === 'models' ? modelsPanel() : overviewPanel()}</div><div class="inspector-footer">${footerActions()}</div>`;
 }
 function overviewPanel() {
   const job = state.job, health = job.health, progress = job.progress;
@@ -500,9 +576,25 @@ function quotaWindow(window) {
 let onModalClose = null;
 // On touch screens, focusing a field opens the keyboard over the dialog; focus the dialog instead.
 const touch = matchMedia('(pointer: coarse)');
-const closeDrawers = () => document.body.classList.remove('sidebar-open', 'inspector-open');
-function openModal(content, wide = false, onClose = null) { closeDrawers(); lastFocus = document.activeElement; onModalClose = onClose; $('#overlay').innerHTML = `<div class="modal-backdrop"><section class="modal ${wide ? 'wide-modal' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">${content}</section></div>`; ((!touch.matches && $('textarea,input,select', $('.modal'))) || $('.modal')).focus(); }
-function closeModal() { $('#overlay').innerHTML = ''; onModalClose?.(); onModalClose = null; if (lastFocus?.isConnected) lastFocus.focus(); }
+function closeDrawers() {
+  document.body.classList.remove('sidebar-open', 'inspector-open');
+  if ($('#main')) $('#main').inert = false;
+  for (const button of document.querySelectorAll('[aria-controls=sidebar],[aria-controls=inspector]')) button.setAttribute('aria-expanded','false');
+  if (drawerFocus?.isConnected) drawerFocus.focus({preventScroll:true});
+  drawerFocus = null;
+}
+function toggleDrawer(kind) {
+  const wasOpen = document.body.classList.contains(`${kind}-open`);
+  closeDrawers();
+  if (wasOpen) return;
+  drawerFocus = document.activeElement;
+  document.body.classList.add(`${kind}-open`);
+  $(`[aria-controls=${kind}]`)?.setAttribute('aria-expanded','true');
+  $('#main').inert = true;
+  $(`#${kind} button`)?.focus({preventScroll:true});
+}
+function openModal(content, wide = false, onClose = null) { closeDrawers(); lastFocus = document.activeElement; onModalClose = onClose; $('#app').inert = true; $('#overlay').innerHTML = `<div class="modal-backdrop"><section class="modal ${wide ? 'wide-modal' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">${content}</section></div>`; ((!touch.matches && $('textarea,input,select', $('.modal'))) || $('.modal')).focus(); }
+function closeModal() { $('#overlay').innerHTML = ''; $('#app').inert = false; onModalClose?.(); onModalClose = null; if (lastFocus?.isConnected) lastFocus.focus({preventScroll:true}); }
 const modalHeading = (title, description) => `<div class="modal-heading"><div><h2 id="modal-title">${title}</h2><p>${description}</p></div><button class="icon-button" data-action="close" aria-label="Close dialog">${icon('close')}</button></div>`;
 function modelFields(j = {}) {
   const provider = j.provider || state.providers.find(p => p.installed)?.name || 'Codex';
@@ -589,6 +681,7 @@ document.addEventListener('click', async e => {
   const action = button.dataset.action;
   try {
     switch (action) {
+      case 'latest': chatScroll.latest(); break;
       case 'new': newJob(); break;
       case 'close': closeModal(); break;
       case 'ideas': state.view = 'ideas'; closeDrawers(); schedule(); await loadIdeas(); if (!state.ideas.cards.length && !state.ideas.lastRun) await findIdeas(); break;
@@ -648,8 +741,8 @@ document.addEventListener('click', async e => {
       case 'note-remove': removeFilmNote(Number(button.dataset.index)); break;
       case 'film-approve': case 'film-revise': await decideFilm(action === 'film-approve' ? 'approve' : 'revise'); break;
       case 'gate': state.tab = 'thread'; schedule(); requestAnimationFrame(() => $('.gate-card')?.scrollIntoView({ block: 'center' })); break;
-      case 'sidebar': document.body.classList.remove('inspector-open'); document.body.classList.toggle('sidebar-open'); break;
-      case 'inspector': document.body.classList.remove('sidebar-open'); document.body.classList.toggle('inspector-open'); break;
+      case 'sidebar': toggleDrawer('sidebar'); break;
+      case 'inspector': toggleDrawer('inspector'); break;
       case 'close-drawers': closeDrawers(); break;
       case 'refresh-providers': button.disabled = true; state.providers = await api('/api/providers?refresh=1'); await settings(); toast('Provider status refreshed.'); break;
       case 'measurements': await measurements(); break;
@@ -673,7 +766,7 @@ document.addEventListener('submit', async e => {
       closeModal(); await loadJobs();
     } else if (form.id === 'configure-form') { await api(`/api/jobs/${state.job.id}`, { method: 'PATCH', data: readConfig(form) }); closeModal(); await loadDetail(); toast('Saved. New agents will use these models.'); }
     else if (form.id === 'settings-form') { state.settings = await api('/api/settings', { method: 'PATCH', data: { concurrency: Number(data.get('concurrency')), defaultFormat: data.get('defaultFormat') } }); closeModal(); toast('Workspace settings saved.'); }
-    else { const input = $('#message-input'); if (!input.value.trim()) return; await api(`/api/jobs/${state.job.id}/messages`, { method: 'POST', data: { text: input.value } }); input.value = ''; toast('Queued for the orchestrator’s next feedback check.'); }
+    else { const input = $('#message-input'), text = input.value; if (!text.trim()) return; await api(`/api/jobs/${state.job.id}/messages`, { method: 'POST', data: { text } }); if (input.value === text) input.value = ''; sizeComposer(); chatScroll.latest(); toast('Queued for the orchestrator’s next feedback check.'); }
   } catch (error) { const target = $('#form-error', form); if (target) target.textContent = error.message; else toast(error.message); if (button) button.textContent = form.id === 'new-job-form' ? 'Start video' : 'Save'; }
   finally { if (button) button.disabled = false; }
 });
@@ -682,13 +775,40 @@ document.addEventListener('change', e => {
   if (e.target.id === 'activity-agent') { state.activityAgent = e.target.value; schedule(); }
   if (e.target.form && ['new-job-form', 'configure-form'].includes(e.target.form.id)) updateRoutingPreview(e.target.form);
 });
-document.addEventListener('input', e => { if (e.target.id === 'new-prompt') { $('#duration-hint').outerHTML = durationHint(e.target.value); const error = $('#form-error', e.target.form); if (error) error.textContent = ''; } if (e.target.form && ['new-job-form', 'configure-form'].includes(e.target.form.id) && (e.target.name === 'main' || e.target.name.startsWith('model:'))) updateRoutingPreview(e.target.form); });
+document.addEventListener('input', e => { if (e.target.id === 'message-input') sizeComposer(); if (e.target.id === 'new-prompt') { $('#duration-hint').outerHTML = durationHint(e.target.value); const error = $('#form-error', e.target.form); if (error) error.textContent = ''; } if (e.target.form && ['new-job-form', 'configure-form'].includes(e.target.form.id) && (e.target.name === 'main' || e.target.name.startsWith('model:'))) updateRoutingPreview(e.target.form); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { if ($('.modal')) closeModal(); else closeDrawers(); }
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !touch.matches && e.target.id === 'message-input') { e.preventDefault(); $('#message-form').requestSubmit(); }
-  if ($('.modal') && e.key === 'Tab') { const items = [...$('.modal').querySelectorAll('button,input,textarea,select,summary,a[href]')].filter(item => !item.disabled && item.getClientRects().length); const first = items[0], last = items.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } }
+  const focusRegion = $('.modal') || (document.body.classList.contains('sidebar-open') ? $('#sidebar') : document.body.classList.contains('inspector-open') ? $('#inspector') : null);
+  if (focusRegion && e.key === 'Tab') { const items = [...focusRegion.querySelectorAll('button,input,textarea,select,summary,a[href]')].filter(item => !item.disabled && item.getClientRects().length); const first = items[0], last = items.at(-1); if (document.activeElement === focusRegion) { e.preventDefault(); (e.shiftKey ? last : first)?.focus(); } else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } }
   if (!e.target.matches('input,textarea,select,[contenteditable]') && !$('.modal') && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newJob(); }
 });
+
+function sizeComposer() {
+  const input = $('#message-input');
+  if (!input) return;
+  input.style.height = 'auto';
+  input.style.height = `${Math.min(input.scrollHeight, Math.min(160, innerHeight * .25))}px`;
+}
+function syncViewport() {
+  const viewport = window.visualViewport;
+  // A pinch zoom must retain native panning, rather than resize the app beneath it.
+  if (viewport && Math.abs(viewport.scale - 1) > .01) return;
+  const height = viewport?.height || innerHeight, top = viewport?.offsetTop || 0;
+  document.documentElement.style.setProperty('--viewport-height', `${height}px`);
+  document.documentElement.style.setProperty('--viewport-top', `${top}px`);
+  document.body.classList.toggle('keyboard-open', Boolean(viewport && innerHeight - height > 120));
+  chatScroll?.resize();
+}
+window.visualViewport?.addEventListener('resize', syncViewport);
+window.visualViewport?.addEventListener('scroll', syncViewport);
+window.addEventListener('resize', () => {
+  syncViewport();
+  if ((document.body.classList.contains('sidebar-open') && !matchMedia('(max-width:650px),(max-height:500px) and (pointer:coarse)').matches) ||
+      (document.body.classList.contains('inspector-open') && innerWidth > 1000)) closeDrawers();
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+syncViewport();
 
 // ---------- start ----------
 render();

@@ -12,7 +12,8 @@
     "dev": "node scripts/video.mjs preview",
     "check": "node scripts/video.mjs check",
     "render": "node scripts/video.mjs render",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "test:ui:mobile": "node ui/tests/mobile-browser.mjs"
   },
   "dependencies": {
     "@fontsource/archivo": "5.2.8",

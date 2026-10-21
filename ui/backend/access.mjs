@@ -27,8 +27,8 @@ export function createAccess(password) {
     page(res, message = '', status = 200) {
       res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#151515"><title>Video workspace</title>
-<style>:root{color-scheme:dark}body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#151515;color:#e7e7e7;font:15px system-ui,sans-serif}form{display:grid;gap:14px;width:min(340px,calc(100vw - 32px))}h1{margin:0 0 6px;font-size:22px}input,button{font:inherit;border-radius:8px;padding:13px 14px}input{background:#161616;color:#e7e7e7;border:1px solid #393939}button{border:0;background:#c4f58b;color:#141613;font-weight:600;cursor:pointer}p{margin:0;color:#e9a0a0}</style></head>
-<body><form method="post" action="/login"><h1>Video workspace</h1>${message ? `<p role="alert">${escape(message)}</p>` : ''}<input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required><button type="submit">Sign in</button></form></body></html>`);
+<style>:root{color-scheme:dark}body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#151515;color:#e7e7e7;font:15px system-ui,sans-serif}form{display:grid;gap:14px;width:min(340px,calc(100vw - 32px))}h1{margin:0 0 6px;font-size:22px}input,button{font:inherit;font-size:16px;border-radius:8px;padding:13px 14px}input{background:#161616;color:#e7e7e7;border:1px solid #393939}button{border:0;background:#c4f58b;color:#141613;font-weight:600;cursor:pointer}p{margin:0;color:#e9a0a0}</style></head>
+<body><form method="post" action="/login"><h1>Video workspace</h1>${message ? `<p role="alert">${escape(message)}</p>` : ''}<input type="password" name="password" placeholder="Password" autocomplete="current-password" required><button type="submit">Sign in</button></form></body></html>`);
     },
     async login(req, res) {
       const ip = client(req);

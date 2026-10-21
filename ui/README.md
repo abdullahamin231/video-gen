@@ -96,3 +96,15 @@ All state is local under ignored `.video/ui/`: atomic thread snapshots, append-o
 `npm run test:ui` runs unit and integration tests with **fixture subprocesses**, without paid provider calls. It covers stream normalization, pipeline command and `next` parsing, role model routing and disabled built-in sub-agents, the sub-agent tree, feedback isolation, process launch/pause/cancel, queue ordering, event storage cost, restart recovery, blocking checkpoints and questions, thread deletion down to the folders on disk, progress and health, token deduplication/reconciliation, origin restrictions, runner authentication, artifact path boundaries, and media ranges. `npm run test:ui:browser` drives the real page in headless Chrome and saves screenshots to `.video/ui-qa/`. Browser and live-provider smoke tests are separate commands because they need the installed browser or real CLI accounts.
 
 Validation on 2026-10-19: 89 pipeline tests and 17 UI tests passed, and the browser run covered deletion (dialog, disk cleanup, empty workspace) alongside the earlier checks. Real bridge checks passed for Codex and OpenCode; Claude reported its session limit, so that smoke command correctly exited with a failure. The earlier sky explainer demo stopped at prototype review without qualifying delivery; this validation does not claim an end-to-end production pass.
+
+### Mobile browser checks
+
+`npm run test:ui:mobile` runs isolated, seeded conversations without starting agents or changing real jobs.
+Set `UI_BROWSER_EXECUTABLE` if Chrome is not at `/usr/bin/google-chrome`. It checks latest-message following,
+history anchoring during streamed updates, per-thread drafts, multiline input, simulated keyboard viewport
+resizes, accessible drawers, and phone/tablet/landscape/desktop layouts. Screenshots go to `.video/ui-qa/`.
+The keyboard resize is simulated in Chromium; physical iOS keyboard behavior still needs device verification.
+
+Threads open at their latest message and follow updates until you scroll up. The Latest button resumes following.
+Touch input text stays at least 16px without disabling browser zoom. The app and dialogs fit the visual viewport,
+so the composer stays above the keyboard.
