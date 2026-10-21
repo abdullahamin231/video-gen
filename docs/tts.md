@@ -13,21 +13,24 @@ Set `GEMINI_API_KEY` in the server environment or the ignored repository `.env`,
 when no jobs are running. `GOOGLE_API_KEY` is also accepted. Never put a key in a job, prompt, command-line
 argument or committed file. The standalone TTS command reads the same `.env`.
 
-The default model is `gemini-3.8-flash-tts`, using the `Charon` voice. Optional server settings are
-`GEMINI_TTS_MODEL` and `GEMINI_TTS_VOICE`. Requests use Google's Interactions REST API with the transcript
+The default order is `gemini-3.8-flash-tts` → `gemini-3.8-flash-lite-tts` → Kokoro, using the `Charon`
+voice for both Gemini models. Optional server settings are `GEMINI_TTS_MODEL`, `GEMINI_TTS_FALLBACK_MODEL`
+and `GEMINI_TTS_VOICE`. Duplicate model IDs are tried only once. Requests use Google's Interactions REST API with the transcript
 separate from delivery instructions. The script is sent to Google; billing, free-tier availability and quotas
 belong to the API project. Selecting Gemini does not enforce a free billing plan.
 
 Gemini requests use IPv4. On this server, Google accepts IPv4 but rejects IPv6 with
 `User location is not supported for the API use.` This choice is confined to the TTS request and does not
 change system networking or other providers. Other API errors include Google's message with the API key redacted.
-Temporary HTTP 500/502/503/504 errors are retried up to three attempts on the same Gemini model. A persistent
-service failure stops generation; only HTTP 429 switches to Kokoro.
+Temporary HTTP 500/502/503/504 errors are retried up to three attempts on the same Gemini model. Quota exhaustion
+or persistent service overload then tries the backup Gemini model. Authentication, location and invalid-request
+errors stop immediately. If the backup also hits quota, generation switches to Kokoro; a persistent backup service
+failure is surfaced instead of being labelled quota exhaustion.
 
-On HTTP 429 (usage/rate limit), the wrapper immediately switches to Kokoro and regenerates **every paragraph**
-so one narration never mixes the two voices. It records `tts-status.json` beside the narration, prints a notice,
-and the UI displays that notice in the conversation and Progress. Retries and resumes of that job keep using
-Kokoro. New jobs can try Gemini again. Missing keys, authentication failures, invalid requests, network failures
+Every model or provider switch regenerates **every paragraph** so one narration never mixes the models or voices.
+The wrapper records the requested and active model and fallback reason in `tts-status.json` beside the narration,
+prints a notice, and the UI displays it in the conversation and Progress. Retries and resumes of that job keep the
+selected fallback model or Kokoro. New jobs try the primary Gemini model again. Missing keys, authentication failures, invalid requests, network failures
 and empty audio are surfaced as errors rather than disguised as quota exhaustion.
 
 Keep the Kokoro environment below ready even for Gemini jobs, so fallback can run without setup.

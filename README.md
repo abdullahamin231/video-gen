@@ -154,7 +154,8 @@ becomes `--length 30`. Keys starting with `_` are comments; unknown keys are rej
 | `VG_LIBRARY` | `library/` | Shared library location. |
 | `VG_CACHE` | `.cache/video-gen` (in the repository) | Where the TTS, audio and Manim environments live. Overrides must stay inside the repository `.cache/`. TTS uses `npm run video -- tts` to keep model downloads there too. |
 | `GEMINI_API_KEY` | unset | API key for optional Gemini narration; server environment or ignored `.env`. `GOOGLE_API_KEY` is also accepted. See [docs/tts.md](docs/tts.md). |
-| `GEMINI_TTS_MODEL` / `GEMINI_TTS_VOICE` | `gemini-3.8-flash-tts` / `Charon` | Gemini narration model and voice. Each new UI job chooses Kokoro or Gemini; Gemini usage limits trigger Kokoro fallback. |
+| `GEMINI_TTS_MODEL` / `GEMINI_TTS_VOICE` | `gemini-3.8-flash-tts` / `Charon` | Primary Gemini narration model and voice. Each new UI job chooses Kokoro or Gemini. |
+| `GEMINI_TTS_FALLBACK_MODEL` | `gemini-3.8-flash-lite-tts` | Backup Gemini model for quota exhaustion or persistent service overload. If the backup also hits quota, use Kokoro. |
 | `VG_MANIM_ENV` | `.cache/video-gen/manim-env` | ManimCE environment. |
 
 Agents run in the same shell as you, so setting the variable in your environment is what enables raster downloads for

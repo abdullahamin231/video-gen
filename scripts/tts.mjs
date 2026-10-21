@@ -44,6 +44,6 @@ try {
     opts.output ||= path.resolve(path.dirname(input), narration ? 'narration.wav' : `${path.basename(input, path.extname(input))}.wav`);
     const status = await generateSpeech({ ...opts, text: await readFile(input, 'utf8'), provider, narration,
       ...(statusFile ? { statusFile: path.resolve(statusFile) } : {}) });
-    console.log(`Narration saved: ${opts.output} (${status.usedProvider}${status.fallback ? '; Gemini quota fallback' : ''}).`);
+    console.log(`Narration saved: ${opts.output} (${status.usedProvider === 'gemini' ? status.model : status.usedProvider}${status.fallback ? '; Gemini quota fallback' : ''}).`);
   }
 } catch (error) { console.error(error.message); process.exitCode = 1; }

@@ -57,7 +57,7 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
   else {
     const narration = has(`${scriptDir}/narration.wav`), tts = commandRunning('tts');
     const provider = (job.ttsStatus?.usedProvider || job.ttsProvider || 'kokoro') === 'gemini' ? 'Gemini' : 'Kokoro';
-    const notice = job.ttsStatus?.fallback ? ' · Gemini usage limit reached; using Kokoro' : '';
+    const notice = job.ttsStatus?.fallback ? ' · Gemini usage limit reached; using Kokoro' : provider === 'Gemini' && job.ttsStatus?.model ? ` · ${job.ttsStatus.model}` : '';
     script.push(stepFrom('narration', `Narration (${provider})`, tts ? 'current' : narration ? 'done' : 'pending',
       `${tts ? 'Generating speech' : narration ? `${scriptDir}/narration.wav` : provider}${notice}`, { file: narration ? `${scriptDir}/narration.wav` : '' }));
   }

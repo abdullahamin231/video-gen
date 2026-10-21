@@ -12,7 +12,7 @@ import { computeProgress, computeHealth, scriptDisposition } from './progress.mj
 import { routeModel, CLAUDE_AGENT_TYPES, DELEGATE_ROLES } from '../shared/routing.mjs';
 import { recordHumanReview, setHumanStages } from '../../lib/human.mjs';
 import { thumbnailStatus, chooseThumbnail, addThumbnailFeedback } from '../../lib/thumbnails.mjs';
-import { QUOTA_NOTICE } from '../../lib/tts.mjs';
+import { QUOTA_NOTICE, modelFallbackNotice } from '../../lib/tts.mjs';
 
 const LIVE = new Set(['starting', 'running', 'waiting']);
 // Checkpoints on the film itself: you watch the built HTML and approve it or leave notes at moments in it.
@@ -556,9 +556,19 @@ export class Runner {
     const status = await readJson(file.path).catch(() => null);
     if (this.store.jobs.get(job.id) !== job) return;
     if (!status || !['kokoro', 'gemini'].includes(status.usedProvider) || !['generating', 'complete', 'failed'].includes(status.status)) return;
+    const modelFallback = status.requestedProvider === 'gemini' && ['quota', 'unavailable'].includes(status.modelFallback?.reason) &&
+      [status.modelFallback.from, status.modelFallback.to].every(value => typeof value === 'string' && /^[a-zA-Z0-9./-]{1,120}$/.test(value)) ? status.modelFallback : null;
     const next = { requestedProvider: job.ttsProvider || 'kokoro', usedProvider: status.usedProvider, status: status.status,
+      model: typeof status.model === 'string' ? status.model.slice(0, 120) : null,
+      modelFallback: modelFallback ? { from: modelFallback.from, to: modelFallback.to, reason: modelFallback.reason } : null,
       fallback: status.fallback?.reason === 'quota' && status.requestedProvider === 'gemini' ? { reason: 'quota', notice: QUOTA_NOTICE } : null };
     if (JSON.stringify(job.ttsStatus) !== JSON.stringify(next)) { job.ttsStatus = next; this.store.save(job); }
+    if (next.modelFallback && job.ttsModelFallbackNotified !== next.modelFallback.to) {
+      job.ttsModelFallbackNotified = next.modelFallback.to;
+      const notice = modelFallbackNotice(next.modelFallback.from, next.modelFallback.to, next.modelFallback.reason);
+      this.store.message(job, 'narration', notice, '', { source: 'tts' });
+      this.store.event(job, { type: 'narration', text: notice, source: 'tts', provider: 'gemini', model: next.modelFallback.to, reason: next.modelFallback.reason });
+    }
     if (next.fallback && !job.ttsFallbackNotified) {
       job.ttsFallbackNotified = true;
       this.store.message(job, 'narration', QUOTA_NOTICE, '', { source: 'tts' });

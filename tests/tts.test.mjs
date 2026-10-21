@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { geminiRequest, geminiSpeech, generateSpeech, readTtsStatus, GEMINI_TTS_MODEL, QUOTA_NOTICE } from '../lib/tts.mjs';
+import { geminiRequest, geminiSpeech, generateSpeech, readTtsStatus, GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL, QUOTA_NOTICE } from '../lib/tts.mjs';
 import http from 'node:http';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,7 +69,7 @@ test('only usage-limit errors trigger quota fallback; provider diagnostics redac
   for (const status of [429, 400, 401, 403, 500]) {
     const error = await geminiSpeech('test', { env: { GEMINI_API_KEY: 'fixture-private-key' }, fetchImpl: async () => ({ status, ok: false,
       json: async () => ({ error: { message: 'fixture-private-key' } }) }) }).catch(error => error);
-    assert.equal(error.code, status === 429 ? 'TTS_QUOTA' : undefined);
+    assert.equal(error.code, status === 429 ? 'TTS_QUOTA' : status === 500 ? 'TTS_UNAVAILABLE' : undefined);
     assert(!error.message.includes('fixture-private-key'));
   }
   await assert.rejects(geminiSpeech('test', { env: {}, fetchImpl: () => { throw new Error('Should not call API'); } }), /needs GEMINI_API_KEY/);
@@ -98,7 +98,7 @@ test('temporary Gemini overload is retried on the same provider, with a bounded 
 test('a quota failure after one Gemini paragraph regenerates everything with Kokoro, joins real WAVs and persists fallback', async t => {
   const files = await fixture(t), kokoroTexts = [], notices = [];
   let geminiCalls = 0;
-  const options = { ...files, provider: 'gemini', narration: true, text: '> First paragraph.\n\n> Second paragraph.', env: {} };
+  const options = { ...files, provider: 'gemini', narration: true, text: '> First paragraph.\n\n> Second paragraph.', env: { GEMINI_TTS_FALLBACK_MODEL: GEMINI_TTS_MODEL } };
   const engines = {
     gemini: async () => { if (++geminiCalls === 2) throw Object.assign(new Error('quota'), { code: 'TTS_QUOTA' }); return wav(-1000); },
     kokoro: async (text, output) => {
@@ -123,7 +123,7 @@ test('a quota failure after one Gemini paragraph regenerates everything with Kok
 
 test('successful Gemini narration stays Gemini; authentication and local fallback failures preserve the old output', async t => {
   const files = await fixture(t);
-  const options = { ...files, provider: 'gemini', text: 'Narration.', narration: true, env: {} };
+  const options = { ...files, provider: 'gemini', text: 'Narration.', narration: true, env: { GEMINI_TTS_FALLBACK_MODEL: GEMINI_TTS_MODEL } };
   let localCalls = 0;
   const status = await generateSpeech(options, { gemini: async () => wav(), kokoro: async () => { localCalls++; } });
   assert.equal(status.usedProvider, 'gemini'); assert.equal(status.fallback, null);
@@ -137,4 +137,65 @@ test('successful Gemini narration stays Gemini; authentication and local fallbac
   assert.deepEqual(await readFile(files.output), original);
   const failed = await readTtsStatus(files.statusFile);
   assert.equal(failed.status, 'failed'); assert.equal(failed.usedProvider, 'kokoro'); assert.equal(failed.fallback.reason, 'quota');
+});
+
+test('quota partway through primary Gemini regenerates all paragraphs on the backup and resumes on that model', async t => {
+  const files = await fixture(t), calls = [], notices = [];
+  const options = { ...files, provider: 'gemini', narration: true, text: 'First paragraph.\n\nSecond paragraph.', env: {} };
+  const engines = {
+    gemini: async (text, { model }) => {
+      calls.push({ text, model });
+      if (model === GEMINI_TTS_MODEL && text.startsWith('Second')) throw Object.assign(new Error('quota'), { code: 'TTS_QUOTA' });
+      return wav(model === GEMINI_TTS_MODEL ? -1000 : 3000);
+    },
+    kokoro: async () => assert.fail('The backup Gemini model succeeded; do not use Kokoro'),
+    notify: message => notices.push(message),
+  };
+  const status = await generateSpeech(options, engines);
+  assert.equal(status.usedProvider, 'gemini'); assert.equal(status.model, GEMINI_TTS_FALLBACK_MODEL);
+  assert.equal(status.requestedModel, GEMINI_TTS_MODEL); assert.equal(status.modelFallback.reason, 'quota'); assert.equal(status.fallback, null);
+  assert.deepEqual(calls.map(c => c.model), [GEMINI_TTS_MODEL, GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL, GEMINI_TTS_FALLBACK_MODEL]);
+  const bytes = await readFile(files.output), data = bytes.indexOf(Buffer.from('data')) + 8;
+  assert.equal(bytes.readInt16LE(data), 3000, 'the primary model’s first paragraph was replaced');
+  assert.equal(bytes.readInt16LE(data + 24000 * 2 * 0.7), 3000);
+  const saved = await readTtsStatus(files.statusFile);
+  assert.equal(saved.model, GEMINI_TTS_FALLBACK_MODEL); assert.equal(notices.length, 1);
+  calls.length = 0;
+  await generateSpeech(options, engines);
+  assert.deepEqual(calls.map(c => c.model), [GEMINI_TTS_FALLBACK_MODEL, GEMINI_TTS_FALLBACK_MODEL]);
+  assert.equal(notices.length, 1, 'resumes do not repeat the model-switch notification');
+});
+
+test('both Gemini quotas exhausted use Kokoro, and subsequent retries skip both exhausted models', async t => {
+  const files = await fixture(t), calls = [], notices = [];
+  const options = { ...files, provider: 'gemini', narration: true, text: 'A complete recording.', env: {} };
+  const engines = { gemini: async (_text, { model }) => { calls.push(model); throw Object.assign(new Error('quota'), { code: 'TTS_QUOTA' }); },
+    kokoro: async (_text, file) => writeFile(file, wav()), notify: message => notices.push(message) };
+  const status = await generateSpeech(options, engines);
+  assert.deepEqual(calls, [GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL]);
+  assert.equal(status.usedProvider, 'kokoro'); assert.equal(status.fallback.reason, 'quota');
+  assert.equal(notices.length, 2); assert.equal(notices[1], QUOTA_NOTICE);
+  await generateSpeech(options, engines);
+  assert.equal(calls.length, 2);
+});
+
+test('persistent service overload tries the backup; invalid requests stop, and backup overload does not masquerade as quota', async t => {
+  const files = await fixture(t), calls = [];
+  const options = { ...files, provider: 'gemini', text: 'A recording.', env: {} };
+  const engines = { gemini: async (_text, { model }) => {
+    calls.push(model); if (model === GEMINI_TTS_MODEL) throw Object.assign(new Error('overload'), { code: 'TTS_UNAVAILABLE' }); return wav();
+  }, kokoro: async () => assert.fail('Service overload is not quota exhaustion'), notify() {} };
+  const status = await generateSpeech(options, engines);
+  assert.deepEqual(calls, [GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL]);
+  assert.equal(status.modelFallback.reason, 'unavailable');
+  // A new requested primary starts a new chain, independent of the saved fallback.
+  const custom = { ...options, env: { GEMINI_TTS_MODEL: 'custom-primary', GEMINI_TTS_FALLBACK_MODEL: 'custom-backup' } };
+  calls.length = 0;
+  await assert.rejects(generateSpeech(custom, { ...engines, gemini: async (_text, { model }) => { calls.push(model); throw new Error('HTTP 400: Invalid request'); } }), /HTTP 400/);
+  assert.deepEqual(calls, ['custom-primary']);
+  calls.length = 0;
+  await assert.rejects(generateSpeech(custom, { ...engines, gemini: async (_text, { model }) => {
+    calls.push(model); throw Object.assign(new Error('HTTP 503: overloaded'), { code: 'TTS_UNAVAILABLE' });
+  } }), /HTTP 503/);
+  assert.deepEqual(calls, ['custom-primary', 'custom-backup']);
 });

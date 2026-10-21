@@ -9,7 +9,7 @@ import { Store } from '../backend/store.mjs';
 import { Runner } from '../backend/runner.mjs';
 import { orchestratorPrompt } from '../backend/prompt.mjs';
 import { computeProgress } from '../backend/progress.mjs';
-import { QUOTA_NOTICE } from '../../lib/tts.mjs';
+import { QUOTA_NOTICE, GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL } from '../../lib/tts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const defaults = { title: 'Narration fixture', prompt: 'A video about batteries', provider: 'Codex', format: 'landscape', gateScript: false, gatePrototype: false };
@@ -53,15 +53,21 @@ test('runner passes selected narration to the CLI and shows one durable fallback
   await runner.runAgent(job, { role: 'orchestrator', prompt: 'Fixture only' });
   assert.equal(childEnv.VIDEO_TTS_PROVIDER, 'gemini');
   assert.equal(childEnv.VIDEO_TTS_STATUS, path.join(root, job.scriptPath, 'tts-status.json'));
+  await writeFile(childEnv.VIDEO_TTS_STATUS, JSON.stringify({ requestedProvider: 'gemini', usedProvider: 'gemini', status: 'generating',
+    model: GEMINI_TTS_FALLBACK_MODEL, modelFallback: { from: GEMINI_TTS_MODEL, to: GEMINI_TTS_FALLBACK_MODEL, reason: 'quota' } }));
+  await runner.syncNarration(job); await runner.syncNarration(job);
+  assert.equal(job.ttsStatus.model, GEMINI_TTS_FALLBACK_MODEL);
+  assert.equal(job.messages.filter(m => m.role === 'narration').length, 1, 'the backup-model notice is shown once');
+  assert.match(computeProgress(job).phases[0].steps.find(step => step.id === 'narration').detail, /gemini-3.8-flash-lite-tts/);
   await writeFile(childEnv.VIDEO_TTS_STATUS, JSON.stringify({ requestedProvider: 'gemini', usedProvider: 'kokoro', status: 'generating', fallback: { reason: 'quota' } }));
   await runner.syncNarration(job); await runner.syncNarration(job);
   assert.equal(job.ttsStatus.usedProvider, 'kokoro');
-  assert.deepEqual(job.messages.filter(m => m.role === 'narration').map(m => m.text), [QUOTA_NOTICE]);
+  assert.deepEqual(job.messages.filter(m => m.role === 'narration' && m.text === QUOTA_NOTICE).map(m => m.text), [QUOTA_NOTICE]);
   store.flush();
   const restored = new Store(store.directory), restoredJob = restored.get(job.id);
   const resumed = new Runner({ root, store: restored, codexRollouts: null });
   await resumed.syncNarration(restoredJob);
-  assert.equal(restoredJob.messages.filter(m => m.role === 'narration').length, 1);
+  assert.equal(restoredJob.messages.filter(m => m.role === 'narration').length, 2);
   restored.flush(); await resumed.shutdown();
   const progress = computeProgress(job, { files: [] });
   const narration = progress.phases[0].steps.find(step => step.id === 'narration');
