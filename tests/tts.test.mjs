@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { geminiSpeech, generateSpeech, readTtsStatus, GEMINI_TTS_MODEL, QUOTA_NOTICE } from '../lib/tts.mjs';
+import { geminiRequest, geminiSpeech, generateSpeech, readTtsStatus, GEMINI_TTS_MODEL, QUOTA_NOTICE } from '../lib/tts.mjs';
+import http from 'node:http';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 async function fixture(t) {
@@ -23,6 +24,30 @@ function wav(sample = 1000) {
   return Buffer.concat([header, pcm]);
 }
 
+test('Gemini transport uses IPv4 and preserves the request, audio response and provider errors', async t => {
+  const audio = wav(), requests = [];
+  const server = http.createServer(async (request, response) => {
+    let body = ''; for await (const chunk of request) body += chunk;
+    requests.push({ key: request.headers['x-goog-api-key'], body: JSON.parse(body), length: request.headers['content-length'] });
+    response.writeHead(request.url === '/error' ? 400 : 200, { 'Content-Type': 'application/json' });
+    if (request.url === '/error') response.end(JSON.stringify({ error: { message: 'User location is not supported for the API use.' } }));
+    else response.end(JSON.stringify({ steps: [{ type: 'model_output', content: [{ type: 'audio', data: audio.toString('base64') }] }] }));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  let route = '/';
+  const fetchImpl = (_url, options) => geminiRequest(`http://localhost:${server.address().port}${route}`, options, (url, config, callback) => {
+    assert.equal(config.family, 4, 'Gemini must not use the blocked IPv6 route');
+    return http.request(url, config, callback);
+  });
+  assert.deepEqual(await geminiSpeech('Exact transcript.', { env: { GEMINI_API_KEY: 'fixture-private-key' }, fetchImpl }), audio);
+  assert.equal(requests[0].key, 'fixture-private-key');
+  assert.equal(requests[0].body.input[0].content[0].text, 'Exact transcript.');
+  assert.equal(Number(requests[0].length), Buffer.byteLength(JSON.stringify(requests[0].body)));
+  route = '/error';
+  await assert.rejects(geminiSpeech('Exact transcript.', { env: { GEMINI_API_KEY: 'fixture-private-key' }, fetchImpl }), /HTTP 400: User location/);
+});
+
 test('Gemini sends the transcript and delivery separately, and reads WAV audio from model output', async () => {
   const audio = wav(); let request;
   const result = await geminiSpeech('Only these words.', { speed: 1.1, env: { GEMINI_API_KEY: 'fixture-private-key' },
@@ -40,7 +65,7 @@ test('Gemini sends the transcript and delivery separately, and reads WAV audio f
   assert.equal(request.body.generation_config.speech_config[0].voice, 'Charon');
 });
 
-test('only usage-limit errors trigger quota fallback; keys and provider error bodies are not exposed', async () => {
+test('only usage-limit errors trigger quota fallback; provider diagnostics redact API keys', async () => {
   for (const status of [429, 400, 401, 403, 500]) {
     const error = await geminiSpeech('test', { env: { GEMINI_API_KEY: 'fixture-private-key' }, fetchImpl: async () => ({ status, ok: false,
       json: async () => ({ error: { message: 'fixture-private-key' } }) }) }).catch(error => error);
@@ -49,6 +74,9 @@ test('only usage-limit errors trigger quota fallback; keys and provider error bo
   }
   await assert.rejects(geminiSpeech('test', { env: {}, fetchImpl: () => { throw new Error('Should not call API'); } }), /needs GEMINI_API_KEY/);
   await assert.rejects(geminiSpeech('test', { env: { GOOGLE_API_KEY: 'fixture' }, fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ steps: [] }) }) }), /complete WAV/);
+  await assert.rejects(geminiSpeech('test', { env: { GEMINI_API_KEY: 'fixture' }, fetchImpl: async () => ({ ok: false, status: 400,
+    json: async () => ({ error: { message: 'User location is not supported for the API use.' } }) }) }),
+  /HTTP 400: User location is not supported for the API use/);
 });
 
 test('a quota failure after one Gemini paragraph regenerates everything with Kokoro, joins real WAVs and persists fallback', async t => {

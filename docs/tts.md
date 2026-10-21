@@ -18,6 +18,10 @@ The default model is `gemini-3.8-flash-tts`, using the `Charon` voice. Optional 
 separate from delivery instructions. The script is sent to Google; billing, free-tier availability and quotas
 belong to the API project. Selecting Gemini does not enforce a free billing plan.
 
+Gemini requests use IPv4. On this server, Google accepts IPv4 but rejects IPv6 with
+`User location is not supported for the API use.` This choice is confined to the TTS request and does not
+change system networking or other providers. Other API errors include Google's message with the API key redacted.
+
 On HTTP 429 (usage/rate limit), the wrapper immediately switches to Kokoro and regenerates **every paragraph**
 so one narration never mixes the two voices. It records `tts-status.json` beside the narration, prints a notice,
 and the UI displays that notice in the conversation and Progress. Retries and resumes of that job keep using
