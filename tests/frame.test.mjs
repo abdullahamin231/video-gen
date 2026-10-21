@@ -36,7 +36,7 @@ test('composite objects build in the browser and their text is measured', async 
     {id: 'spec', type: 'sheet', at: [1400, 760], rows: [['layers', '78'], ['dtype', 'bf16']], highlight: 0},
     {id: 'price', type: 'tag', at: [380, 760], text: '$3,999'},
     {id: 'no', type: 'verdict', at: [900, 900], text: 'Too slow'},
-    {id: 'mem', type: 'gauge', at: [900, 480], max: 512, step: 128, unit: 'GB', value: 0, fillLabel: ''},
+    {id: 'mem', type: 'gauge', at: [780, 480], max: 512, step: 128, unit: 'GB', value: 0, fillLabel: ''},
     {id: 'src', type: 'chip', at: [900, 120], text: 'github'},
   ], [{do: 'fill', target: 'mem', to: 94, label: '94 GB', t: 1}]);
   assert.deepEqual(result.errors, []);

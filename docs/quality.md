@@ -288,3 +288,5 @@ advisory. See [independent-review.md](independent-review.md) for roles, evidence
 - Assets are local files under `assets/` with recorded sources; music and sound files also record their licence.
 - The soundtrack is mixed by the pipeline (narration untouched, one master gain) and the delivered MP4's audio is
   verified against that mix; loudness and peaks are measured on the MP4 (see [sound.md](sound.md)).
+
+Every visible word must be clearly readable throughout its presentation. Accidental figure/text collisions and obscured labels are blocking defects, including secondary text. Deliberate layering is allowed with a specific recorded reason only while preserving readability; this requirement cannot be waived by the creative review budget.

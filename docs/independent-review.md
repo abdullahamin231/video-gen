@@ -325,7 +325,7 @@ do not copy old hashes into a new report.
 
 Each prototype/final stage gets at most three complete failed review rounds. Wait for all three role reports
 before producing one combined repair brief; repeated `next` on the same pack does not consume another round.
-After the third failed round, proceed with a `review-limit-reached` disposition and preserve blocking findings
+After the third failed round, if no readability blockers remain, proceed with a `review-limit-reached` disposition and preserve other creative blocking findings
 in delivery metadata. Reviewer verdicts stay unchanged; this is completion with disclosed findings, not a pass.
 Invalid/stale evidence, missing reviewers, unavailable inspection, incomplete coverage, build failures and failed
 narration/render verification still require repair. Human review gates remain explicit user decisions.
@@ -333,6 +333,7 @@ narration/render verification still require repair. Human review gates remain ex
 Fresh reviewer briefs include prior decisions after the blind visual inspection instructions. Reviewers must
 record a resolved/unresolved/disputed response, with a reason, for each blocker in their latest prior report.
 Assess truth and understanding consistently; supporting action may anticipate or finish around a spoken cue.
-Loading SSD rows copies them into RAM without deleting the persistent copy. Cosmetic timing and temporary
-overlap that leaves essential content understandable are advisory. Reversing an accepted repair requires
+Loading SSD rows copies them into RAM without deleting the persistent copy. Cosmetic timing is advisory. Deliberate overlap is allowed only when every visible word remains clearly readable; unreadable secondary labels are blocking too. Reversing an accepted repair requires
 a concrete contradiction or regression in current evidence.
+
+Readability is non-waivable: obscured, illegible or unintentionally overlapping text blocks delivery even after three creative review rounds. Intentional layering needs an explicit reason and clearly readable text.

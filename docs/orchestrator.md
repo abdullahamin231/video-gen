@@ -130,7 +130,7 @@ that planned them; it delegates later scenes with `"owner": "builder"` in film.j
 Build errors mean the film is broken or untrue (invalid spec, no declared design theme, missing assets, unspoken cue
 words, conflicting or non-seek-safe motion, nondeterminism, unsourced numbers). Every film has exactly one design theme,
 chosen in the visual plan; no particular look is prescribed. Style guidance (sizes, colours or fonts outside the theme,
-frame use, stillness, overlaps) produces warnings: agents may break it on purpose, and reviewers judge whether that
+frame use, stillness, intentional readable layering) produces warnings: agents may break it on purpose, and reviewers judge whether that
 served the film. Missing scenes never qualify for final review or delivery.
 
 ## Models per role
@@ -194,3 +194,5 @@ script. Never use TTS when the user supplied a recording.
 - `npm run video -- help` — all commands. `npm test` — pipeline tests.
 
 Jobs live in `jobs/<slug>/` and scripts in `jobs/scripts/<slug>/` (script, research, sources, narration), both ignored by Git. Reusable work belongs in `library/` and the kit (`lib/kit/kit.js`).
+
+Readability is non-waivable: obscured, illegible or unintentionally overlapping text blocks delivery even after three creative review rounds. Intentional layering needs an explicit reason and clearly readable text.

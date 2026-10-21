@@ -160,7 +160,7 @@ test('a complete third failed round advances to render; partial rounds never tri
   const report = await read(job,'review/final/reviews/visual-mechanism.json');
   report.verdict = 'revise';
   report.findings = [{id:'F1',severity:'blocking',start:6,end:7,scope:'scene',sceneIds:['comparison'],
-    subject:'Label',requirement:'Legibility',observed:'Label overlaps.',repair:'Separate it.',evidence:[context.pack.evidence[0].path]}];
+    subject:'Motion personality',requirement:'Expressive motion',observed:'Movement feels flat.',repair:'Add character.',evidence:[context.pack.evidence[0].path]}];
   await submitReview(job,report);
   await writeReviewerBriefs(job,context.pack,path.join(job,'review/final/pack.json'),context.packSha256);
   await rm(path.join(job,'review/final/reviews/continuity-legibility.json'));

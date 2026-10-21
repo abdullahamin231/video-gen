@@ -379,3 +379,7 @@ component or hook opacity tween on the child. Authored exits can finish earlier;
 allowed interval. The full build measures lifecycle violations as hard errors, including the first encoded frame
 of each scene. They cannot be waived by the creative review round limit. After a runtime fix, refresh an existing
 job's pinned runtime with `npm run video -- kit-update --job <job>` and rebuild.
+
+### Intentional overlap
+
+Accidental text collisions, opaque figures covering text, and sustained partial text clipping fail the build. Brief frame crossings during arrivals/exits remain subject to visual review. A shot may declare `"intentionalOverlaps": [{"objects": ["first-id", "second-id"], "reason": "Specific reason for deliberate layering", "textReadable": true}]`. Both IDs must exist. This declaration remains visible to independent reviewers; it never permits obscured or unreadable text. Repair spacing, timing or redundant content instead of annotating a collision away.

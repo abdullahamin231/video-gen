@@ -196,8 +196,8 @@ function blockedReview(context, role) {
   const report = review(context, role);
   report.verdict = 'revise';
   report.findings = [{id:'F1', severity:'blocking', scope:'scene', start:1, end:2,
-    subject:'Essential label', requirement:'Readable content', observed:'The label is obscured.',
-    repair:'Separate the label.', evidence:[context.pack.evidence.find(e => e.kind === 'frames').path]}];
+    subject:'Motion personality', requirement:'Expressive motion', observed:'The motion feels flat.',
+    repair:'Give the movement more character.', evidence:[context.pack.evidence.find(e => e.kind === 'frames').path]}];
   return report;
 }
 
@@ -245,4 +245,22 @@ test('later review must resolve or dispute prior blockers explicitly', async t =
   await assert.rejects(submitReview(job,report),/Respond to prior blocking finding F1/);
   report.priorFindingResponses = [{sourceHash:first.pack.sourceHash,findingId:'F1',disposition:'resolved',reason:'Current frame shows the label separated from the card.'}];
   await submitReview(job,report);
+});
+
+
+test('readability blockers cannot be waived after three or more review rounds',async t=>{
+  for(const legacy of [false,true]) {
+    const job=await fixture(t), manifest=JSON.parse(await readFile(path.join(job,'job.json')));
+    manifest.reviewRounds={final:9};await put(job,'job.json',manifest);
+    const context=await freeze(job,'final');
+    for(const role of REVIEW_ROLES) {
+      const report=blockedReview(context,role);
+      if(legacy) {report.findings[0].subject='Overlapping measurements';report.findings[0].observed='The figures obscure the exact values.';}
+      else report.findings[0].category='readability';
+      await submitReview(job,report);
+    }
+    const status=await reviewStatus(job,'final');
+    assert.equal(status.ok,false);assert.equal(status.continued,false);
+    assert.equal(status.nonWaivableFindings.length,3);
+  }
 });
