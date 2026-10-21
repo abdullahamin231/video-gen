@@ -478,3 +478,26 @@ test('ideas API: finds new ideas, refuses a second search while one runs, and re
   assert.equal(more.found.length, 1, 'asking for more brings the idea not yet shown');
   assert.equal(more.cards[0].title, 'Is 8GB VRAM enough for Qwen?');
 });
+
+test('network mode needs a password, signs in with a cookie and still rejects cross-origin writes', async t => {
+  const folder = await workspace();
+  const open = await createApp({ root, directory: path.join(folder, 'open'), runnerFactory: options => fakeRunner(options) });
+  await assert.rejects(open.start(0, '0.0.0.0'), /VG_UI_PASSWORD/);
+  await assert.rejects(createApp({ root, directory: path.join(folder, 'short'), password: 'short' }), /12 characters/);
+  const app = await createApp({ root, directory: path.join(folder, 'state'), password: 'correct horse battery', runnerFactory: options => fakeRunner(options) });
+  const url = await app.start(0, '0.0.0.0'); t.after(() => app.close());
+  const page = await fetch(url + '/', { redirect: 'manual' }); assert.equal(page.status, 303); assert.equal(page.headers.get('location'), '/login');
+  assert.equal((await fetch(url + '/api/jobs')).status, 401);
+  assert.equal((await post(url, '/api/jobs', defaults)).status, 401);
+  const login = password => fetch(url + '/login', { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ password }) });
+  assert.equal((await login('wrong password!!')).status, 401);
+  const ok = await login('correct horse battery'); assert.equal(ok.status, 303);
+  const cookie = ok.headers.get('set-cookie').split(';')[0]; assert.match(ok.headers.get('set-cookie'), /HttpOnly/);
+  assert.equal((await fetch(url + '/api/jobs', { headers: { Cookie: cookie } })).status, 200);
+  assert.equal((await post(url, '/api/jobs', defaults, { Cookie: cookie, Origin: 'https://evil.example' })).status, 403);
+  // A phone reaches the server by its network name; the cookie, not the Host header, grants access.
+  const http = await import('node:http');
+  const status = headers => new Promise((resolve, reject) => http.get(url + '/api/health', { headers }, res => { res.resume(); resolve(res.statusCode); }).on('error', reject));
+  assert.equal(await status({ Host: 'server.tailnet.ts.net', Cookie: cookie }), 200);
+  assert.equal(await status({ Host: 'localhost' }), 401, 'a spoofed local Host header does not skip the login');
+});

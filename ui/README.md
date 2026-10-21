@@ -1,6 +1,35 @@
 # Local video workspace
 
-Start with `npm run ui`, then open http://127.0.0.1:4310. The server binds to loopback only. Use `npm run ui -- --port 4311` to choose another port. No new application dependencies are needed.
+Start with `npm run ui`, then open http://127.0.0.1:4310. By default the server binds to loopback only. Use `npm run ui -- --port 4311` to choose another port. No new application dependencies are needed.
+
+## Running on a server (phone or laptop access)
+
+On the server, sign in to the agent CLI you will use (`claude`, `codex`, `opencode` or `pi`), install Node 22+, FFmpeg,
+uv and (recommended) [Tailscale](https://tailscale.com/download/linux), then run:
+
+```bash
+scripts/server-setup.sh tailscale   # HTTPS at https://<server>.<tailnet>.ts.net, reachable only from your own devices
+scripts/server-setup.sh lan         # http://<server-ip>:4310 on every interface; use only on a network you trust
+```
+
+It installs dependencies, writes `VG_UI_HOST`, `VG_UI_PASSWORD` (generated) and `PORT` to the ignored `.env`, installs
+and starts a systemd user service (`video-gen-ui`, restarted on failure, kept running after logout), and for Tailscale
+runs `tailscale serve --bg 4310`. It prints the address and password. Install Tailscale on the phone and laptop, sign in
+to the same tailnet, open the address and sign in once per device (the session lasts 30 days).
+
+| Variable / flag | Default | Effect |
+|---|---|---|
+| `VG_UI_HOST` / `--host` | `127.0.0.1` | Address to listen on. Anything but loopback requires a password. |
+| `VG_UI_PASSWORD` | unset | At least 12 characters. When set, every page and API call needs a sign-in, whatever the Host header says, and the loopback-only Host check is lifted so a proxy or network name works. Changing it signs out every device. Removed from the environment before agents start. |
+| `PORT` / `--port` | `4310` | Port. |
+
+The server reads these from `.env` in the repository if present. Five wrong passwords from one address lock it out for
+15 minutes. Cross-origin writes are still refused. Agents call the server back over loopback. Never expose the port
+directly to the internet: whoever signs in can run agents with this machine's accounts and files. In LAN mode the
+password crosses the network unencrypted; Tailscale (or another HTTPS proxy) avoids that.
+
+Manage the service with `systemctl --user status|restart|stop video-gen-ui` and read logs with
+`journalctl --user -u video-gen-ui -f`. Restarting it interrupts running jobs; **Continue** resumes them.
 
 The sidebar contains threads and New video. Each new thread starts a real CLI orchestrator, using the existing Codex, Claude Code, OpenCode or Pi installation and account. Model IDs are passed as arguments, never shell-interpolated. Codex suggestions come from its installed model cache; Claude's suggestions are CLI aliases. OpenCode accepts its provider/model IDs; Pi's suggestions come from `pi --list-models`. Pi takes MCP servers only from config files or extensions, so the runner loads `backend/pi-extension.mjs` with `-e` to register its bridge for each session, leaving `~/.pi` untouched. Pi roles get the instructions and model pins from `.claude/agents/`; a pin such as `opus` is passed as `anthropic/opus`, which Pi resolves to the newest Anthropic opus, so Pi needs an Anthropic login for pinned roles. Authentication, model availability, and provider policy errors appear in the thread and event log.
 

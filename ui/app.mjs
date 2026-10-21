@@ -36,6 +36,7 @@ let toastTimer, lastFocus, renderQueued = false, filesTimer, filesRequest = 0;
 function toast(text) { $('#toast').textContent = text; $('#toast').classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), 4500); }
 async function api(url, { method = 'GET', data, raw } = {}) {
   const response = await fetch(url, { method, headers: { ...(method !== 'GET' ? { 'X-Video-Client': '1' } : {}), ...(data !== undefined ? { 'Content-Type': 'application/json' } : {}) }, body: raw || (data !== undefined ? JSON.stringify(data) : undefined) });
+  if (response.status === 401) { location.href = '/login'; throw new Error('Sign in first'); }
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
   return result;
@@ -695,4 +696,4 @@ const stream = new EventSource('/api/stream');
 // Every (re)connection reloads the full picture, so nothing is lost while disconnected.
 stream.addEventListener('connected', () => { state.connected = true; loadJobs().catch(error => { state.loading = false; toast(error.message); schedule(); }); });
 stream.addEventListener('update', event => applyUpdate(JSON.parse(event.data)));
-stream.onerror = () => { state.connected = false; schedule(); };
+stream.onerror = () => { state.connected = false; schedule(); fetch('/api/health').then(r => { if (r.status === 401) location.href = '/login'; }, () => {}); };

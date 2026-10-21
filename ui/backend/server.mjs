@@ -14,6 +14,7 @@ import { DELEGATE_ROLES } from '../shared/routing.mjs';
 import { durationFromPrompt } from '../shared/duration.mjs';
 import { findIdeas, loadIdeas, setIdeaStatus, loadProfile, newestFirst, STATUSES } from '../../lib/ideas.mjs';
 import { servePlayer, playerPage } from '../../lib/player.mjs';
+import { createAccess, isLoopback } from './access.mjs';
 
 // The film plays from its built HTML inside the player's own frame: the kit's inline scripts need a looser policy
 // than the workspace page, and only this server may embed it.
@@ -54,7 +55,9 @@ function config(input, existing) {
 }
 const detail = (store, job) => ({ ...summary(job), messages: job.messages, events: store.events(job.id) });
 
-export async function createApp({ root, directory = path.join(root, '.video/ui'), runnerFactory, ideaOptions = {}, ideasRoot = root } = {}) {
+export async function createApp({ root, directory = path.join(root, '.video/ui'), runnerFactory, ideaOptions = {}, ideasRoot = root, password } = {}) {
+  // Without a password the workspace answers loopback only; with one it may listen on the network behind a login.
+  const access = createAccess(password);
   let defaults = {};
   try { const source = JSON.parse(await readFile(path.join(root, 'video.config.json'), 'utf8')); defaults = { defaultFormat: source.format === 'vertical' ? 'vertical' : 'landscape', defaultThumbnails: Number.isInteger(source.thumbnails) ? source.thumbnails : 3 }; } catch {}
   const store = new Store(directory, defaults);
@@ -103,16 +106,25 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
     res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; script-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
     try {
       const host = req.headers.host;
-      if (!host || !/^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)) throw fail('Local requests only', 403);
+      if (!host || (!access && !/^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host))) throw fail('Local requests only', 403);
       const url = new URL(req.url, `http://${host}`);
-      if (req.headers.origin && req.headers.origin !== url.origin) throw fail('Cross-origin requests are not allowed', 403);
+      // Behind an HTTPS proxy the origin's scheme differs from ours, so compare hosts.
+      let originHost = null; try { originHost = req.headers.origin && new URL(req.headers.origin).host; } catch { originHost = '?'; }
+      if (originHost && originHost !== host && originHost !== req.headers['x-forwarded-host']) throw fail('Cross-origin requests are not allowed', 403);
       if (req.headers['sec-fetch-site'] === 'cross-site') throw fail('Cross-site requests are not allowed', 403);
+      if (access && url.pathname === '/login') return req.method === 'POST' ? await access.login(req, res) : access.authenticated(req) ? (res.writeHead(303, { Location: '/' }), res.end()) : access.page(res);
+      if (access && url.pathname === '/logout') return access.logout(req, res);
       if (url.pathname === '/api/internal/tool' && req.method === 'POST') {
         const input = await body(req);
         const token = req.headers.authorization?.replace(/^Bearer /, '') || '';
         if (!runner.authorize(token, input.thread, input.agentId)) throw fail('Invalid runner credential', 403);
         return json(res, 200, await runner.tool(store.get(input.thread), input.agentId, input.name, input.arguments || {}));
       }
+      if (access && !access.authenticated(req)) {
+        if (url.pathname.startsWith('/api/')) throw fail('Sign in first', 401);
+        res.writeHead(303, { Location: '/login' }); return res.end();
+      }
+      if (url.pathname === '/api/session' && req.method === 'GET') return json(res, 200, { remote: Boolean(access) });
       if (!['GET', 'HEAD'].includes(req.method) && req.headers['x-video-client'] !== '1') throw fail('Missing local client header', 403);
       if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { ok: true, workspace: path.basename(root), concurrency: store.settings().concurrency });
       if (url.pathname === '/api/providers' && req.method === 'GET') return json(res, 200, await getProviders(url.searchParams.get('refresh') === '1'));
@@ -229,5 +241,10 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
     } catch (error) { if (!res.headersSent) json(res, error.status || (error.code === 'ENOENT' ? 404 : 500), { error: redact(error.message) }); else res.end(); }
   });
   server.requestTimeout = 0;
-  return { server, store, runner, async start(port = 4310) { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); }); const url = `http://127.0.0.1:${server.address().port}`; await runner.initialize(url); return url; }, async close() { unsubscribe(); clearTimeout(flushTimer); await runner.shutdown(); for (const client of clients) client.end(); await new Promise(resolve => server.close(resolve)); } };
+  return { server, store, runner, async start(port = 4310, host = '127.0.0.1') {
+    if (!isLoopback(host) && !access) throw new Error(`Set VG_UI_PASSWORD (12+ characters) before listening on ${host}: anyone who reaches the workspace can run agents on this machine.`);
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, resolve); });
+    // Agents call back over loopback unless the server listens on one specific address.
+    const callback = ['0.0.0.0', '::', 'localhost'].includes(host) ? '127.0.0.1' : host.includes(':') ? `[${host}]` : host;
+    const url = `http://${callback}:${server.address().port}`; await runner.initialize(url); return url; }, async close() { unsubscribe(); clearTimeout(flushTimer); await runner.shutdown(); for (const client of clients) client.end(); await new Promise(resolve => server.close(resolve)); } };
 }

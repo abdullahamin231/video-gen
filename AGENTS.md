@@ -8,12 +8,14 @@ Narration-synchronised explainer films, built by a pipeline (`npm run video -- .
   thumbnail agent.** Follow only that prompt and brief. Do not run `npm run video -- next`, `render`, `review-pack`,
   `deliver` or `save-all`, and never start sub-agents or delegate (Task, spawn_agent or similar). Do the work
   yourself, then reply with its result. You do not need anything else in this file.
+- **The user asked you to set up the repository (on this machine or a server).** Follow the Setup section of
+  [README.md](README.md) step by step.
 - **The user asked you to make a video, write a script, or make a thumbnail.** You are the orchestrator. Read
   [docs/orchestrator.md](docs/orchestrator.md) completely and follow it exactly.
 
 ## Rules for everyone
 
-- Use only `npm run video -- ...`; never run `npx hyperframes` (except `npx hyperframes tts`, see docs/tts.md),
-  `hyperframes upgrade`, or edit `node_modules`.
+- Use only `npm run video -- ...`; never run `npx hyperframes` (except `npx hyperframes tts`, see docs/tts.md, and the
+  setup steps in README.md), `hyperframes upgrade`, or edit `node_modules`.
 - Keep every asset inside the repository, never in `/tmp`. Never edit `video.config.json` unless the user asks.
 - Keep a supplied recording unchanged; never replace it with TTS.

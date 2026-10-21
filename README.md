@@ -7,16 +7,102 @@ assets, assembly, and rendering reproducible without forcing a visual template.
 
 ## Setup
 
-Requires Node 22+, FFmpeg/FFprobe, [uv](https://docs.astral.sh/uv/), and a Chromium-compatible browser (HyperFrames
-can install its render browser). First transcription downloads pinned local
-faster-whisper dependencies and a model. No TTS or hosted model credentials are required for supplied
-audio.
+This section is written so an agent can follow it top to bottom. Run every command from the repository root. Steps
+marked **(person)** need a human (a password, a browser sign-in or `sudo`): stop and ask for them, then continue.
+Skip any step whose check already passes. Keep every environment inside the repository's `.cache/` as shown, never
+in `~/.cache` or `/tmp`, and never edit `video.config.json` while setting up.
 
-```bash
-npm ci
-npm test
-npm run video -- help
-```
+### Requirements
+
+| Need | Version | Used for | Check |
+|---|---|---|---|
+| Linux x86-64 (Ubuntu/Debian commands below) | | Manim and the render browser are installed for linux-64 | `uname -m` |
+| 4+ CPU cores, 8 GB RAM, 20 GB free disk | recommended | rendering, Whisper, Chrome | `nproc; free -g; df -h .` |
+| Node.js + npm | 22 or newer | pipeline, UI, HyperFrames | `node -v` |
+| git, curl, bzip2 | any | clone, downloads, Manim's micromamba | `git --version; curl --version; bzip2 --help` |
+| FFmpeg + FFprobe | any recent | audio, mixing, checks | `ffmpeg -version; ffprobe -version` |
+| Python 3 with `venv` | 3.11–3.13 | TTS voice and music beat analysis environments | `python3 -m venv --help` |
+| [uv](https://docs.astral.sh/uv/) | any | runs the pinned faster-whisper transcriber (`scripts/transcribe.py.lock`) | `uv --version` |
+| Chrome | any | frame checks and thumbnails (`CHROME_PATH`, `google-chrome`, `chromium`, or HyperFrames' cache) | `google-chrome --version` |
+| HyperFrames render browser | pinned by HyperFrames | rendering | `npx --no-install hyperframes doctor` shows `✓ Chrome` |
+| An agent CLI, signed in | current | does the creative work: [Claude Code](https://code.claude.com) (`claude`), Codex (`codex`), OpenCode (`opencode`) or Pi (`pi`) | `claude --version` (or the one you use) |
+| Network access | | npm, Whisper model, voice data, fonts, idea feeds, the agents' providers | |
+
+No API keys are required. Optional: `YOUTUBE_API_KEY` (ideas use the official API instead of public pages),
+`VG_ALLOW_WEB_IMAGES=1` (agents may download raster images). Put them in the ignored `.env` if wanted.
+
+### Steps
+
+1. **System packages (person: needs `sudo`).**
+
+   ```bash
+   sudo apt update && sudo apt install -y git curl bzip2 ffmpeg python3-venv
+   # Node 22+, if `node -v` is older or missing:
+   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
+   # Chrome (also pulls in the system libraries headless Chrome needs):
+   mkdir -p .cache && curl -fsSLo .cache/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+     && sudo apt install -y ./.cache/chrome.deb && rm .cache/chrome.deb
+   ```
+
+2. **uv** (no sudo; installs to `~/.local/bin`, which must be on `PATH`):
+
+   ```bash
+   command -v uv || curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+
+3. **Node dependencies and the render browser.** `browser ensure` is the one setup-time exception to the rule
+   against running `npx hyperframes` directly.
+
+   ```bash
+   npm ci
+   npx --no-install hyperframes browser ensure
+   ```
+
+4. **Local tool environments** (all inside `.cache/video-gen/`):
+
+   ```bash
+   # Music beat analysis (librosa):
+   npm run video -- setup-audio
+   # Kokoro TTS voice, for films without a supplied recording (docs/tts.md):
+   [ -x .cache/video-gen/tts-env/bin/python ] || { python3 -m venv .cache/video-gen/tts-env \
+     && .cache/video-gen/tts-env/bin/pip install -q --no-cache-dir kokoro-onnx soundfile; }
+   # Optional, only for scenes with Manim clips (a few minutes, ~1 GB):
+   npm run video -- setup-manim
+   ```
+
+   The faster-whisper transcriber needs no step: `uv` installs its pinned packages and downloads the model on the
+   first transcription.
+
+5. **The shared library (person, if this is a new machine).** `library/` (sound effects, drawings, components, about
+   140 MB) is not in git. Copy it from the machine that has it, for example from that machine:
+
+   ```bash
+   rsync -a library/ <server>:<path-to-repo>/library/
+   ```
+
+   Without it, films still build, but have no ready-made sound effects or reusable parts. Check: `ls library | wc -l`
+   shows far more than one entry.
+
+6. **Agent CLI login (person).** Install at least one agent CLI and sign in on this machine, as the user that will
+   run the workspace: for example `npm install -g @anthropic-ai/claude-code` then run `claude` once and sign in, or
+   `codex login`. The workspace uses these existing logins; it never asks for keys.
+
+7. **Verify.**
+
+   ```bash
+   npm test && npm run test:ui
+   npx --no-install hyperframes doctor   # Node, FFmpeg, FFprobe and Chrome must show ✓; Kokoro/MusicGen lines may show ✗
+   npm run video -- help
+   ```
+
+8. **Run the workspace UI.** On a desktop: `npm run ui` and open http://127.0.0.1:4310. On a server, to use it from
+   a phone or laptop: install [Tailscale](https://tailscale.com/download/linux) and sign in **(person)**
+   (`sudo tailscale up`, and once `sudo tailscale set --operator=$USER`), then run `scripts/server-setup.sh tailscale`
+   (or `scripts/server-setup.sh lan` on a trusted network without Tailscale). It installs a systemd user service and
+   prints the address and a generated password; give both to the person. Details:
+   [ui/README.md](ui/README.md#running-on-a-server-phone-or-laptop-access).
+
+Without the UI, give an agent a job directly (below).
 
 ## Give the agent a job
 
