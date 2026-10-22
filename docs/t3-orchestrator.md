@@ -59,6 +59,11 @@ Do exactly what it prints, then run it again. Repeat until it prints `STATE: don
 - **`STATE: your review of the script / prototype / final` or `you pick the thumbnail`**: a checkpoint (section 4).
 - **`STATE: blocked` / `pipeline bug`**: report the reason to the user word for word and stop.
 
+Whenever you tell the user where the video stands (the start, each checkpoint, each time a delegated round finishes, and
+delivery), show the stage bar: run `npm run -s video -- stage-bar --project <slug>` and pass its whole output, unchanged,
+as the `html` of `html_render` (title "<slug> progress", height 170). Do not edit it or draw your own. The bar shows every
+stage and step and where the video is, so your reply adds only what it does not say.
+
 While tasks are open, `next` prints "waiting for delegated work" and commands that advance the pipeline refuse. That
 protects the pipeline from a sub-agent that wanders off its brief; it is not a reason to close the delegation early.
 
@@ -66,10 +71,12 @@ protects the pipeline from a sub-agent that wanders off its brief; it is not a r
 
 At each checkpoint `next` tells you what to open and what to record. The pattern is always:
 
-1. Run `npm run -s video -- watch --project <slug>` and open the address it prints with `preview_open` (the overview
-   for the script and thumbnails; the `/player/` address for the film). It is read-only and runs in the background.
+1. Run `npm run -s video -- watch --project <slug>` and open the overview address it prints (the root address, never
+   `/player/`) with `preview_open`, using `show: true`, `open: true` and `reuseExistingTab: true`. The panel must be
+   visible: check `preview_status` and, if `visible` is false, call `preview_open` again with the returned `tabId` and
+   `show: true`. `watch` is read-only and runs in the background.
 2. In two or three lines, tell the user what is ready and what you need from them: approve, or say what to change
-   (for the film: at which moment; the player shows the time to quote, "12.5: make the chart bigger").
+   (for the film: at which moment, e.g. "12.5: make the chart bigger").
 3. **End your turn and wait.** Never decide for them, never approve on their behalf, never treat silence as approval.
 4. When they reply, record it word for word with the command `next` printed, always with
    `--quote "<their whole message>"`. Each film note is `"<seconds>: <their words>"`; a note without a time covers the
@@ -89,7 +96,7 @@ for word. If they change a setting ("don't make me approve the script", "five th
 `STATE: done` prints the MP4 and thumbnail paths, the review disposition, unresolved findings, limitations, the
 soundtrack measurements and the headphone checks. Give the user exactly that. Nobody in this pipeline can hear: never
 say the film sounds good, only what was measured. Never describe a waived or budget-exhausted review as passed. Open
-the overview so they can play the MP4, and stop the watch server when they are done
+the overview in the panel (`preview_open` with `show: true`) so they can play the MP4, and stop the watch server when they are done
 (`watch --project <slug> --stop true`).
 
 ## Resuming, a new chat, more than one video
@@ -113,4 +120,5 @@ To stop a video: cancel its open tasks (`task_cancel`), run `delegated`. To dele
 - Roles and models: each task line already carries its model (from `chat.config.json`: script writer and reviewer on
   the strong model, every other role on the weak one). Do not change them unless the user asks (`project-set --model`).
 - Every asset stays inside the repository, never in `/tmp`.
+- Always show the preview panel: every `preview_open` call passes `show: true`, and the panel stays visible while the user is reviewing. Never open the `/player/` address in T3; use the overview address from `watch`.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.

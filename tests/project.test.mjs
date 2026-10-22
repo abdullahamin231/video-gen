@@ -179,3 +179,27 @@ test('script review verdicts', () => {
   assert.equal(scriptDisposition('Pass the salt.\nVerdict: revise'), 'revise');
   assert.equal(scriptDisposition('nothing'), '');
 });
+
+test('pipeline stages mark the step the video is on', async () => {
+  const {pipelineStages} = await import('../lib/project.mjs');
+  const {renderStageBar} = await import('../lib/stagebar.mjs');
+  const project = {review: ['script', 'prototype', 'final', 'thumbnail'], tts: 'kokoro'};
+  const at = status => { const s = pipelineStages({project, ...status}); return s.current && `${s.current.group}/${s.current.step}`; };
+  assert.equal(at({phase: 'gathering sources'}), 'Script/Sources');
+  assert.equal(at({phase: 'waiting for your script approval'}), 'Script/Your approval');
+  assert.equal(at({phase: 'script review: fail'}), 'Script/Script written');
+  assert.equal(at({phase: 'narration'}), 'Narration/Narration (kokoro)');
+  const ids = ['prepare', 'visuals', 'plan', 'prototype-scenes', 'prototype-build', 'prototype-review', 'prototype-human', 'scenes', 'final-build',
+    'final-review', 'final-human', 'final-render', 'deliver'];
+  const film = cur => ({steps: ids.map((id, i) => ({id, status: cur == null || i < ids.indexOf(cur) ? 'done' : id === cur ? 'repair' : 'pending', detail: ''}))});
+  const s = pipelineStages({project, phase: 'film: build', film: film('final-build')});
+  assert.deepEqual([s.current.group, s.current.step, s.current.problem], ['Full film', 'Build and checks', true]);
+  assert.deepEqual(s.groups.map(g => g.status), ['done', 'done', 'done', 'done', 'current', 'pending', 'pending']);
+  const thumbs = (made, chosen) => ({variants: [{made, review: made ? {status: 'pass'} : null, needsWork: !made}], chosen});
+  assert.equal(at({phase: 'film delivered', film: film(null), thumbnails: thumbs(false)}), 'Thumbnail/Variants made');
+  assert.equal(at({phase: 'film delivered', film: film(null), thumbnails: thumbs(true)}), 'Thumbnail/Your pick');
+  const done = pipelineStages({project, phase: 'film delivered', film: film(null), thumbnails: thumbs(true, {variant: 'v1', by: 'you'})});
+  assert.equal(done.current, null);
+  assert.match(renderStageBar('x<y', done), /Delivered/);
+  assert.match(renderStageBar('x<y', done), /x&lt;y/);
+});

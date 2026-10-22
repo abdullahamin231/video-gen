@@ -26,6 +26,7 @@ import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib
 import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation,
   assertNoDelegation, projectOfJob, requireQuote, logDecision} from '../lib/project.mjs';
 import {setHumanStages} from '../lib/human.mjs';
+import {renderStageBar} from '../lib/stagebar.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
@@ -43,9 +44,9 @@ const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review
   'thumbnails', 'thumbnail-choose', 'thumbnail-feedback', 'thumbnail-settings',
   'project-new', 'project-set', 'project-delete', 'script-review', 'watch', 'watch-serve', 'delegated']);
 // Chat projects (lib/project.mjs): commands that work on a project rather than a job.
-const PROJECT_COMMANDS = new Set(['project-new', 'projects', 'project-set', 'project-delete', 'script-review', 'watch', 'watch-serve', 'delegated']);
+const PROJECT_COMMANDS = new Set(['project-new', 'projects', 'project-set', 'project-delete', 'script-review', 'watch', 'watch-serve', 'delegated', 'stage-bar']);
 // Commands that never advance the pipeline, so they stay usable while delegated work is open.
-const DURING_DELEGATION = new Set(['status', 'projects', 'watch', 'watch-serve', 'delegated']);
+const DURING_DELEGATION = new Set(['status', 'projects', 'watch', 'watch-serve', 'delegated', 'stage-bar']);
 const advances = (command, opts) => (ORCHESTRATOR_ONLY.has(command) && !DURING_DELEGATION.has(command)) || (command === 'build' && !opts.scene);
 const nextHint = job => ROLE_AGENT ? '\nDone with this command. Finish your brief and reply; the orchestrator advances the pipeline.' : `\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`;
 
@@ -406,6 +407,9 @@ async function projectCommand(command, opts) {
   } else if (command === 'status') {
     const status = await projectStatus(ROOT, slug);
     console.log(opts.json ? JSON.stringify(status) : printStatus(status));
+  } else if (command === 'stage-bar') {
+    const status = await projectStatus(ROOT, slug);
+    console.log(renderStageBar(slug, status.stages));
   } else if (command === 'delegated') {
     const {closed} = await closeDelegation(ROOT, slug);
     console.log(closed ? `Closed: ${closed.tasks.map(t => t.title).join(', ')}.\nNext: npm run video -- next --project ${slug}` : `No delegated work was open.\nNext: npm run video -- next --project ${slug}`);
@@ -502,6 +506,7 @@ project-new --name <slug> [--brief-file f] [--format landscape|vertical --durati
             --review script,prototype,final,thumbnail|none --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
 next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews in the preview panel)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
+stage-bar --project <slug>          the stage bar as one HTML page, for T3 html_render (read-only)
 delegated --project <slug>          the delegated tasks next started have finished (or were lost); next may go on
 script-review --project <slug> --decision approve|revise [--note "<their words>" ...] --quote "<their message>"
 watch --project <slug> [--stop true] read-only overview + film player for the preview panel (background server)
