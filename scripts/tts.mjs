@@ -3,7 +3,7 @@ import { readFile, access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { generateSpeech, TTS_PROVIDERS } from '../lib/tts.mjs';
+import { generateSpeech, TTS_PROVIDERS, DEFAULT_TTS_PROVIDER } from '../lib/tts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // The UI loads .env too; standalone `npm run video -- tts` uses the same credentials.
@@ -21,7 +21,7 @@ try {
   }
   const args = process.argv.slice(2), kokoroArgs = [];
   let performanceFile;
-  let provider = process.env.VIDEO_TTS_PROVIDER || 'kokoro', narration = false, statusFile = process.env.VIDEO_TTS_STATUS || '';
+  let provider = process.env.VIDEO_TTS_PROVIDER || '', narration = false, statusFile = process.env.VIDEO_TTS_STATUS || '';
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--narration') narration = true;
     else if (['--provider', '--status', '--performance'].includes(args[i])) {
@@ -30,6 +30,7 @@ try {
       if (flag === '--provider') provider = value; else if (flag === '--performance') performanceFile = value; else statusFile = value;
     } else kokoroArgs.push(args[i]);
   }
+  provider ||= narration ? DEFAULT_TTS_PROVIDER : 'kokoro';
   if (!TTS_PROVIDERS.includes(provider)) throw new Error('Choose kokoro, ming or gemini for narration.');
   if (performanceFile && provider !== 'ming') throw new Error('--performance is only supported for Ming.');
   if (!narration && provider === 'kokoro') {

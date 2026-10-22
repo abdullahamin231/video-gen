@@ -502,7 +502,7 @@ library-add --source <bundle-dir>   publish a new immutable artifact version
 library-use --item <id@version> --job jobs/<slug>  freeze files and record hashes
 
 Chat projects (T3 Code; docs/t3-orchestrator.md): the whole video from an agreed brief, one step at a time
-project-new --name <slug> [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|gemini --audio f --script f --music f
+project-new --name <slug> [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|ming|gemini --audio f --script f --music f
             --review script,prototype,final,thumbnail|none --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
 next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews in the preview panel)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is

@@ -23,8 +23,8 @@ Do not research the topic yourself or draft the script: that is the researcher's
 ## 2. Start the video
 
 When they say to make it, settle only what is still open, in one short message if anything is: format (landscape
-long-form or vertical short), a length if they want one (otherwise the writer chooses), narration (Kokoro, local, the
-default; or Gemini), and whether they supplied a script or recording. Defaults keep every checkpoint on: script,
+long-form or vertical short), a length if they want one (otherwise the writer chooses), narration (Ming, expressive and local, the
+default; or Kokoro or Gemini), and whether they supplied a script or recording. Defaults keep every checkpoint on: script,
 prototype, final film, thumbnail.
 
 1. Choose a short lowercase slug (`ssd-slowdown`). Write the agreed brief to `jobs/scripts/<slug>/BRIEF.md`: what the
@@ -33,12 +33,15 @@ prototype, final film, thumbnail.
 2. Create the project:
 
    ```bash
-   npm run -s video -- project-new --name <slug> [--format vertical] [--duration 90] [--tts gemini] \
+   npm run -s video -- project-new --name <slug> [--format vertical] [--duration 90] [--tts ming|kokoro|gemini] \
      [--script <file> --audio <file>] [--music <file>] [--review script,prototype,final,thumbnail|none] [--thumbnails 3] [--idea <id>]
    ```
 
    A supplied script is used as written (and its `VISUALS.md` if one sits beside it); a supplied recording is kept
    unchanged and never replaced by TTS.
+   Omitting `--tts` selects Ming. Before narration, follow the printed instruction to create `ming-performance.json`
+   from the approved script with natural emotion, pacing and pauses (see [docs/tts.md](tts.md)).
+   Install its runtime once with `npm run video -- tts --setup-ming`. Explicit `--tts kokoro` or `--tts gemini` is preserved.
 3. Tell the user the video has started and that you will come back at each checkpoint.
 
 ## 3. The loop

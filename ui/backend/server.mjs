@@ -16,7 +16,7 @@ import { durationFromPrompt } from '../shared/duration.mjs';
 import { findIdeas, loadIdeas, setIdeaStatus, loadProfile, newestFirst, STATUSES } from '../../lib/ideas.mjs';
 import { servePlayer, playerPage } from '../../lib/player.mjs';
 import { createAccess, isLoopback } from './access.mjs';
-import { TTS_PROVIDERS } from '../../lib/tts.mjs';
+import { TTS_PROVIDERS, DEFAULT_TTS_PROVIDER } from '../../lib/tts.mjs';
 import { send, serveStatic, fileTag, fresh, rangeAllowed, jobDelta } from './http.mjs';
 
 // The film plays from its built HTML inside the player's own frame: the kit's inline scripts need a looser policy
@@ -53,7 +53,7 @@ async function body(req) {
 }
 const string = (value, max = 120) => typeof value === 'string' && value.length <= max && !value.includes('\0');
 function config(input, existing) {
-  const ttsProvider = input.ttsProvider ?? existing?.ttsProvider ?? 'kokoro';
+  const ttsProvider = input.ttsProvider ?? (existing ? existing.ttsProvider || 'kokoro' : DEFAULT_TTS_PROVIDER);
   if (!TTS_PROVIDERS.includes(ttsProvider)) throw fail('Choose Kokoro, Ming or Gemini for narration');
   if (existing && ttsProvider !== (existing.ttsProvider || 'kokoro') && existing.agents.length)
     throw fail('Narration provider cannot change after production starts. Choose it when creating a new video.');

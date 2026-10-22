@@ -3,7 +3,7 @@
 Use this when there is no recording: the script was written by the `script-writer` agent, or the user asks for a
 generated voice. Never use it to replace a supplied recording.
 
-New UI jobs choose **Kokoro** (default, local), **Ming** (expressive, local), or **Gemini** (Google API). Always generate the whole
+New UI and T3 Code jobs choose **Ming** (default, expressive, local), **Kokoro** (local), or **Gemini** (Google API). Always generate the whole
 narration with `npm run video -- tts <script> --narration --provider kokoro|ming|gemini`. Gemini receives the whole
 script in one request per model attempt, preserving paragraph breaks. The wrapper handles Kokoro paragraphs,
 output format and fallback. Keep every input and output inside the repository.
@@ -137,9 +137,9 @@ The first call downloads the model (about 311 MB) and voice data (about 27 MB) a
 
 Run from the repository root, with `<slug>` the script's folder under `jobs/scripts/`.
 
-1. Complete the Kokoro setup above (also needed as Gemini's fallback), then choose a speed using the word count.
+1. Install Ming using `npm run video -- tts --setup-ming` for the default narrator, and create its delivery sidecar as described above. For Kokoro or Gemini, complete the Kokoro setup instead (Gemini needs it for fallback). Then choose a speed using the word count.
 2. Run one command for the entire reviewed narration. Use the provider selected in the job; outside the UI,
-   omitting `--provider` uses Kokoro:
+   omitting `--provider` for `--narration` uses Ming unless `VIDEO_TTS_PROVIDER` explicitly selects another provider:
 
    ```bash
    npm run video -- tts jobs/scripts/<slug>/SCRIPT.md --narration --provider gemini -s 1.0 -o jobs/scripts/<slug>/narration.wav
