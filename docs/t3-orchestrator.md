@@ -74,7 +74,9 @@ At each checkpoint `next` tells you what to open and what to record. The pattern
 1. Run `npm run -s video -- watch --project <slug>` and open the overview address it prints (the root address, never
    `/player/`) with `preview_open`, using `show: true`, `open: true` and `reuseExistingTab: true`. The panel must be
    visible: check `preview_status` and, if `visible` is false, call `preview_open` again with the returned `tabId` and
-   `show: true`. `watch` is read-only and runs in the background.
+   `show: true`. Then call `preview_resize` with `{mode: "fill"}` on that tab so the page follows the panel's size
+   (a fixed viewport is scaled down and everything looks tiny). Tell the user they can widen the panel or use its
+   expand button for a bigger film. `watch` is read-only and runs in the background.
 2. In two or three lines, tell the user what is ready and what you need from them: approve, or say what to change
    (for the film: at which moment, e.g. "12.5: make the chart bigger").
 3. **End your turn and wait.** Never decide for them, never approve on their behalf, never treat silence as approval.
