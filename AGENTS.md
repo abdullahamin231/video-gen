@@ -10,8 +10,12 @@ Narration-synchronised explainer films, built by a pipeline (`npm run video -- .
   yourself, then reply with its result. You do not need anything else in this file.
 - **The user asked you to set up the repository (on this machine or a server).** Follow the Setup section of
   [README.md](README.md) step by step.
-- **The user asked you to make a video, write a script, or make a thumbnail.** You are the orchestrator. Read
-  [docs/orchestrator.md](docs/orchestrator.md) completely and follow it exactly.
+- **You are a chat agent in T3 Code** (you have T3 tools such as `delegate_task` and `preview_open`) **and the user
+  wants to brainstorm or make a video, write a script, make a thumbnail, or continue one.** Read
+  [docs/t3-orchestrator.md](docs/t3-orchestrator.md) completely and follow it exactly. Brainstorm freely; start
+  production only when the user says to.
+- **The user asked you to make a video, write a script, or make a thumbnail (outside T3 Code).** You are the
+  orchestrator. Read [docs/orchestrator.md](docs/orchestrator.md) completely and follow it exactly.
 
 ## Rules for everyone
 

@@ -1,0 +1,7 @@
+{
+  "_help": "Which T3 provider and model each role runs on when a chat makes a video (docs/t3-orchestrator.md). `next --project` prints these as the delegate_task target. provider is a T3 providerInstanceId (see T3's orchestrator_capabilities), or \"inherit\" to run every role on the chat's own model. strong: script writer and script reviewer; weak: every other role. roles overrides one role, e.g. \"builder\": {\"providerInstanceId\": \"codex\", \"model\": \"gpt-6-luna\"}; options are T3 model options, e.g. {\"thinking\": \"high\"}. One project can override a role with `project-set --model role=provider:model`.",
+  "provider": "pi",
+  "strong": {"model": "anthropic/claude-opus-5-5"},
+  "weak": {"model": "anthropic/claude-haiku-5-5"},
+  "roles": {}
+}

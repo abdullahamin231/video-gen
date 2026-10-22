@@ -23,6 +23,10 @@ import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/channel.mjs';
 import {loadConfig, resolveSettings} from '../lib/format.mjs';
 import {readdir} from 'node:fs/promises';
 import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
+import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation,
+  assertNoDelegation, projectOfJob, requireQuote, logDecision} from '../lib/project.mjs';
+import {setHumanStages} from '../lib/human.mjs';
+import {renderStageBar} from '../lib/stagebar.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
@@ -37,7 +41,13 @@ const digest = async file => createHash('sha256').update(await readFile(file)).d
 const ROLE = process.env.VIDEO_AGENT_ROLE || '';
 const ROLE_AGENT = Boolean(ROLE) && ROLE !== 'orchestrator';
 const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review-pack', 'deliver', 'save-all', 'preview', 'mix', 'transcribe', 'alignment-approve', 'human-review', 'play',
-  'thumbnails', 'thumbnail-choose', 'thumbnail-feedback', 'thumbnail-settings']);
+  'thumbnails', 'thumbnail-choose', 'thumbnail-feedback', 'thumbnail-settings',
+  'project-new', 'project-set', 'project-delete', 'script-review', 'watch', 'watch-serve', 'delegated']);
+// Chat projects (lib/project.mjs): commands that work on a project rather than a job.
+const PROJECT_COMMANDS = new Set(['project-new', 'projects', 'project-set', 'project-delete', 'script-review', 'watch', 'watch-serve', 'delegated', 'stage-bar']);
+// Commands that never advance the pipeline, so they stay usable while delegated work is open.
+const DURING_DELEGATION = new Set(['status', 'projects', 'watch', 'watch-serve', 'delegated', 'stage-bar']);
+const advances = (command, opts) => (ORCHESTRATOR_ONLY.has(command) && !DURING_DELEGATION.has(command)) || (command === 'build' && !opts.scene);
 const nextHint = job => ROLE_AGENT ? '\nDone with this command. Finish your brief and reply; the orchestrator advances the pipeline.' : `\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`;
 
 function run(command, args, {cwd = ROOT, capture = false, env = {}} = {}) {
@@ -76,7 +86,7 @@ function options(args) {
     const key = args.shift();
     if (key === '--json' && (!args.length || args[0].startsWith('--'))) { result.json = true; continue; }
     if (!key.startsWith('--') || !args.length || args[0].startsWith('--')) throw new Error(`Expected --option value: ${key}`);
-    if (key === '--note' || key === '--finding') (result[key.slice(2)] ||= []).push(args.shift()); // repeatable
+    if (key === '--note' || key === '--finding' || key === '--model') (result[key.slice(2)] ||= []).push(args.shift()); // repeatable
     else result[key.slice(2)] = args.shift();
   }
   return result;
@@ -381,6 +391,66 @@ async function ideasCommand(opts) {
   else { console.log(`\n${cards.length} new idea(s)${run.focus ? ` for “${run.focus}”` : ''}:`); cards.forEach(printIdea); }
   console.log('\nRun again for more. Mark one with: npm run video -- ideas --set <id> --status saved|rejected');
 }
+// ------------------------------------------------------------------ chat projects (T3 Code; docs/t3-orchestrator.md)
+async function projectCommand(command, opts) {
+  const slug = opts.project;
+  if (command === 'project-new') {
+    const project = await createProject(ROOT, opts, {resolveInput, setIdeaStatus});
+    console.log(`Created project ${project.slug} (jobs/scripts/${project.slug}/). Checkpoints: ${project.review.join(', ') || 'none'}.\nNext: npm run video -- next --project ${project.slug}`);
+  } else if (command === 'projects') {
+    const list = await listProjects(ROOT);
+    if (opts.json) console.log(JSON.stringify(list));
+    else console.log(list.length ? list.map(p => `${p.slug.padEnd(40)} ${p.phase}${p.delegation ? ` · delegated: ${p.delegation.join(', ')}` : ''}  (${String(p.createdAt).slice(0, 10)})`).join('\n')
+      : 'No projects yet. Create one with: npm run video -- project-new --name <slug> (after writing jobs/scripts/<slug>/BRIEF.md)');
+  } else if (command === 'next') {
+    console.log((await projectStep(ROOT, slug)).text);
+  } else if (command === 'status') {
+    const status = await projectStatus(ROOT, slug);
+    console.log(opts.json ? JSON.stringify(status) : printStatus(status));
+  } else if (command === 'stage-bar') {
+    const status = await projectStatus(ROOT, slug);
+    console.log(renderStageBar(slug, status.stages));
+  } else if (command === 'delegated') {
+    const {closed} = await closeDelegation(ROOT, slug);
+    console.log(closed ? `Closed: ${closed.tasks.map(t => t.title).join(', ')}.\nNext: npm run video -- next --project ${slug}` : `No delegated work was open.\nNext: npm run video -- next --project ${slug}`);
+  } else if (command === 'script-review') {
+    await assertNoDelegation(ROOT, slug, command);
+    const quote = requireQuote(opts);
+    const record = await recordScriptReview(ROOT, slug, {decision: opts.decision, notes: opts.note || [], quote});
+    console.log(`Recorded: ${record.decision} on the script${record.notes.length ? ` with ${record.notes.length} note(s)` : ''}.\nNext: npm run video -- next --project ${slug}`);
+  } else if (command === 'project-set') {
+    await assertNoDelegation(ROOT, slug, command);
+    const {changes} = await updateProject(ROOT, slug, opts, {setHumanStages});
+    console.log(`Updated ${slug}: ${changes.join('; ')}.`);
+  } else if (command === 'project-delete') {
+    const removed = await deleteProject(ROOT, slug, opts.confirm);
+    const {stopWatch} = await import('../lib/watch.mjs'); await stopWatch(ROOT, slug);
+    console.log(`Deleted ${removed.join(', ')}. Saved library assets stay.`);
+  } else if (command === 'watch') {
+    const {startWatch, stopWatch} = await import('../lib/watch.mjs');
+    if (opts.stop === 'true' || opts.stop === '') { console.log(await stopWatch(ROOT, slug) ? `Stopped the watch server for ${slug}.` : 'No watch server was running.'); return; }
+    const {url, reused} = await startWatch(ROOT, slug, {script: fileURLToPath(import.meta.url)});
+    console.log(`Overview: ${url}\nPlayer:   ${url}player/\n${reused ? 'Already running.' : 'Started in the background.'} Open one with T3 preview_open. Read-only: nothing is rendered or changed. Stop with: npm run video -- watch --project ${slug} --stop true`);
+  } else if (command === 'watch-serve') {
+    const {serveWatch} = await import('../lib/watch.mjs');
+    const {url} = await serveWatch(ROOT, slug, {port: opts.port || 0});
+    console.log(`Serving ${slug} at ${url}`);
+    await new Promise(() => {});
+  }
+}
+// A person's decision recorded from a chat carries their own words (project jobs only; the web UI records its own).
+async function personDecision(job, command, opts) {
+  const project = await projectOfJob(ROOT, job);
+  if (!project) return null;
+  if (command === 'human-review' && opts.want !== undefined) return null;
+  if (command === 'thumbnail-choose' && opts.by !== 'you') return null;
+  if (command === 'thumbnail-choose') { // archiving a pick the person already made needs no new decision
+    const chosen = (await thumbnailStatus(job).catch(() => null))?.chosen;
+    if (chosen?.by === 'you' && chosen.variant === opts.variant) return null;
+  }
+  return {slug: project.slug, quote: requireQuote(opts)};
+}
+
 const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
@@ -431,6 +501,19 @@ library-info --item <id@version>     inspect one bundle, usage and provenance
 library-add --source <bundle-dir>   publish a new immutable artifact version
 library-use --item <id@version> --job jobs/<slug>  freeze files and record hashes
 
+Chat projects (T3 Code; docs/t3-orchestrator.md): the whole video from an agreed brief, one step at a time
+project-new --name <slug> [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|gemini --audio f --script f --music f
+            --review script,prototype,final,thumbnail|none --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
+next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews in the preview panel)
+status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
+stage-bar --project <slug>          the stage bar as one HTML page, for T3 html_render (read-only)
+delegated --project <slug>          the delegated tasks next started have finished (or were lost); next may go on
+script-review --project <slug> --decision approve|revise [--note "<their words>" ...] --quote "<their message>"
+watch --project <slug> [--stop true] read-only overview + film player for the preview panel (background server)
+project-set --project <slug> [--review ..] [--thumbnails N] [--tts ..] [--model role=provider:model ...]
+project-delete --project <slug> --confirm <slug>
+(human-review, thumbnail-choose --by you, thumbnail-feedback and review-waive on a project's job also need --quote "<their message>")
+
 ideas [--focus "mac hardware" --count 6 --refresh true --json]   find new video ideas (never repeats one already shown)
                                      feeds and reference channels come from ideas.config.json; YOUTUBE_API_KEY is optional
 frame-stats --video <a.mp4>[,<b.mp4>] [--every 2]   measure how much of the frame a film uses (ink, spread, near-blank), to compare films
@@ -449,10 +532,14 @@ try {
   const opts = options(args);
   if (ROLE_AGENT && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
     throw new Error(`\`${command}${command === 'build' ? ' without --scene' : ''}\` advances the pipeline, which is the orchestrator's job. You are the ${ROLE}: finish the brief you were given and reply with its result. Do not start sub-agents.`);
-  if (command === 'help') console.log(HELP + '\ntts <file> [--provider kokoro|ming|gemini] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate narration; Gemini quota falls back to Kokoro (docs/tts.md)');
+  if (PROJECT_COMMANDS.has(command) || (['next', 'status'].includes(command) && opts.project)) {
+    if (!opts.project && command !== 'project-new' && command !== 'projects') throw new Error(`${command} needs --project <slug> (see \`npm run video -- projects\`).`);
+    await projectCommand(command, opts);
+  }
+  else if (command === 'help') console.log(HELP + '\ntts <file> [--provider kokoro|ming|gemini] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate narration; Gemini quota falls back to Kokoro (docs/tts.md)');
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
-  else if (command === 'start') await start(opts);
+  else if (command === 'start') { await assertNoDelegation(ROOT, opts.name, command); await start(opts); }
   else if (command === 'setup-manim') console.log(await setupManim());
   else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
   else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
@@ -474,6 +561,8 @@ try {
   }
   else {
     const job = await jobPath(opts);
+    if (advances(command, opts)) await assertNoDelegation(ROOT, path.basename(job), command);
+    const decision = ['human-review', 'thumbnail-choose', 'thumbnail-feedback', 'review-waive'].includes(command) ? await personDecision(job, command, opts) : null;
     await guardDelivered(job, command, opts);
     if (command === 'transcribe') {
       const manifest = await json(path.join(job,'job.json'));
@@ -557,6 +646,7 @@ try {
         console.log(manifest.humanReview.length ? `The pipeline will wait for your review of the ${manifest.humanReview.join(' and ')}.` : 'The pipeline will not wait for your review.');
       } else {
         const record = await recordHumanReview(job, {stage: opts.stage, decision: opts.decision, notes: (opts.note || []).map(parseNote)});
+        if (decision) await logDecision(ROOT, decision.slug, {kind: record.stage, decision: record.decision, notes: record.notes, quote: decision.quote});
         console.log(`Recorded: ${record.decision} on the ${record.stage}${record.notes.length ? ` with ${record.notes.length} note(s)` : ''}.${nextHint(job)}`);
       }
     } else if (command === 'play') {
@@ -586,10 +676,12 @@ try {
     } else if (command === 'thumbnail-choose') {
       if (!opts.variant) throw new Error('thumbnail-choose needs --variant <id>.');
       const r = await chooseThumbnail(job, {variant: opts.variant, by: opts.by === 'you' ? 'you' : 'reviewer'});
+      if (decision) await logDecision(ROOT, decision.slug, {kind: 'thumbnail', decision: 'choose', variant: opts.variant, quote: decision.quote});
       console.log(`Thumbnail is now ${opts.variant} ("${r.headline}"), archived to library/thumbnails/${path.basename(job)}/.\nNext: npm run video -- thumbnails --job ${path.relative(ROOT, job)}`);
     } else if (command === 'thumbnail-feedback') {
       if (!opts.variant || !opts.note?.length) throw new Error('thumbnail-feedback needs --variant <id> --note "<their words>".');
       for (const note of opts.note) await addThumbnailFeedback(job, {variant: opts.variant, text: note});
+      if (decision) await logDecision(ROOT, decision.slug, {kind: 'thumbnail', decision: 'revise', variant: opts.variant, notes: opts.note, quote: decision.quote});
       console.log(`Recorded feedback for ${opts.variant}.\nNext: npm run video -- thumbnails --job ${path.relative(ROOT, job)}`);
     } else if (command === 'review-submit') {
       if (!opts.file) throw new Error('review-submit requires --file from an independent reviewer.');
@@ -610,6 +702,7 @@ try {
       // A person's decision only: no agent may waive its own reviews, the orchestrator included.
       if (ROLE) throw new Error('Only the person can waive review. Report the unresolved findings to them; they decide.');
       const waiver = await waiveReview(job, opts.stage || 'final', opts.reason);
+      if (decision) await logDecision(ROOT, decision.slug, {kind: 'review-waive', stage: waiver.stage, reason: opts.reason, quote: decision.quote});
       console.log(`Waived ${waiver.stage} review of the current film after ${waiver.rounds} round(s): ${waiver.unresolvedFindings.length} unresolved blocking finding(s) will be disclosed in delivery.json.${nextHint(job)}`);
     } else if (command === 'review-status') {
       const status = await reviewStatus(job,opts.stage || 'final');
