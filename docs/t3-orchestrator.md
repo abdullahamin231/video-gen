@@ -1,8 +1,9 @@
 # Making videos from a T3 Code chat
 
 You are reading this because you are a chat agent in T3 Code (you have T3 tools such as `delegate_task` and
-`preview_open`) and the user wants to brainstorm, make a video, write a script or make a thumbnail. This replaces the
-web UI: the chat is the workspace, T3 delegated tasks are the roles, and the review page
+`preview_open`) and the user wants to brainstorm, make a video, write a script or make a thumbnail. T3 is the primary
+production workspace; the existing web UI remains available as an alternative. The chat is the workspace,
+T3 delegated tasks are the roles, and the review page
 (https://ip-208-84-101-178.tailc5adba.ts.net:8443/) is where the user reads the script, watches the film and picks the
 thumbnail. Sub-agents following a brief never use this file.
 
@@ -78,7 +79,8 @@ At each checkpoint `next` tells you what to open and what to record. The pattern
 1. Run `npm run -s video -- watch --project <slug>`. It is read-only and runs in the background. It prints an overview
    address (`http://127.0.0.1:<port>/`). Make sure that port is served on the user's tailnet at
    **https://ip-208-84-101-178.tailc5adba.ts.net:8443/**: run `tailscale serve --bg --https=8443 http://127.0.0.1:<port>`
-   (if it already serves a different port, run `tailscale serve --https=8443 off` first). Check that
+   (`watch` prints the exact command; if 8443 already serves a different port, run `tailscale serve --https=8443 off` first).
+   Keep the existing web UI and its separate Tailscale route running. Check that
    `tailscale serve status` shows the port. Do not open the panel or any preview tab; the user reviews in their own
    browser.
 2. In two or three lines, tell the user what is ready, give them **https://ip-208-84-101-178.tailc5adba.ts.net:8443/**
@@ -102,8 +104,9 @@ for word. If they change a setting ("don't make me approve the script", "five th
 
 `STATE: done` prints the MP4 and thumbnail paths, the review disposition, unresolved findings, limitations, the
 soundtrack measurements and the headphone checks. Give the user exactly that. Nobody in this pipeline can hear: never
-say the film sounds good, only what was measured. Never describe a waived or budget-exhausted review as passed. Open
-the review address (https://ip-208-84-101-178.tailc5adba.ts.net:8443/) so they can play the MP4, and stop the watch server
+say the film sounds good, only what was measured. Never describe a waived or budget-exhausted review as passed. Run
+`watch` and verify its Tailscale route as in section 4, then give the user the review address
+(https://ip-208-84-101-178.tailc5adba.ts.net:8443/) to play the MP4 in their own browser. Stop the watch server
 when they are done (`watch --project <slug> --stop true`).
 
 ## Resuming, a new chat, more than one video

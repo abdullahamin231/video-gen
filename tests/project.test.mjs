@@ -2,12 +2,14 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, utimes, readdir} from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
+import {REVIEW_URL} from '../lib/review-location.mjs';
 import {createProject, projectStep, closeDelegation, assertNoDelegation, recordScriptReview, adaptStep, roleTarget, updateProject,
   loadProject, DEFAULT_CHAT_CONFIG, scriptDisposition, listProjects, deleteProject} from '../lib/project.mjs';
 
 async function root(t) {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'project-'));
+  const cache = path.resolve('.cache/tests');
+  await mkdir(cache, {recursive: true});
+  const dir = await mkdtemp(path.join(cache, 'project-'));
   t.after(() => rm(dir, {recursive: true, force: true}));
   await mkdir(path.join(dir, 'jobs/scripts'), {recursive: true});
   return dir;
@@ -21,6 +23,25 @@ async function put(r, name, body) { // each write is visibly newer than the last
 }
 async function step(r) { const s = await projectStep(r, 'demo'); await closeDelegation(r, 'demo'); return s; }
 
+function assertExternalReview(text) {
+  assert.ok(text.includes(REVIEW_URL));
+  assert.match(text, /watch --project demo/);
+  assert.match(text, /tailscale serve status/);
+  assert.match(text, /own browser/);
+  assert.doesNotMatch(text, /preview_open|ready in the preview panel/);
+}
+
+function assertAutoPolicy(text, role, tier) {
+  const line = text.split('\n').find(l => l.startsWith(`MODEL SELECTION (${role}): `));
+  const policy = JSON.parse(line.slice(line.indexOf(': ') + 2));
+  assert.equal(policy.tier, tier);
+  assert.deepEqual(policy.profiles, DEFAULT_CHAT_CONFIG.profiles);
+  assert.equal(policy.override, null);
+  const task = JSON.parse(text.split('\n').find(l => l.startsWith('  {')));
+  assert.equal(task.target, undefined); // the shell must not pin a provider before live resolution
+  assert.match(text, /orchestrator_capabilities/);
+}
+
 test('a project needs an agreed brief and a free name', async t => {
   const r = await root(t);
   await assert.rejects(createProject(r, {name: 'demo'}), /BRIEF\.md/);
@@ -28,16 +49,17 @@ test('a project needs an agreed brief and a free name', async t => {
   const p = await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', format: 'vertical', duration: '60'});
   assert.deepEqual(p.review, ['script', 'prototype', 'final', 'thumbnail']);
   assert.equal(p.duration, 60);
+  assert.equal(p.tts, 'ming');
   await assert.rejects(createProject(r, {name: 'demo', brief: 'x'}), /exists/);
 });
 
 test('the script stage: sources, writer, review rounds, the person approves, narration, start', async t => {
   const r = await root(t);
-  await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', duration: '90'});
+  await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', duration: '90', tts: 'kokoro'});
   let s = await projectStep(r, 'demo');
   assert.equal(s.state, 'gather the sources');
   assert.match(s.text, /"role":"research"/);
-  assert.match(s.text, /"model":"anthropic\/claude-haiku-5-5"/);
+  assertAutoPolicy(s.text, 'script-researcher', 'weak');
   assert.match(await readFile(S(r, 'briefs/research.md'), 'utf8'), /> Why SSDs slow down when full\./);
   // While the task runs, next waits and pipeline commands refuse.
   assert.equal((await projectStep(r, 'demo')).state, 'delegated');
@@ -48,7 +70,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   await put(r, 'SOURCES.md', '# Sources');
   s = await step(r);
   assert.equal(s.state, 'write the script and its visual plan');
-  assert.match(s.text, /"model":"anthropic\/claude-opus-5-5"/);
+  assertAutoPolicy(s.text, 'script-writer', 'strong');
   await put(r, 'research.md', '## Evidence requests\n- the paper');
   assert.equal((await step(r)).state, 'the writer asked for more evidence');
   await put(r, 'SOURCES.md', '# Sources\n## Follow-up');
@@ -68,7 +90,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   await put(r, 'review.md', 'Disposition: pass');
   s = await step(r);
   assert.equal(s.state, 'script approval');
-  assert.match(s.text, /watch --project demo/);
+  assertExternalReview(s.text);
   assert.match(s.text, /--quote "<their message>"/);
 
   // The person asks for a change: their words go to a writer, then a fresh review, then back to them.
@@ -127,7 +149,7 @@ test('a supplied script and recording skip writing and narration', async t => {
   assert.match(s.text, /--audio "in\/take\.wav" .*--human-review final --pick-thumbnail false/);
 });
 
-test('film steps become T3 tasks and preview-panel reviews', async t => {
+test('film steps become T3 tasks and external Tailscale reviews', async t => {
   const r = await root(t);
   await createProject(r, {name: 'demo', brief: 'b'});
   const project = await loadProject(r, 'demo');
@@ -144,9 +166,13 @@ test('film steps become T3 tasks and preview-panel reviews', async t => {
   assert.equal((await loadProject(r, 'demo')).delegation.tasks.length, 2);
   await closeDelegation(r, 'demo');
   const gate = await adaptStep(r, project, {state: 'human review', text: 'STATE: human review of the prototype (x)\nDO: ...'}, DEFAULT_CHAT_CONFIG);
-  assert.match(gate, /player\/\) with T3 `preview_open`/);
+  assertExternalReview(gate);
+  const final = await adaptStep(r, project, {state: 'human review', text: 'STATE: human review of the final (x)\nDO: ...'}, DEFAULT_CHAT_CONFIG);
+  assertExternalReview(final);
+  assert.match(final, /--stage final --decision revise/);
   assert.match(gate, /human-review --job jobs\/demo --stage prototype --decision approve --quote/);
   const thumbs = await adaptStep(r, project, {state: 'choose thumbnail', text: 'STATE: the person picks the thumbnail (2 passed review: v1 "A", v2 "B")\nDO: ...'}, DEFAULT_CHAT_CONFIG);
+  assertExternalReview(thumbs);
   assert.match(thumbs, /STATE: you pick the thumbnail \(2 passed/);
   assert.match(thumbs, /thumbnail-choose --job jobs\/demo --variant <id> --by you --quote/);
   const run = await adaptStep(r, project, {state: 'render', text: 'STATE: render\nDO: run `npm run video -- render --job jobs/demo`\nTHEN: npm run video -- next --job jobs/demo'}, DEFAULT_CHAT_CONFIG);
@@ -157,7 +183,9 @@ test('models: tier defaults, chat.config roles and project overrides', async t =
   const r = await root(t);
   await createProject(r, {name: 'demo', brief: 'b'});
   const config = {...DEFAULT_CHAT_CONFIG, roles: {builder: {providerInstanceId: 'codex', model: 'gpt-6-luna', options: {reasoningEffort: 'high'}}}};
-  assert.deepEqual(roleTarget(config, {}, 'script-writer'), {providerInstanceId: 'pi', model: 'anthropic/claude-opus-5-5'});
+  assert.equal(roleTarget(config, {}, 'script-writer'), null); // resolved against T3's live catalog
+  const legacy = {...config, provider: 'pi', strong: {model: 'anthropic/claude-opus-5-5'}};
+  assert.deepEqual(roleTarget(legacy, {}, 'script-writer'), {providerInstanceId: 'pi', model: 'anthropic/claude-opus-5-5'});
   assert.deepEqual(roleTarget(config, {}, 'builder'), {providerInstanceId: 'codex', model: 'gpt-6-luna', options: {reasoningEffort: 'high'}});
   const {project} = await updateProject(r, 'demo', {model: ['reviewer=codex:gpt-6.1-sol', 'director=inherit']});
   assert.deepEqual(roleTarget(config, project, 'reviewer'), {providerInstanceId: 'codex', model: 'gpt-6.1-sol'});

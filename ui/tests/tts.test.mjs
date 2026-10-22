@@ -19,7 +19,7 @@ async function fixture() {
   return folder;
 }
 
-test('new job API defaults to Kokoro, stores Gemini, rejects unknown voices and preserves selection when crew settings change', async t => {
+test('new job API defaults to Ming, stores explicit voices, rejects unknown voices and preserves selection when crew settings change', async t => {
   const directory = await fixture(t);
   const app = await createApp({ root, directory, runnerFactory: ({ store }) => ({
     initialize() {}, shutdown() { store.flush(); }, create: input => store.create(input), syncHumanReview() {},
@@ -28,7 +28,9 @@ test('new job API defaults to Kokoro, stores Gemini, rejects unknown voices and 
   const request = (method, route, data) => fetch(url + route, { method,
     headers: { 'Content-Type': 'application/json', 'X-Video-Client': '1' }, body: JSON.stringify(data) });
   const local = await request('POST', '/api/jobs', defaults);
-  assert.equal(local.status, 201); assert.equal((await local.json()).ttsProvider, 'kokoro');
+  assert.equal(local.status, 201); assert.equal((await local.json()).ttsProvider, 'ming');
+  const kokoro = await request('POST', '/api/jobs', { ...defaults, ttsProvider: 'kokoro' });
+  assert.equal(kokoro.status, 201); assert.equal((await kokoro.json()).ttsProvider, 'kokoro');
   const response = await request('POST', '/api/jobs', { ...defaults, ttsProvider: 'gemini' });
   assert.equal(response.status, 201); const gemini = await response.json();
   assert.equal(gemini.ttsProvider, 'gemini');
@@ -36,7 +38,7 @@ test('new job API defaults to Kokoro, stores Gemini, rejects unknown voices and 
   assert.equal(changed.status, 200); assert.equal((await changed.json()).ttsProvider, 'gemini');
   assert.equal((await request('POST', '/api/jobs', { ...defaults, ttsProvider: 'unknown' })).status, 400);
   const source = await (await fetch(url + '/app.mjs')).text();
-  assert.match(source, /select name="ttsProvider"/); assert.match(source, /value="kokoro"/); assert.match(source, /value="gemini"/);
+  assert.match(source, /select name="ttsProvider"/); assert.match(source, /value="ming"/); assert.match(source, /value="kokoro"/); assert.match(source, /value="gemini"/);
 });
 
 test('runner passes selected narration to the CLI and shows one durable fallback notice across restarts', async t => {

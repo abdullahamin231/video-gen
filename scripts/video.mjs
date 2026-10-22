@@ -27,6 +27,7 @@ import {createProject, updateProject, listProjects, deleteProject, projectStep, 
   assertNoDelegation, projectOfJob, requireQuote, logDecision} from '../lib/project.mjs';
 import {setHumanStages} from '../lib/human.mjs';
 import {renderStageBar} from '../lib/stagebar.mjs';
+import {watchInstructions} from '../lib/review-location.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
@@ -430,7 +431,7 @@ async function projectCommand(command, opts) {
     const {startWatch, stopWatch} = await import('../lib/watch.mjs');
     if (opts.stop === 'true' || opts.stop === '') { console.log(await stopWatch(ROOT, slug) ? `Stopped the watch server for ${slug}.` : 'No watch server was running.'); return; }
     const {url, reused} = await startWatch(ROOT, slug, {script: fileURLToPath(import.meta.url)});
-    console.log(`Overview: ${url}\nPlayer:   ${url}player/\n${reused ? 'Already running.' : 'Started in the background.'} Open one with T3 preview_open. Read-only: nothing is rendered or changed. Stop with: npm run video -- watch --project ${slug} --stop true`);
+    console.log(watchInstructions(url, slug, reused));
   } else if (command === 'watch-serve') {
     const {serveWatch} = await import('../lib/watch.mjs');
     const {url} = await serveWatch(ROOT, slug, {port: opts.port || 0});
@@ -504,12 +505,12 @@ library-use --item <id@version> --job jobs/<slug>  freeze files and record hashe
 Chat projects (T3 Code; docs/t3-orchestrator.md): the whole video from an agreed brief, one step at a time
 project-new --name <slug> [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|ming|gemini --audio f --script f --music f
             --review script,prototype,final,thumbnail|none --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
-next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews in the preview panel)
+next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews on Tailscale)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
 stage-bar --project <slug>          the stage bar as one HTML page, for T3 html_render (read-only)
 delegated --project <slug>          the delegated tasks next started have finished (or were lost); next may go on
 script-review --project <slug> --decision approve|revise [--note "<their words>" ...] --quote "<their message>"
-watch --project <slug> [--stop true] read-only overview + film player for the preview panel (background server)
+watch --project <slug> [--stop true] read-only Tailscale review page + serving instructions (background server)
 project-set --project <slug> [--review ..] [--thumbnails N] [--tts ..] [--model role=provider:model ...]
 project-delete --project <slug> --confirm <slug>
 (human-review, thumbnail-choose --by you, thumbnail-feedback and review-waive on a project's job also need --quote "<their message>")
