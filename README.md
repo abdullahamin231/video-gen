@@ -95,14 +95,21 @@ No API keys are required. Optional: `YOUTUBE_API_KEY` (ideas use the official AP
    npm run video -- help
    ```
 
-8. **Run the workspace UI.** On a desktop: `npm run ui` and open http://127.0.0.1:4310. On a server, to use it from
+8. **Make videos from T3 Code (recommended).** Open this repository as a project in [T3 Code](https://t3.codes),
+   start a chat, brainstorm, then say "make the video". The chat agent follows
+   [docs/t3-orchestrator.md](docs/t3-orchestrator.md): T3 delegated tasks do the research, writing, building and
+   reviews; you read the script, watch the film and pick the thumbnail in T3's preview panel and answer in the chat.
+   Role models are in [chat.config.json](chat.config.json) (T3 provider ids from its model picker). No server or
+   password is needed beyond T3 itself.
+
+9. **Or run the older web UI.** On a desktop: `npm run ui` and open http://127.0.0.1:4310. On a server, to use it from
    a phone or laptop: install [Tailscale](https://tailscale.com/download/linux) and sign in **(person)**
    (`sudo tailscale up`, and once `sudo tailscale set --operator=$USER`), then run `scripts/server-setup.sh tailscale`
    (or `scripts/server-setup.sh lan` on a trusted network without Tailscale). It installs a systemd user service and
    prints the address and a generated password; give both to the person. Details:
    [ui/README.md](ui/README.md#running-on-a-server-phone-or-laptop-access).
 
-Without the UI, give an agent a job directly (below).
+Without T3 or the UI, give an agent a job directly (below).
 
 ## Give the agent a job
 

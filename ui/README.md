@@ -1,5 +1,9 @@
 # Local video workspace
 
+> Videos can now be made entirely from a T3 Code chat ([docs/t3-orchestrator.md](../docs/t3-orchestrator.md)): the chat
+> replaces this UI's threads, checkpoints and player (`npm run video -- watch --project <slug>` serves the same
+> HyperFrames player for T3's preview panel). This UI still works and is kept until the chat flow has replaced it.
+
 Start with `npm run ui`, then open http://127.0.0.1:4310. By default the server binds to loopback only. Use `npm run ui -- --port 4311` to choose another port. No new application dependencies are needed.
 
 ## Running on a server (phone or laptop access)
