@@ -1,7 +1,31 @@
 {
-  "_help": "Which T3 provider and model each role runs on when a chat makes a video (docs/t3-orchestrator.md). `next --project` prints these as the delegate_task target. provider is a T3 providerInstanceId (see T3's orchestrator_capabilities), or \"inherit\" to run every role on the chat's own model. strong: script writer and script reviewer; weak: every other role. roles overrides one role, e.g. \"builder\": {\"providerInstanceId\": \"codex\", \"model\": \"gpt-6-luna\"}; options are T3 model options, e.g. {\"thinking\": \"high\"}. One project can override a role with `project-set --model role=provider:model`.",
-  "provider": "pi",
-  "strong": {"model": "anthropic/claude-opus-5-5"},
-  "weak": {"model": "anthropic/claude-haiku-5-5"},
+  "_help": "T3 delegated-role defaults, selected using the CURRENT chat provider from orchestrator_capabilities. auto stays with that provider; profiles match its driverKind (or instance ID). strong: script writer/reviewer; weak: other roles. Resolve model IDs against the live catalog before delegation. Explicit project and role overrides take priority. See docs/t3-orchestrator.md.",
+  "provider": "auto",
+  "profiles": {
+    "codex": {
+      "strong": {
+        "model": "gpt-6.1-sol"
+      },
+      "weak": {
+        "model": "gpt-6-luna"
+      }
+    },
+    "claudeAgent": {
+      "strong": {
+        "model": "claude-opus-5-5"
+      },
+      "weak": {
+        "model": "claude-haiku-5-5"
+      }
+    },
+    "opencode": {
+      "selection": "free-auto",
+      "preferredFamilies": [
+        "DeepSeek V4.1 Flash",
+        "GLM 5.3 Flash"
+      ],
+      "requireFree": true
+    }
+  },
   "roles": {}
 }

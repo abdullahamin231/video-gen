@@ -101,7 +101,7 @@ No API keys are required. Optional: `YOUTUBE_API_KEY` (ideas use the official AP
    start a chat, brainstorm, then say "make the video". The chat agent follows
    [docs/t3-orchestrator.md](docs/t3-orchestrator.md): T3 delegated tasks do the research, writing, building and
    reviews; you read the script, watch the film and pick the thumbnail in T3's preview panel and answer in the chat.
-   Role models are in [chat.config.json](chat.config.json) (T3 provider ids from its model picker). No server or
+   Optional provider-specific role defaults are in [chat.config.json](chat.config.json): Codex uses Sol/Luna, Claude uses Opus/Haiku, and OpenCode selects available free models. The orchestrator resolves exact IDs from T3’s live catalog. No server or
    password is needed beyond T3 itself.
 
 9. **Or run the older web UI.** On a desktop: `npm run ui` and open http://127.0.0.1:4310. On a server, to use it from

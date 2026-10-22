@@ -55,7 +55,7 @@ Do exactly what it prints, then run it again. Repeat until it prints `STATE: don
 - **`DO: run <command>`**: run it in one shell call (narration, `start`, build, render and deliver can take minutes;
   wait with a long timeout rather than polling). Trim output with `| tail -40`.
 - **`DO: start ... task(s) with the T3 delegate_task tool`**: call `delegate_task` once per JSON line, passing that
-  object as the arguments unchanged (title, role, clientRequestId, mode, target, task). Start them all, then end your
+  object as the arguments (title, role, clientRequestId, mode, target, task). When a MODEL SELECTION policy is printed, resolve target using the live orchestrator_capabilities catalog as described below; preserve the task text and clientRequestId. Start them all, then end your
   turn: each finished task wakes you. When one wakes you and others are still running (`task_status`), end your turn
   again. When all have finished, run `npm run video -- delegated --project <slug>`, then `next`. Never do their work,
   never edit their files, never add your opinions to a task, never reuse a task for a different brief. If a task fails,
@@ -124,8 +124,26 @@ To stop a video: cancel its open tasks (`task_cancel`), run `delegated`. To dele
   you its length and verdict).
 - Use only `npm run video -- ...`. Never `npx hyperframes`, never `preview` (Studio rewrites job files), never edit
   `video.config.json`, `node_modules`, `film.json`, `shots/`, reviews or evidence.
-- Roles and models: each task line already carries its model (from `chat.config.json`: script writer and reviewer on
-  the strong model, every other role on the weak one). Do not change them unless the user asks (`project-set --model`).
+- Roles and models: `chat.config.json` is optional. Its default `provider: auto` chooses the profile of the
+  **current chat's provider**, using `inheritedProviderInstanceId` and that instance's `driverKind` from
+  `orchestrator_capabilities`. Match a profile by instance ID first, driver kind second. This supports custom instances.
+  Script writer and reviewer use strong; all other roles use weak. Defaults:
+  - Codex: strong `gpt-6.1-sol`, weak `gpt-6-luna`.
+  - Claude: strong `claude-opus-5-5`, weak `claude-haiku-5-5`.
+  - OpenCode: choose an appropriate available **free** model from the live catalog. Prefer DeepSeek V4.1 Flash
+    or GLM 5.3 Flash only when listed and demonstrably free; otherwise choose another explicitly free model.
+    A Flash name alone is not evidence of free pricing. Do not guess IDs or fall back to paid models.
+  Before delegation, resolve the printed MODEL SELECTION policy into `target.providerInstanceId` and `target.model`.
+  Preserve explicit project/role overrides (`project-set --model`) ahead of profile defaults. If an override only
+  supplies a provider, use that provider's profile; if it only supplies a model, use the current provider instance.
+  `inherit` explicitly keeps the chat's current provider/model. Legacy fixed provider and tier settings remain supported.
+  Validate availability, canRunChildTask and model option descriptors. A disabled requested provider or missing pinned
+  model blocks delegation: report the problem instead of silently switching. For OpenCode quota/unavailability,
+  another available verified-free model may be selected and the switch disclosed.
+  Model options inherit only for the same provider instance AND model; otherwise use supported explicit options or
+  defaults. Put options in `target.options`. Check returned provider/model/options match the selection.
+  An unknown provider with no profile inherits the current model. Do not change task text or clientRequestId.
+  The shell pipeline cannot inspect the live T3 catalog; resolving the printed policy is the orchestrator's job.
 - Every asset stays inside the repository, never in `/tmp`.
 - Never show the preview panel or the player in chat. Point the user to https://ip-208-84-101-178.tailc5adba.ts.net:8443/ for every review, and do not call `preview_open` for the film.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.
