@@ -9,6 +9,12 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23c4f58b'/%3E%3Cpath d='M12 10h16v6H18v5h8v6h-8v5h-6z' fill='%23141613'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/styles.css" />
     <script type="module" src="/app.mjs"></script>
+    <!-- Fetch the app's imports and main font in parallel with app.mjs instead of one round trip after another. -->
+    <link rel="modulepreload" href="/icons.mjs" />
+    <link rel="modulepreload" href="/shared/routing.mjs" />
+    <link rel="modulepreload" href="/shared/duration.mjs" />
+    <link rel="modulepreload" href="/shared/delta.mjs" />
+    <link rel="preload" href="/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <div id="app"></div>

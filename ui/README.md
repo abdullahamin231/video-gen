@@ -53,6 +53,14 @@ Script review progress requires an explicit `pass` disposition in `review.md`; `
 
 The browser receives batched updates and re-renders only the parts that changed, so a playing video is left alone. Snapshots hold no events: events go to an append-only JSONL log, and the latest 600 stay in memory.
 
+The workspace is built to stay usable on a slow link:
+
+- **Deltas, not snapshots.** Each live batch carries only the changed fields of a thread (agents are patched by id), tagged with a revision. The browser applies a delta only on top of the revision it holds and reloads if one was missed. An agent's final answer, last message and prompt never stream: its drawer fetches them when opened.
+- **Small first payloads.** The sidebar gets thread cards without agents. Opening a thread loads the orchestrator's last 150 messages (earlier ones on request), the last 250 events plus older thread milestones, and tool output previews of 400 characters. The full output stays one click away.
+- **Resume after a dropout.** The stream is gzip-compressed and numbered. A browser that reconnects with `Last-Event-ID` gets the batches it missed (the server keeps up to 8 MB) instead of reloading everything.
+- **Compression and validators.** JSON, the app and the player runtime are compressed (brotli or gzip). Static files and artifacts carry ETags, so a reload or a re-rendered page revalidates with a 304 instead of downloading again. Fonts are cached as immutable, and `If-Range` lets an interrupted video download resume.
+- **Fast-start video.** `mix` writes `renders/video.mp4` with its index at the front (`+faststart`), so playback and seeking start before the file has fully arrived. Older renders keep their layout until they are rendered again.
+
 ## Human in the loop
 
 - **Checkpoints** (optional) and **questions** (the agent can ask at any time with `ask`) keep the agent's tool call open until you answer, so it cannot carry on past them. A decision made while the server was down reaches the resumed orchestrator. There are three: after the independent script review, and two on the film itself: **watch the prototype** (before the rest is built) and **watch the whole film** (before its one render).

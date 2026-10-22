@@ -9,6 +9,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // The UI loads .env too; standalone `npm run video -- tts` uses the same credentials.
 if (await access(path.join(root, '.env')).then(() => true, () => false)) process.loadEnvFile(path.join(root, '.env'));
 try {
+  if (process.argv[2] === '--benchmark') {
+    const { benchmark } = await import('./tts-benchmark.mjs');
+    await benchmark(process.argv.slice(3));
+    process.exit(0);
+  }
   const args = process.argv.slice(2), kokoroArgs = [];
   let provider = process.env.VIDEO_TTS_PROVIDER || 'kokoro', narration = false, statusFile = process.env.VIDEO_TTS_STATUS || '';
   for (let i = 0; i < args.length; i++) {

@@ -4,6 +4,7 @@ import { readFile, mkdir, stat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID, randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { Transform } from 'node:stream';
+import zlib from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 import { Store, summary } from './store.mjs';
 import { Runner } from './runner.mjs';
@@ -16,6 +17,7 @@ import { findIdeas, loadIdeas, setIdeaStatus, loadProfile, newestFirst, STATUSES
 import { servePlayer, playerPage } from '../../lib/player.mjs';
 import { createAccess, isLoopback } from './access.mjs';
 import { TTS_PROVIDERS } from '../../lib/tts.mjs';
+import { send, serveStatic, fileTag, fresh, rangeAllowed, jobDelta } from './http.mjs';
 
 // The film plays from its built HTML inside the player's own frame: the kit's inline scripts need a looser policy
 // than the workspace page, and only this server may embed it.
@@ -27,11 +29,22 @@ const staticFiles = new Map([
   ['/icons.mjs', ['ui/icons.mjs', 'text/javascript']],
   ['/shared/routing.mjs', ['ui/shared/routing.mjs', 'text/javascript']],
   ['/shared/duration.mjs', ['ui/shared/duration.mjs', 'text/javascript']],
+  ['/shared/delta.mjs', ['ui/shared/delta.mjs', 'text/javascript']],
   ...['400', '500', '600'].map(weight => [`/fonts/inter-${weight}.woff2`, [`node_modules/@fontsource/inter/files/inter-latin-${weight}-normal.woff2`, 'font/woff2']]),
   ['/fonts/mono.woff2', ['node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2', 'font/woff2']],
 ]);
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
-const json = (res, status, data) => { if (!res.headersSent) res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); };
+const json = (res, status, data) => res.headersSent ? res.end() : send(res.req, res, status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }, JSON.stringify(data)).catch(() => res.destroy());
+// The browser gets a short preview of each tool output; the full text is one click away (`/events/:id`).
+const BROWSER_PREVIEW = 400;
+const browserEvent = item => typeof item.output !== 'string' || item.output.length <= BROWSER_PREVIEW ? item
+  : { ...item, output: item.output.slice(0, BROWSER_PREVIEW), outputSize: item.outputSize ?? item.output.length, truncated: true };
+// What the thread view shows; sub-agent messages and tool events are fetched when their agent or the activity log is opened.
+const threadMessage = (job, m) => m.role === 'You' || m.agentId === job.orchestratorId || m.role === 'orchestrator' || m.role === 'narration';
+const threadEvent = (job, e) => ['lifecycle', 'pipeline', 'checkpoint', 'delivery'].includes(e.type) || (e.type === 'progress' && e.agentId === job.orchestratorId) || (e.type === 'agent' && e.role !== 'orchestrator') || (e.type === 'error' && e.source === 'runner');
+const THREAD_MESSAGES = 150, ACTIVITY_PAGE = 250;
+// The agent's final answer, last message and prompt are large and are read only in its drawer.
+const slimAgent = ({ result, lastMessage, promptPreview, ...agent }) => agent;
 async function body(req) {
   if (!req.headers['content-type']?.startsWith('application/json')) throw fail('Expected application/json', 415);
   let content = '';
@@ -66,8 +79,21 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
   // Keys change on restart, and every thread summary the signed-in client receives carries the current one.
   const playerSecret = randomBytes(32);
   const playerKey = id => createHmac('sha256', playerSecret).update(id).digest('hex').slice(0, 32);
-  const view = job => ({ ...summary(job), playerKey: playerKey(job.id) });
-  const detail = (store, job) => ({ ...view(job), messages: job.messages, events: store.events(job.id) });
+  // Every broadcast of a thread raises its revision; a client applies a delta only on top of the revision it was made from.
+  const snapshots = new Map(), revs = new Map();
+  const shape = job => { const base = summary(job); return { ...base, agents: base.agents.map(slimAgent), firstMessageId: job.messages[0]?.id || '', playerKey: playerKey(job.id) }; };
+  const clone = value => JSON.parse(JSON.stringify(value));
+  // Before answering with a thread, broadcast anything pending, so the answer and its revision match what later deltas build on.
+  const settle = (...jobs) => { if (flushTimer) flush(); for (const job of jobs) if (!snapshots.has(job.id)) snapshots.set(job.id, clone(shape(job))); };
+  const view = job => { settle(job); return { ...shape(job), rev: revs.get(job.id) || 0 }; };
+  // The sidebar needs titles and states, not agents or pipeline checks.
+  const card = job => { const { agents, pipeline, ...rest } = view(job); return rest; };
+  const detail = (store, job) => {
+    // Only what the thread shows. The Activity log (every tool call) is fetched when its tab is opened.
+    const messages = job.messages.filter(m => threadMessage(job, m)), recent = store.events(job.id);
+    return { ...view(job), messages: messages.slice(-THREAD_MESSAGES), messagesMore: messages.length > THREAD_MESSAGES,
+      events: recent.filter(event => threadEvent(job, event)).map(browserEvent), eventsFrom: recent[0]?.seq ?? 1 };
+  };
   let defaults = {};
   try { const source = JSON.parse(await readFile(path.join(root, 'video.config.json'), 'utf8')); defaults = { defaultFormat: source.format === 'vertical' ? 'vertical' : 'landscape', defaultThumbnails: Number.isInteger(source.thumbnails) ? source.thumbnails : 3 }; } catch {}
   const store = new Store(directory, defaults);
@@ -76,15 +102,30 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
   let providerCache = null;
   const getProviders = refresh => { if (!providerCache || refresh) providerCache = discoverProviders(root); return providerCache; };
 
-  // Changes are batched and pushed as deltas: new events, new or updated messages, changed thread summaries.
+  // Changes are batched and pushed as deltas: new events, new or updated messages, and only the changed fields of each thread.
+  // Recent batches are kept so a client that reconnects with Last-Event-ID receives what it missed instead of reloading everything.
   const pending = { jobs: new Set(), events: [], messages: [], removed: [] };
-  let flushTimer = null;
+  const boot = randomBytes(4).toString('hex'), history = [];
+  let flushTimer = null, streamSeq = 0, historyBytes = 0;
   const flush = () => {
-    flushTimer = null;
-    const jobs = [...pending.jobs].map(id => store.jobs.get(id)).filter(Boolean).map(view);
-    const payload = { jobs, events: pending.events, messages: pending.messages, removed: pending.removed };
+    clearTimeout(flushTimer); flushTimer = null;
+    const jobs = [];
+    for (const id of pending.jobs) {
+      const job = store.jobs.get(id); if (!job) continue;
+      const next = clone(shape(job)), previous = snapshots.get(id);
+      const delta = previous ? jobDelta(previous, next) : { full: next };
+      if (!delta) continue;
+      const rev = (revs.get(id) || 0) + 1; revs.set(id, rev); snapshots.set(id, next);
+      jobs.push(delta.full ? { id, rev, full: { ...next, rev } } : { id, base: rev - 1, rev, ...delta });
+    }
+    for (const id of pending.removed) { snapshots.delete(id); revs.delete(id); }
+    const payload = { jobs, events: pending.events.map(browserEvent), messages: pending.messages, removed: pending.removed };
     pending.jobs.clear(); pending.events = []; pending.messages = []; pending.removed = [];
-    const data = `event: update\ndata: ${JSON.stringify(payload)}\n\n`;
+    if (!payload.jobs.length && !payload.events.length && !payload.messages.length && !payload.removed.length) return;
+    streamSeq++;
+    const data = `id: ${boot}-${streamSeq}\nevent: update\ndata: ${JSON.stringify(payload)}\n\n`;
+    history.push({ seq: streamSeq, data }); historyBytes += data.length;
+    while (history.length > 1 && (historyBytes > 8 * 1024 * 1024 || history.length > 3000)) historyBytes -= history.shift().data.length;
     for (const client of clients) client.write(data);
   };
   const unsubscribe = store.subscribe((type, id, payload) => {
@@ -170,10 +211,20 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
         catch (error) { throw fail(error.message, 404); }
       }
       if (url.pathname === '/api/stream' && req.method === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
-        res.write('event: connected\ndata: {}\n\n'); clients.add(res);
-        const timer = setInterval(() => res.write(': heartbeat\n\n'), 20000);
-        req.on('close', () => { clearInterval(timer); clients.delete(res); }); return;
+        // The stream is gzip-compressed with one shared dictionary; each batch is sync-flushed so it arrives at once.
+        const gzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no', ...(gzip ? { 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' } : {}) });
+        let out = res;
+        if (gzip) { out = zlib.createGzip({ level: 6 }); out.on('error', () => {}); out.pipe(res); }
+        const client = { write: data => { if (out.destroyed || res.destroyed) return; out.write(data); if (out !== res) out.flush(zlib.constants.Z_SYNC_FLUSH); }, end: () => out.end() };
+        const last = /^([a-f0-9]+)-(\d+)$/.exec(req.headers['last-event-id'] || '');
+        const lastSeq = last && last[1] === boot ? Number(last[2]) : -1;
+        const resumed = lastSeq >= 0 && lastSeq <= streamSeq && (lastSeq === streamSeq || (history.length > 0 && history[0].seq <= lastSeq + 1));
+        client.write(`id: ${boot}-${resumed ? lastSeq : streamSeq}\nevent: connected\ndata: ${JSON.stringify({ resumed })}\n\n`);
+        if (resumed) for (const item of history) if (item.seq > lastSeq) client.write(item.data);
+        clients.add(client);
+        const timer = setInterval(() => client.write(': heartbeat\n\n'), 20000);
+        req.on('close', () => { clearInterval(timer); clients.delete(client); if (out !== res) out.destroy(); }); return;
       }
       if (url.pathname === '/api/uploads' && req.method === 'POST') {
         const filename = (url.searchParams.get('name') || '').replace(/[^a-zA-Z0-9._-]/g, '-').slice(-150);
@@ -186,7 +237,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
         return json(res, 201, { path: relative, size, name: filename });
       }
       if (url.pathname === '/api/jobs') {
-        if (req.method === 'GET') return json(res, 200, store.all().map(view));
+        if (req.method === 'GET') { settle(...store.all()); return json(res, 200, store.all().map(card)); }
         if (req.method === 'POST') {
           const input = await body(req);
           if (!string(input.prompt, 20000) || !input.prompt.trim()) throw fail('Describe the video you want');
@@ -211,7 +262,7 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
         if (await servePlayer(req, res, path.join(root, job.jobPath), player[3], { base })) return;
         throw fail('Not found', 404);
       }
-      const match = /^\/api\/jobs\/([a-f0-9-]+)(?:\/(file|files|artifact|messages|control|log|events)(?:\/([a-f0-9-]+))?)?$/.exec(url.pathname);
+      const match = /^\/api\/jobs\/([a-f0-9-]+)(?:\/(file|files|artifact|messages|control|log|events|agents)(?:\/([a-f0-9-]+))?)?$/.exec(url.pathname);
       if (match) {
         const job = store.get(match[1]); const operation = match[2];
         if (!operation && req.method === 'GET') return json(res, 200, detail(store, job));
@@ -221,7 +272,18 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
         if (operation === 'events' && req.method === 'GET') {
           if (match[3]) { const event = await store.fullEvent(job.id, match[3]); if (!event) throw fail('Event not found', 404); return json(res, 200, event); }
           const before = Number(url.searchParams.get('before')) || Infinity, limit = Math.min(500, Number(url.searchParams.get('limit')) || 200);
-          return json(res, 200, await store.page(job.id, { before, limit, agentId: url.searchParams.get('agent') || '' }));
+          return json(res, 200, (await store.page(job.id, { before, limit, agentId: url.searchParams.get('agent') || '' })).map(browserEvent));
+        }
+        // Older thread messages, or one agent's messages for its drawer.
+        if (operation === 'messages' && req.method === 'GET') {
+          const agentId = url.searchParams.get('agent') || '', before = url.searchParams.get('before') || '', limit = Math.min(500, Number(url.searchParams.get('limit')) || 100);
+          let list = agentId ? job.messages.filter(m => m.agentId === agentId) : job.messages.filter(m => threadMessage(job, m));
+          if (before) { const index = list.findIndex(m => m.id === before); if (index >= 0) list = list.slice(0, index); }
+          return json(res, 200, list.slice(-limit));
+        }
+        if (operation === 'agents' && match[3] && req.method === 'GET') {
+          const agent = job.agents.find(item => item.id === match[3]); if (!agent) throw fail('Agent not found', 404);
+          const { usageLedger, costLedger, claudeRunTotals, ...rest } = agent; return json(res, 200, rest);
         }
         if (operation === 'messages' && req.method === 'POST') {
           const input = await body(req);
@@ -235,8 +297,11 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
           return json(res, 200, view(await runner.control(job, input.action, input)));
         }
         if (operation === 'log' && req.method === 'GET') {
-          res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Content-Disposition': `attachment; filename="${job.slug}-events.jsonl"` });
-          const stream = createReadStream(store.logPath(job.id)); stream.on('error', () => res.end()); stream.pipe(res); return;
+          const gzip = /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+          res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Content-Disposition': `attachment; filename="${job.slug}-events.jsonl"`, Vary: 'Accept-Encoding', ...(gzip ? { 'Content-Encoding': 'gzip' } : {}) });
+          const stream = createReadStream(store.logPath(job.id)); stream.on('error', () => res.end());
+          if (gzip) { const zip = zlib.createGzip({ level: 6 }); zip.on('error', () => res.destroy()); res.on('close', () => { stream.destroy(); zip.destroy(); }); stream.pipe(zip).pipe(res); } else stream.pipe(res);
+          return;
         }
         if ((operation === 'file' || operation === 'artifact') && ['GET', 'HEAD'].includes(req.method)) {
           const file = await jobFile(root, job, url.searchParams.get('path'));
@@ -245,18 +310,23 @@ export async function createApp({ root, directory = path.join(root, '.video/ui')
             if (!/^text\/|application\/json/.test(file.type)) throw fail('Use the media preview for this artifact');
             return json(res, 200, { path: url.searchParams.get('path'), text: await readFile(file.path, 'utf8') });
           }
-          const range = parseRange(req.headers.range, file.info.size);
           // Artifacts are agent-written (an SVG can carry script); opened on their own they render inert.
           res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'");
-          const headers = { 'Content-Type': file.type, 'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes', 'Content-Length': range ? range.end - range.start + 1 : file.info.size, 'Content-Disposition': `${url.searchParams.has('download') ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(path.basename(file.path))}` };
+          // Validators let the browser reuse its copy (a re-rendered page does not fetch the video again) and resume a broken download.
+          const tag = fileTag(file.info), modified = file.info.mtimeMs;
+          const validators = { 'Cache-Control': 'private, no-cache', ETag: tag, 'Last-Modified': new Date(modified).toUTCString(), 'Accept-Ranges': 'bytes' };
+          if (fresh(req, tag, modified)) { res.writeHead(304, validators); return res.end(); }
+          const range = rangeAllowed(req, tag, modified) ? parseRange(req.headers.range, file.info.size) : null;
+          const headers = { 'Content-Type': file.type, ...validators, 'Content-Length': range ? range.end - range.start + 1 : file.info.size, 'Content-Disposition': `${url.searchParams.has('download') ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(path.basename(file.path))}` };
           if (range) headers['Content-Range'] = `bytes ${range.start}-${range.end}/${file.info.size}`;
           res.writeHead(range ? 206 : 200, headers);
           if (req.method === 'HEAD') return res.end();
-          const stream = createReadStream(file.path, range || {}); stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res); return;
+          const stream = createReadStream(file.path, { ...(range || {}), highWaterMark: 1024 * 1024 }); stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res); return;
         }
       }
       const file = staticFiles.get(url.pathname);
-      if (file && ['GET', 'HEAD'].includes(req.method)) { const bytes = await readFile(path.join(root, file[0])); res.writeHead(200, { 'Content-Type': file[1], 'Cache-Control': 'no-cache' }); return res.end(req.method === 'HEAD' ? undefined : bytes); }
+      // Fonts never change under a name; the app's own files are revalidated (a 304 costs one round trip, no body).
+      if (file && ['GET', 'HEAD'].includes(req.method)) return await serveStatic(req, res, path.join(root, file[0]), file[1], file[0].startsWith('node_modules/') ? 'public, max-age=31536000, immutable' : 'no-cache');
       throw fail('Not found', 404);
     } catch (error) { if (!res.headersSent) json(res, error.status || (error.code === 'ENOENT' ? 404 : 500), { error: redact(error.message) }); else res.end(); }
   });

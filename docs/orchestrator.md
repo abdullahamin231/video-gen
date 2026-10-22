@@ -65,6 +65,7 @@ measured on the MP4) and the five `headphoneChecks` timestamps with what to list
 hear: never say the film sounds good, only what was measured. Do not run `preview` or open HyperFrames Studio: it rewrites job files and
 makes the delivered job look stale. The final MP4 is the deliverable.
 Creative review has a three-round budget per stage. After the third complete failed round, continue to render and delivery with unresolved findings disclosed in `review/delivery.json`; never describe this outcome as independently passed. Missing inspection/evidence and failed technical checks still block. If it prints `STATE: blocked`, report the actual reason.
+Only the person can stop review early, readability findings included: `review-waive --stage final --reason ".."` refuses to run inside any agent. It binds to the current film, and `delivery.json` then reports `reviewDisposition: waived-by-user` with the unresolved findings. Never suggest that a waived film passed review.
 
 ## Thumbnail at the end of every video
 

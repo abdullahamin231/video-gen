@@ -1,6 +1,7 @@
 import { icon } from './icons.mjs';
 import { ROLES, DELEGATE_ROLES, routeModel, roleModels } from './shared/routing.mjs';
 import { durationFromPrompt, formatDuration } from './shared/duration.mjs';
+import { applyJobDelta } from './shared/delta.mjs';
 
 // ---------- helpers ----------
 const $ = (selector, parent = document) => parent.querySelector(selector);
@@ -27,7 +28,7 @@ const state = {
   jobs: new Map(), selected: null, job: null, messages: [], events: [], files: [], providers: [], usage: [],
   settings: { concurrency: 1, defaultFormat: 'landscape' },
   tab: 'thread', inspectorTab: 'overview', connected: false, loading: true, showArchived: false,
-  activityFilter: 'all', activityAgent: '', olderLoaded: false, drawer: null,
+  activityFilter: 'all', activityAgent: '', activityLoaded: false, olderLoaded: false, eventsFrom: 1, messagesMore: false, drawer: null,
   view: 'threads', ideas: null, ideaFilter: 'new', ideasBusy: false,
 };
 try { state.selected = localStorage.getItem('video-workspace-selected'); } catch {}
@@ -47,23 +48,75 @@ const artifact = (p, download = false) => `/api/jobs/${state.job.id}/artifact?pa
 const agentById = id => state.job?.agents.find(agent => agent.id === id);
 
 // ---------- data ----------
+// The sidebar holds thread cards (no agents or pipeline); the selected thread is loaded in full and then kept current by deltas.
+// Each thread carries the revision of the last broadcast it reflects; a delta applies only on top of the revision it was made from.
+const CARD_OMITS = ['agents', 'pipeline'];
+let syncing = 0, queuedUpdates = [], resyncTimer;
+function syncSelected() { const job = state.jobs.get(state.selected); if (job && Array.isArray(job.agents)) state.job = job; }
 async function loadJobs() {
-  const list = await api('/api/jobs');
-  state.jobs = new Map(list.map(job => [job.id, job]));
-  const visible = [...state.jobs.values()].filter(job => !job.archived);
-  if (!state.selected || !state.jobs.has(state.selected)) state.selected = visible[0]?.id || null;
+  syncing++;
+  try {
+    const list = await api('/api/jobs'), previous = state.jobs;
+    state.jobs = new Map(list.map(job => [job.id, job]));
+    const visible = [...state.jobs.values()].filter(job => !job.archived);
+    if (!state.selected || !state.jobs.has(state.selected)) state.selected = visible[0]?.id || null;
+    // Keep showing the selected thread's agents until its fresh detail arrives.
+    const old = previous.get(state.selected), card = state.jobs.get(state.selected);
+    if (old?.agents && card) { state.jobs.set(card.id, { ...card, agents: old.agents, pipeline: old.pipeline, rev: -1 }); syncSelected(); }
+  } finally { syncing--; }
+  replayQueued();
   await loadDetail();
 }
-async function loadDetail() {
+function replayQueued() { if (syncing) return; const updates = queuedUpdates; queuedUpdates = []; for (const update of updates) applyUpdate(update); }
+// Something was missed (a dropped connection or an out-of-order revision): reload once things settle.
+function resync() { clearTimeout(resyncTimer); resyncTimer = setTimeout(() => loadJobs().catch(error => toast(error.message)), 300); }
+const lastSeq = list => list.reduce((max, item) => Math.max(max, item.seq ?? 0), 0);
+async function loadDetail(attempt = 0) {
   if (!state.selected) { state.job = null; state.messages = []; state.events = []; state.loading = false; return schedule(); }
-  const id = state.selected, detail = await api(`/api/jobs/${id}`);
-  if (id !== state.selected) return;
-  const { messages, events, ...job } = detail;
-  Object.assign(state, { job, messages, events, olderLoaded: false, loading: false });
+  const id = state.selected;
+  syncing++;
+  let detail;
+  try { detail = await api(`/api/jobs/${id}`); } finally { syncing--; }
+  if (id !== state.selected) return replayQueued();
+  const { messages, events, messagesMore, eventsFrom, ...job } = detail;
+  // A delta newer than this answer already arrived: ask again rather than step back.
+  const local = state.jobs.get(id);
+  if (local && local.rev > job.rev && attempt < 3) { replayQueued(); return loadDetail(attempt + 1); }
+  // Streamed items carry jobId; keep those that are newer than the answer.
+  const newest = lastSeq(events), late = state.events.filter(event => event.jobId === id && event.seq > newest);
+  const lateMessages = state.messages.filter(message => message.jobId === id && !messages.some(item => item.id === message.id));
   state.jobs.set(id, job);
+  Object.assign(state, { job, messages: [...messages, ...lateMessages], messagesMore, events: [...events, ...late], eventsFrom, olderLoaded: false, activityLoaded: false, loading: false });
+  replayQueued();
   try { localStorage.setItem('video-workspace-selected', id); } catch {}
   if (state.tab === 'files' || state.tab === 'outputs') await loadFiles();
+  if (state.tab === 'activity') await loadActivity();
   schedule();
+}
+function acceptJob(job) {
+  const local = state.jobs.get(job.id);
+  if (local && local.rev > job.rev) return;
+  state.jobs.set(job.id, job); syncSelected();
+}
+function applyJobUpdate(item) {
+  const local = state.jobs.get(item.id);
+  if (item.full) { if (!local || local.rev < item.rev) state.jobs.set(item.id, item.full); return; }
+  if (!local) return resync();
+  if (local.rev >= item.rev) return;
+  if (local.rev !== item.base) return local.rev === -1 ? undefined : resync();
+  const next = applyJobDelta(local, item, Array.isArray(local.agents) ? [] : CARD_OMITS);
+  next.rev = item.rev;
+  state.jobs.set(item.id, next);
+}
+// The Activity log (every tool call and file change) is loaded only when its tab is opened.
+async function loadActivity() {
+  if (!state.job || state.activityLoaded) return;
+  const id = state.job.id;
+  const tail = await api(`/api/jobs/${id}/events?limit=250`);
+  if (state.job?.id !== id) return;
+  const known = new Set(state.events.map(event => event.seq));
+  state.events = [...state.events, ...tail.filter(event => !known.has(event.seq))].sort((a, b) => a.seq - b.seq);
+  state.eventsFrom = tail[0]?.seq ?? 1; state.olderLoaded = tail.length < 250; state.activityLoaded = true; schedule();
 }
 async function loadFiles() {
   if (!state.job) return;
@@ -72,10 +125,12 @@ async function loadFiles() {
   if (state.job?.id === id && request === filesRequest) { state.files = files; schedule(); }
 }
 function applyUpdate(update) {
+  if (syncing) { queuedUpdates.push(update); return; }
   for (const id of update.removed) { state.jobs.delete(id); if (state.selected === id) { state.selected = null; void loadJobs(); } }
-  for (const job of update.jobs) { state.jobs.set(job.id, job); if (job.id === state.selected) state.job = job; }
-  const lastSeq = state.events.at(-1)?.seq ?? 0;
-  for (const event of update.events) if (event.jobId === state.selected && event.seq > lastSeq) state.events.push(event);
+  for (const job of update.jobs) applyJobUpdate(job);
+  syncSelected();
+  const newest = state.events.at(-1)?.seq ?? 0;
+  for (const event of update.events) if (event.jobId === state.selected && event.seq > newest) state.events.push(event);
   if (state.events.length > 1500) state.events.splice(0, state.events.length - 1500);
   for (const message of update.messages) {
     if (message.jobId !== state.selected) continue;
@@ -85,7 +140,10 @@ function applyUpdate(update) {
   if (update.events.some(event => event.jobId === state.selected && event.type === 'file') && ['files', 'outputs'].includes(state.tab)) {
     clearTimeout(filesTimer); filesTimer = setTimeout(() => loadFiles().catch(() => {}), 1200);
   }
-  if (state.drawer) refreshDrawer(update.events.filter(event => event.agentId === state.drawer));
+  if (state.drawer) {
+    for (const message of update.messages) if (message.agentId === state.drawer) { const index = drawerMessages.findIndex(item => item.id === message.id); if (index >= 0) drawerMessages[index] = message; else drawerMessages.push(message); }
+    refreshDrawer(update.events.filter(event => event.agentId === state.drawer));
+  }
   schedule();
 }
 
@@ -239,15 +297,17 @@ function heading() {
 function thread() {
   const job = state.job, orchestrator = job.orchestratorId;
   const shown = new Set(['lifecycle', 'pipeline', 'checkpoint', 'delivery']);
+  // While earlier messages are not loaded, start the thread at the first loaded one so nothing appears out of place.
+  const from = state.messagesMore ? state.messages[0]?.at || '' : '';
   const items = [
     ...state.messages.filter(m => m.role === 'You' || m.agentId === orchestrator || m.role === 'orchestrator' || m.role === 'narration').map(m => ({ ...m, kind: 'message' })),
     ...state.events.filter(e => shown.has(e.type) || (e.type === 'progress' && e.agentId === orchestrator) || (e.type === 'agent' && e.role !== 'orchestrator') || (e.type === 'error' && e.source === 'runner')).map(e => ({ ...e, kind: 'event' })),
-  ].sort((a, b) => a.at.localeCompare(b.at)).slice(-300);
-  return `<div class="thread-content"><div class="thread-date"><span></span>${new Date(job.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()}<span></span></div>${items.map(item => item.kind === 'message' ? message(item) : threadEvent(item)).join('')}${nowCard()}${job.error && !['running', 'gate'].includes(job.status) ? `<div class="run-error">${icon('warning')}<div><strong>${labels[job.status] || job.status}</strong><p>${esc(job.error)}</p>${['interrupted', 'failed', 'needs_attention', 'cancelled'].includes(job.status) ? `<button class="secondary-button small" data-action="resume">${icon('retry')}Continue from saved state</button>` : ''}</div></div>` : ''}${job.status === 'gate' && job.gate && !job.gate.decision ? gate() : ''}${job.status === 'complete' ? `<div class="delivery-notice">${icon('check')}Video and reviewed thumbnail are ready.<button class="text-button accent" data-action="tab" data-tab="outputs">View outputs ${icon('arrow')}</button></div>` : ''}</div>`;
+  ].filter(item => item.at >= from).sort((a, b) => a.at.localeCompare(b.at)).slice(-300);
+  return `<div class="thread-content"><div class="thread-date"><span></span>${new Date(job.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase()}<span></span></div>${state.messagesMore ? `<button class="secondary-button small load-older" data-action="older-messages">Load earlier messages</button>` : ''}${items.map(item => item.kind === 'message' ? message(item) : threadEvent(item)).join('')}${nowCard()}${job.error && !['running', 'gate'].includes(job.status) ? `<div class="run-error">${icon('warning')}<div><strong>${labels[job.status] || job.status}</strong><p>${esc(job.error)}</p>${['interrupted', 'failed', 'needs_attention', 'cancelled'].includes(job.status) ? `<button class="secondary-button small" data-action="resume">${icon('retry')}Continue from saved state</button>` : ''}</div></div>` : ''}${job.status === 'gate' && job.gate && !job.gate.decision ? gate() : ''}${job.status === 'complete' ? `<div class="delivery-notice">${icon('check')}Video and reviewed thumbnail are ready.<button class="text-button accent" data-action="tab" data-tab="outputs">View outputs ${icon('arrow')}</button></div>` : ''}</div>`;
 }
 function message(item) {
   const user = item.role === 'You';
-  const pending = user && !item.deliveredAt && item !== state.messages[0] && !['complete', 'cancelled'].includes(state.job.status);
+  const pending = user && !item.deliveredAt && item.id !== state.job.firstMessageId && !['complete', 'cancelled'].includes(state.job.status);
   return `<article data-scroll-key="message-${esc(item.id)}" class="message ${user ? 'user-message' : ''}"><div class="avatar ${user ? 'user-avatar' : 'agent-avatar'}">${user ? 'Y' : icon('bolt')}</div><div class="message-body"><div class="message-heading"><strong>${user ? 'You' : 'Orchestrator'}</strong>${user ? '' : `<span class="agent-label">${esc(agentById(item.agentId)?.model || state.job.provider)}</span>`}<time>${time(item.at)}</time></div><p class="message-text">${esc(item.text)}</p>${pending ? '<span class="feedback-pending">Queued for the orchestrator’s next feedback check</span>' : ''}</div></article>`;
 }
 function threadEvent(event) {
@@ -476,18 +536,27 @@ async function openAgent(id) {
   const agent = agentById(id); if (!agent) return;
   state.drawer = id;
   openModal(`<div id="agent-drawer"></div>`, true, () => { state.drawer = null; });
-  drawerEvents = [];
+  drawerEvents = []; drawerMessages = []; drawerDetail = null;
   renderDrawer();
-  try { drawerEvents = await api(`/api/jobs/${state.job.id}/events?agent=${encodeURIComponent(id)}&limit=300`); renderDrawer(); } catch (error) { toast(error.message); }
+  // The prompt, messages and activity of one agent are fetched only when its drawer opens.
+  const base = `/api/jobs/${state.job.id}`, key = encodeURIComponent(id);
+  try {
+    const [events, messages, detail] = await Promise.all([api(`${base}/events?agent=${key}&limit=300`), api(`${base}/messages?agent=${key}&limit=6`), api(`${base}/agents/${key}`)]);
+    if (state.drawer !== id) return;
+    const newest = lastSeq(events);
+    drawerEvents = [...events, ...drawerEvents.filter(event => event.seq > newest)];
+    drawerMessages = [...messages, ...drawerMessages.filter(message => !messages.some(item => item.id === message.id))];
+    drawerDetail = detail; renderDrawer();
+  } catch (error) { toast(error.message); }
 }
-let drawerEvents = [];
+let drawerEvents = [], drawerMessages = [], drawerDetail = null;
 function refreshDrawer(events) { if (!events.length) return; const last = drawerEvents.at(-1)?.seq ?? 0; drawerEvents.push(...events.filter(event => event.seq > last)); renderDrawer(); }
 function renderDrawer() {
   const agent = agentById(state.drawer), host = $('#agent-drawer'); if (!agent || !host) return;
-  const messages = state.messages.filter(m => m.agentId === agent.id).slice(-6);
+  const messages = drawerMessages.slice(-6), promptPreview = drawerDetail?.id === agent.id ? drawerDetail.promptPreview : '';
   set(host, `${modalHeading(`${esc(roleLabel(agent.role))} · ${esc(agent.task || '')}`, `${esc(agent.status)} · ${esc(agent.model || 'CLI default')} (${esc(agent.modelSource || '')}) · ${agent.runs || 1} run(s)`)}
   <div class="drawer-grid"><div><span class="field-label">Brief</span>${agent.brief ? `<button class="file-pill" data-action="file" data-file="${esc(agent.brief)}">${icon('file')}${esc(agent.brief)}</button>` : `<p class="muted">${agent.role === 'orchestrator' ? 'The thread brief' : 'No brief file'}</p>`}</div><div><span class="field-label">Now</span><p>${agent.current ? `<button class="link-file" data-action="file" data-file="${esc(agent.current)}">${esc(agent.current)}</button> · ${esc(agent.operation || '')}` : '—'}</p></div><div><span class="field-label">Pipeline step</span><p>${esc(agent.step || '—')}${agent.scene ? ` · scene ${esc(agent.scene)}` : ''}</p></div><div><span class="field-label">Session</span><p><code>${esc(agent.sessionId || '—')}</code><br><small class="muted">runner id ${esc(agent.id)}</small></p></div></div>
-  ${agent.promptPreview ? `<details data-key="prompt"><summary>Prompt</summary><pre class="pre">${esc(agent.promptPreview)}</pre></details>` : ''}
+  ${promptPreview ? `<details data-key="prompt"><summary>Prompt</summary><pre class="pre">${esc(promptPreview)}</pre></details>` : ''}
   ${agent.error ? `<div class="inline-error">${icon('warning')}${esc(agent.error)}</div>` : ''}
   ${messages.length ? `<span class="field-label">Messages</span>${messages.map(m => `<div class="drawer-message"><time>${time(m.at)}</time>${esc(m.text.slice(0, 1500))}</div>`).join('')}` : ''}
   <span class="field-label">Activity</span><div class="activity-list compact">${drawerEvents.slice(-200).reverse().map(eventRow).join('') || '<p class="muted">Loading…</p>'}</div>`);
@@ -500,7 +569,7 @@ function activity() {
   const list = state.events.filter(filters[state.activityFilter]).filter(e => !state.activityAgent || e.agentId === state.activityAgent);
   return `<div class="view-content"><div class="view-title"><div><h2>Every event, in the open.</h2><p>Tool calls from every agent, pipeline commands, and file changes seen on disk.</p></div><a class="secondary-button small" href="/api/jobs/${job.id}/log" download>${icon('download')}Full log</a></div>
   <div class="activity-filters">${Object.keys(filters).map(key => `<button class="chip ${state.activityFilter === key ? 'active' : ''}" data-action="filter" data-filter="${key}">${key}</button>`).join('')}<select id="activity-agent" aria-label="Filter by agent"><option value="">All agents</option>${job.agents.map(agent => `<option value="${agent.id}" ${state.activityAgent === agent.id ? 'selected' : ''}>${esc(roleLabel(agent.role))} · ${esc((agent.scene || agent.task || '').slice(0, 40))}</option>`).join('')}</select></div>
-  <div class="activity-list">${list.slice(-400).reverse().map(eventRow).join('') || '<div class="empty-state"><p>No matching events yet.</p></div>'}</div>${state.events[0]?.seq > 1 && !state.olderLoaded ? `<button class="secondary-button small load-older" data-action="older">Load older events</button>` : ''}</div>`;
+  <div class="activity-list">${list.slice(-400).reverse().map(eventRow).join('') || '<div class="empty-state"><p>No matching events yet.</p></div>'}</div>${state.eventsFrom > 1 && !state.olderLoaded ? `<button class="secondary-button small load-older" data-action="older">Load older events</button>` : ''}</div>`;
 }
 function eventRow(e) {
   const failed = e.type === 'error' || e.status === 'failed';
@@ -662,7 +731,7 @@ async function inspectFile(file) {
 }
 async function settings() { const s = await api('/api/settings'); state.settings = s; openModal(`${modalHeading('Workspace settings', 'Local execution using your installed CLI accounts.')}<form id="settings-form"><div class="setting-block"><h3>New video defaults</h3><div class="form-grid"><label>Orientation<select name="defaultFormat"><option value="landscape" ${s.defaultFormat === 'landscape' ? 'selected' : ''}>Landscape · 16:9</option><option value="vertical" ${s.defaultFormat === 'vertical' ? 'selected' : ''}>Portrait · 9:16</option></select></label></div></div><div class="setting-block"><label class="field-label" for="concurrency">Simultaneous video jobs</label><select name="concurrency" id="concurrency">${[1, 2, 3].map(n => `<option value="${n}" ${n === s.concurrency ? 'selected' : ''}>${n}${n === 1 ? ' · recommended for local rendering' : ''}</option>`).join('')}</select><p class="model-caveat">Additional threads queue automatically. Each active job runs up to four CLI processes, including its orchestrator.</p></div><div class="setting-block"><h3>Existing CLI logins</h3><p>${state.providers.map(p => `${esc(p.name)}: ${p.installed ? esc(p.version) : esc(p.error)}`).join('<br>')}</p><button type="button" class="secondary-button" data-action="refresh-providers">${icon('retry')}Recheck providers</button></div><div class="setting-block"><h3>Local persistence</h3><p>Threads and full event logs are saved in <code>.video/ui/</code>. Videos, thumbnails and scripts stay in their job folders until you delete the thread, which removes them too. Restarted runs are marked interrupted; continue them explicitly.</p></div><div class="modal-footer"><button type="button" class="secondary-button" data-action="close">Close</button><button type="submit" class="primary-button">Save settings</button></div></form>`); }
 function readConfig(form) { const data = new FormData(form); return { provider: data.get('provider'), main: (data.get('main') || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (data.get(`model:${role}`) || '').trim()])), gateScript: data.has('gateScript'), gatePrototype: data.has('gatePrototype'), gateFinal: data.has('gateFinal'), gateThumbnail: data.has('gateThumbnail'), thumbnails: Number(data.get('thumbnails')) || undefined }; }
-async function control(action, extra = {}) { const job = await api(`/api/jobs/${state.job.id}/control`, { method: 'POST', data: { action, ...extra } }); state.jobs.set(job.id, job); if (state.job?.id === job.id) state.job = job; schedule(); return job; }
+async function control(action, extra = {}) { const job = await api(`/api/jobs/${state.job.id}/control`, { method: 'POST', data: { action, ...extra } }); acceptJob(job); schedule(); return job; }
 async function measurements() {
   const data = await api(`/api/jobs/${state.job.id}/file?path=${encodeURIComponent(`${state.job.jobPath}/review/delivery.json`)}`); let report; try { report = JSON.parse(data.text); } catch { return inspectFile(`${state.job.jobPath}/review/delivery.json`); }
   openModal(`${modalHeading('Measurements & review limits', 'Read from the actual delivery report.')}<div class="measurement-content"><h3>Soundtrack measurements</h3><pre>${esc(JSON.stringify(report.soundtrack || 'Not recorded in this report', null, 2))}</pre><h3>Headphone checks</h3><pre>${esc(JSON.stringify(report.headphoneChecks || 'Not recorded in this report', null, 2))}</pre><h3>Limitations and findings</h3><pre>${esc(JSON.stringify({ limitations: report.limitations, advisoryFindings: report.advisoryFindings, findings: report.findings }, null, 2))}</pre><p class="muted">Measurements do not establish subjective audio quality.</p></div>`, true);
@@ -693,12 +762,21 @@ document.addEventListener('click', async e => {
       case 'idea-make': newJob(state.ideas.cards.find(card => card.id === button.dataset.id)); break;
       case 'select': state.view = 'threads'; state.selected = button.dataset.id; state.tab = 'thread'; state.files = []; closeDrawers(); await loadDetail(); break;
       case 'toggle-archived': state.showArchived = !state.showArchived; schedule(); break;
-      case 'tab': state.tab = button.dataset.tab; closeDrawers(); if (['files', 'outputs'].includes(state.tab)) await loadFiles(); schedule(); break;
+      case 'tab': state.tab = button.dataset.tab; closeDrawers(); if (['files', 'outputs'].includes(state.tab)) await loadFiles(); if (state.tab === 'activity') await loadActivity(); schedule(); break;
       case 'inspector-tab': state.inspectorTab = button.dataset.tab; schedule(); break;
       case 'file': await inspectFile(button.dataset.file); break;
       case 'agent': await openAgent(button.dataset.id); break;
       case 'filter': state.activityFilter = button.dataset.filter; schedule(); break;
-      case 'older': { const older = await api(`/api/jobs/${state.job.id}/events?before=${state.events[0].seq}&limit=500`); state.events = [...older, ...state.events]; state.olderLoaded = older.length < 500; schedule(); break; }
+      case 'older': {
+        // Loaded events are the recent tail plus older thread milestones; fill in everything before the tail.
+        const older = await api(`/api/jobs/${state.job.id}/events?before=${state.eventsFrom}&limit=500`), known = new Set(state.events.map(event => event.seq));
+        state.events = [...older.filter(event => !known.has(event.seq)), ...state.events].sort((a, b) => a.seq - b.seq);
+        state.eventsFrom = older[0]?.seq ?? 1; state.olderLoaded = older.length < 500; schedule(); break;
+      }
+      case 'older-messages': {
+        const older = await api(`/api/jobs/${state.job.id}/messages?before=${encodeURIComponent(state.messages[0].id)}&limit=150`);
+        state.messages = [...older, ...state.messages]; state.messagesMore = older.length === 150; schedule(); break;
+      }
       case 'full-output': { const full = await api(`/api/jobs/${state.job.id}/events/${button.dataset.id}`); openModal(`${modalHeading('Full tool output', esc(full.text?.slice(0, 160) || ''))}<pre class="pre">${esc(full.output)}</pre>`, true); break; }
       case 'refresh-files': await loadFiles(); break;
       case 'configure': configure(); break;
@@ -816,9 +894,17 @@ loadIdeas().catch(() => {});
 api('/api/settings').then(result => { state.settings = result; }).catch(error => toast(error.message));
 api('/api/providers').then(result => { state.providers = result; schedule(); }).catch(error => toast(error.message));
 loadUsage().catch(() => {});
-setInterval(() => { if (!document.hidden) loadUsage().catch(() => {}); }, 60000);
+// Quota checks wait while the tab is hidden or the live connection is down.
+setInterval(() => { if (!document.hidden && state.connected) loadUsage().catch(() => {}); }, 60000);
 const stream = new EventSource('/api/stream');
-// Every (re)connection reloads the full picture, so nothing is lost while disconnected.
-stream.addEventListener('connected', () => { state.connected = true; loadJobs().catch(error => { state.loading = false; toast(error.message); schedule(); }); });
+// A reconnection resumes from the last update received when the server still has the batches in between;
+// otherwise (first load, server restart, long outage) the full picture is reloaded.
+let loadedOnce = false;
+stream.addEventListener('connected', event => {
+  state.connected = true; schedule();
+  let resumed = false; try { resumed = JSON.parse(event.data).resumed === true; } catch {}
+  if (resumed && loadedOnce) return;
+  loadJobs().then(() => { loadedOnce = true; }, error => { state.loading = false; toast(error.message); schedule(); });
+});
 stream.addEventListener('update', event => applyUpdate(JSON.parse(event.data)));
 stream.onerror = () => { state.connected = false; schedule(); fetch('/api/health').then(r => { if (r.status === 401) location.href = '/login'; }, () => {}); };

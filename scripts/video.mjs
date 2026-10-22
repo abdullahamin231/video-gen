@@ -6,7 +6,7 @@ import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues, jobNameFor} from '../lib/timing.mjs';
 import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies, saveToLibrary, saveAll} from '../lib/library.mjs';
-import {sourceFingerprint, fileHash, submitReview, reviewStatus, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
+import {sourceFingerprint, fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
 import {parseStages, parseNote, recordHumanReview} from '../lib/human.mjs';
 import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail, MAX_THUMBNAILS} from '../lib/thumbnails.mjs';
@@ -423,6 +423,7 @@ thumbnail-choose --variant v1 [--by you]   make a passing variant the thumbnail 
 thumbnail-feedback --variant v1 --note "<their words>"   ask for that variant again with the person's feedback
 review-submit --file <report.json>   validate an independent sub-agent report
 review-status --stage prototype|final  check independent review qualification
+review-waive --stage final --reason ".."   the person stops creative review of the current film (never an agent)
 deliver                             qualify current reviews and mark complete
 preview [--port 3002]                persistent HyperFrames Studio
 library-search [--query "packet flow" --limit 8]  search shared artifact metadata
@@ -605,6 +606,11 @@ try {
       scan(report, '');
       if (unfilled.length) throw new Error(`Replace the FILL-IN placeholder in: ${unfilled.join(', ')}. ("findingExample" is ignored.)`);
       console.log(JSON.stringify(await submitReview(job,report),null,2));
+    } else if (command === 'review-waive') {
+      // A person's decision only: no agent may waive its own reviews, the orchestrator included.
+      if (ROLE) throw new Error('Only the person can waive review. Report the unresolved findings to them; they decide.');
+      const waiver = await waiveReview(job, opts.stage || 'final', opts.reason);
+      console.log(`Waived ${waiver.stage} review of the current film after ${waiver.rounds} round(s): ${waiver.unresolvedFindings.length} unresolved blocking finding(s) will be disclosed in delivery.json.${nextHint(job)}`);
     } else if (command === 'review-status') {
       const status = await reviewStatus(job,opts.stage || 'final');
       console.log(JSON.stringify(status,null,2));

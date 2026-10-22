@@ -264,3 +264,32 @@ test('readability blockers cannot be waived after three or more review rounds',a
     assert.equal(status.nonWaivableFindings.length,3);
   }
 });
+
+test('only a waiver of the current film lets endless readability findings continue, disclosed and never as a pass',async t=>{
+  const {waiveReview}=await import('../lib/review.mjs');
+  const job=await fixture(t);
+  const prototype=await freeze(job,'prototype');await accept(job,prototype);
+  await writeFile(path.join(job,'compositions/scene.html'),'developed full film');
+  const final=await freeze(job,'final');
+  const m=JSON.parse(await readFile(path.join(job,'job.json')));m.reviewRounds={prototype:1,final:25};await put(job,'job.json',m);
+  for (const role of REVIEW_ROLES.slice(1)) await submitReview(job,review(final,role));
+  const blocked={...review(final,REVIEW_ROLES[0]),verdict:'revise',findings:[{id:'F1',severity:'blocking',start:1,end:2,subject:'Caption',
+    requirement:'Readable at phone size',observed:'The caption is illegible at 480 px',repair:'Make it larger',evidence:[final.pack.evidence[0].path]}]};
+  await submitReview(job,blocked);
+  const before=await reviewStatus(job,'final');
+  assert.equal(before.ok,false,'readability blocks even after the round budget');
+  assert.equal(before.nonWaivableFindings.length,1);
+  await assert.rejects(waiveReview(job,'final',''),/reason/);
+  const waiver=await waiveReview(job,'final','The person stopped review after 25 rounds');
+  assert.equal(waiver.unresolvedFindings.length,1);
+  const after=await reviewStatus(job,'final');
+  assert.equal(after.ok,true);assert.equal(after.disposition,'waived-by-user');assert.equal(after.independentPassed,false);
+  const qualification=await qualifyDelivery(job);
+  assert.equal(qualification.reviewDisposition,'waived-by-user');
+  assert.equal(qualification.independentReviewPassed,false);
+  assert.equal(qualification.reviewWaiver.rounds,25);
+  assert(qualification.unresolvedFindings.some(f=>f.id==='F1'));
+  // Any change to the film needs review again.
+  await writeFile(path.join(job,'compositions/scene.html'),'edited after the waiver');
+  assert.equal((await reviewStatus(job,'final')).ok,false);
+});

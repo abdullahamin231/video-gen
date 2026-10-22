@@ -16,6 +16,7 @@ import { QUOTA_NOTICE, modelFallbackNotice } from '../../lib/tts.mjs';
 
 const LIVE = new Set(['starting', 'running', 'waiting']);
 // Checkpoints on the film itself: you watch the built HTML and approve it or leave notes at moments in it.
+const MAX_UNTERMINATED_LINE = 64 * 1024 * 1024;
 export const FILM_GATES = ['prototype', 'final'];
 // How many thumbnail variants this thread makes and whether you pick (job.json thumbnails / pickThumbnail).
 async function syncThumbnailSettings(dir, job) {
@@ -233,7 +234,9 @@ export class Runner {
         buffer += chunk;
         let at;
         while ((at = buffer.indexOf('\n')) >= 0) { const line = buffer.slice(0, at); buffer = buffer.slice(at + 1); consume(line); }
-        if (buffer.length > 8 * 1024 * 1024) { spawnError = 'Provider produced an oversized event'; signal(child, 'SIGTERM'); }
+        // Pi's JSON stream writes a whole turn as one line, and image reads (contact sheets, frames) travel inside it as base64.
+        // Ten or so sheets in one turn exceed 8 MB, so the limit is about runaway output, not a normal turn.
+        if (buffer.length > MAX_UNTERMINATED_LINE) { spawnError = `Provider produced an event over ${MAX_UNTERMINATED_LINE / 1024 / 1024} MB (${buffer.length} bytes); narrow the reads per turn`; signal(child, 'SIGTERM'); }
       });
       child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-32000); });
       child.stdin.on('error', () => { /* A provider can reject flags before reading its prompt. */ });
