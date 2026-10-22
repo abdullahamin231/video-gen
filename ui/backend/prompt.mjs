@@ -22,6 +22,7 @@ export function roleNote(role, provider) {
 const humanFlag = job => { const stages = ['prototype', 'final'].filter(kind => kind === 'prototype' ? job.gatePrototype : job.gateFinal); return stages.length ? ` --human-review ${stages.join(',')}` : ''; };
 
 const thumbnailFlags = job => `${job.thumbnails ? ` --thumbnails ${job.thumbnails}` : ''} --pick-thumbnail ${job.gateThumbnail !== false}`;
+const mingDirection = `For Ming, after script review, create ming-performance.json beside SCRIPT.md using the schema in docs/tts.md. Keep SCRIPT.md clean and unchanged: all performance directions belong in the sidecar. Plan natural thought groups, subtle context-appropriate emotion, varied emphasis and cadence, brief breathing room, and small speed changes. Slow down for complex ideas or important points; slightly accelerate connective phrases. Prefer punctuation and phrasing to vocal effects; use breaths, sighs, surprise or laughter only when the words justify them. Never insert arbitrary emotion tags. Repeat a consistent voice description across phrases, avoid sentence-by-sentence chopping and overacting, and preserve every reviewed word in order. Pass this requirement to the script writer as delivery guidance; the orchestrator makes the final performance sidecar after review. Run the one required TTS command, then measure the recording duration; do not claim listening review unless you actually listened.`;
 const narrationCommand = job => `npm run video -- tts ${job.scriptPath}/SCRIPT.md --narration --provider ${job.ttsProvider || 'kokoro'} --status ${job.scriptPath}/tts-status.json -s <speed from docs/tts.md> -o ${job.scriptPath}/narration.wav`;
 
 export function orchestratorPrompt(job, { resume = false } = {}) {
@@ -34,7 +35,7 @@ USER BRIEF:
 ${job.prompt}
 
 THREAD CONTRACT:
-- Thread id: ${job.id}. Its script/research/narration directory is ${job.scriptPath}/. The video job directory MUST be ${job.jobPath}/. Do not touch other jobs.
+${!job.audioPath && job.ttsProvider === 'ming' ? '- ' + mingDirection + '\n' : ''}- Thread id: ${job.id}. Its script/research/narration directory is ${job.scriptPath}/. The video job directory MUST be ${job.jobPath}/. Do not touch other jobs.
 - Create the job with an explicit name, because \`start\` otherwise names it from the script's heading:
   npm run video -- start --name ${job.slug} --audio <recording> --script ${job.scriptPath}/SCRIPT.md --format ${job.format}${humanFlag(job)}${thumbnailFlags(job)}
   If ${job.jobPath}/job.json already exists, never run start again; continue with next. An empty directory is not a prepared job. Every later job command uses --job ${job.jobPath}.

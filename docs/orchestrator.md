@@ -194,7 +194,9 @@ vertical short-form; a chosen length then stays within `verticalMaxSeconds`. Exp
 
 When the user has a script but no recording (a script the `script-writer` wrote, or "make a video from this script"),
 generate the narration with `npm run video -- tts <script> --narration` by following [docs/tts.md](tts.md) exactly.
-Use the job's selected `--provider kokoro|gemini` (Kokoro by default) and a speed chosen from the word count.
+For Ming jobs, follow docs/tts.md to create ming-performance.json after script review: exact reviewed words, natural thought groups, restrained emotion, subtle speed changes and purposeful pauses. Keep performance annotations out of SCRIPT.md. The required narration command loads this sidecar automatically.
+
+Use the job's selected `--provider kokoro|ming|gemini` (Kokoro by default) and a speed chosen from the word count.
 Gemini receives the whole script in one request per model attempt. Kokoro generates paragraphs and joins them
 with short pauses. Both add 1.5 s of trailing silence. Gemini tries its backup model on quota exhaustion or persistent
 overload, then regenerates the entire narration with Kokoro if the backup also hits quota. Keep Kokoro's Python setup available as

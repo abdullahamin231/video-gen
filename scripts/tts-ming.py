@@ -1,0 +1,38 @@
+"""Ming narration worker, invoked only by npm run video -- tts."""
+import argparse
+import json
+import sys
+import subprocess
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+for name in ('source', 'model', 'plan', 'output'):
+    parser.add_argument('--' + name, required=True)
+args = parser.parse_args()
+sys.path.insert(0, args.source)
+import numpy as np
+import soundfile as sf
+import torch
+torch.set_num_threads(8)
+torch.set_num_interop_threads(1)
+torch.manual_seed(1895)
+from ming_tts import MingTTS
+model = MingTTS(args.model, device='cpu', text_normalization=False)
+plan = json.loads(Path(args.plan).read_text())
+# Keep the model loaded across all phrases. Files live in the wrapper's private cache directory.
+with sf.SoundFile(args.output, mode='w', samplerate=24000, channels=1, subtype='PCM_16') as result:
+    for index, segment in enumerate(plan['segments']):
+        print(f"Ming phrase {index + 1}/{len(plan['segments'])}", flush=True)
+        raw = str(Path(args.output).with_name(f'ming-phrase-{index}.wav'))
+        converted = raw + '.paced.wav'
+        model.synthesize(task='FREEFORM', text=segment['text'], instruction=segment['instruction'],
+                         language_id='English', use_zero_spk_emb=True, output_path=raw)
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', raw, '-af', f"atempo={segment['speed']}",
+                        '-ar', '24000', '-ac', '1', '-c:a', 'pcm_s16le', converted], check=True)
+        audio, _ = sf.read(converted, dtype='float32')
+        if not len(audio) or not np.isfinite(audio).all():
+            raise ValueError('Ming returned empty or invalid audio')
+        result.write(audio)
+        result.write(np.zeros(round(segment['pauseAfter'] * 24000), dtype='float32'))
+        Path(raw).unlink()
+        Path(converted).unlink()

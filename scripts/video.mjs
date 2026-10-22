@@ -449,7 +449,7 @@ try {
   const opts = options(args);
   if (ROLE_AGENT && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
     throw new Error(`\`${command}${command === 'build' ? ' without --scene' : ''}\` advances the pipeline, which is the orchestrator's job. You are the ${ROLE}: finish the brief you were given and reply with its result. Do not start sub-agents.`);
-  if (command === 'help') console.log(HELP + '\ntts <file> [--provider kokoro|gemini] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>]  generate narration; Gemini quota falls back to Kokoro (docs/tts.md)');
+  if (command === 'help') console.log(HELP + '\ntts <file> [--provider kokoro|ming|gemini] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate narration; Gemini quota falls back to Kokoro (docs/tts.md)');
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
   else if (command === 'start') await start(opts);

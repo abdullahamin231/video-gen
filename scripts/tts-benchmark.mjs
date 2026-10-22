@@ -26,14 +26,19 @@ async function probe(file) {
 export async function benchmark(args) {
   const options = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!['--out', '--engine'].includes(args[i]) || !args[i+1]) throw new Error('Benchmark options: --out <repository folder> --engine kokoro|ming|both');
+    if (!['--out', '--engine', '--example'].includes(args[i]) || !args[i+1]) throw new Error('Benchmark options: --out <repository folder> --engine kokoro|ming|both --example expressive');
     options[args[i].slice(2)] = args[i+1];
   }
+  if (options.example && options.example !== 'expressive') throw new Error('Supported example: expressive');
+  const taggedText = options.example === 'expressive' ? '[Surprise-oh] Wait... why is the server still running? I thought we shut it down. [Breathing] Someone is still connected. Okay, stay calm. Disconnect the network first. Then check the logs. [Sigh] There. The connection is gone. We caught it in time. [Laughter] Next time, let us test the shutdown button before we celebrate.' : TEXT;
+  const text = taggedText.replace(/\[[^\]]+\]\s*/g, '');
   const out = path.resolve(ROOT, options.out || 'outputs/tts-benchmarks/ming-vs-kokoro-2026-10-22');
   if (path.relative(ROOT, out).startsWith('..') || !['kokoro', 'ming', 'both'].includes(options.engine || 'both')) throw new Error('Choose a repository output folder and kokoro, ming or both.');
   await mkdir(out, { recursive: true });
   const script = path.join(out, 'SCRIPT.txt');
-  await writeFile(script, TEXT + '\n');
+  await writeFile(script, text + '\n');
+  const mingScript = path.join(out, 'MING-SCRIPT.txt');
+  await writeFile(mingScript, taggedText + '\n');
   const cache = cacheDir(), ming = path.join(cache, 'ming-benchmark');
   const env = { ...process.env, TMPDIR: path.join(ming, 'tmp'), XDG_CACHE_HOME: cache,
     HF_HOME: path.join(cache, 'huggingface'), HF_HUB_OFFLINE: '1', HF_HUB_DISABLE_TELEMETRY: '1',
@@ -41,17 +46,19 @@ export async function benchmark(args) {
   await mkdir(env.TMPDIR, { recursive: true });
   const resultsFile = path.join(out, 'results.json');
   let results;
-  try { results = JSON.parse(await readFile(resultsFile, 'utf8')); } catch { results = { script: TEXT, words: TEXT.split(/\s+/).length,
+  try { results = JSON.parse(await readFile(resultsFile, 'utf8')); } catch { results = { script: text, words: text.split(/\s+/).length,
     host: { cpu: os.cpus()[0]?.model, logicalCpus: os.cpus().length, totalRamBytes: os.totalmem(), gpu: false },
     method: 'One sequential run per engine; downloaded weights cached; process startup and model loading included. Peak RSS is the largest process, not aggregate process-tree RAM. Clips use the first 30 seconds, padded if shorter; complete native recordings are retained.', engines: {} }; }
-  if (results.script !== TEXT) results = { ...results, script: TEXT, words: TEXT.split(/\s+/).length, engines: {} };
+  if (results.script !== text) results = { ...results, script: text, words: text.split(/\s+/).length, engines: {} };
+  results.mingScript = taggedText;
+  results.example = options.example || 'plain';
   const engines = options.engine === 'both' || !options.engine ? ['kokoro', 'ming'] : [options.engine];
   for (const engine of engines) {
     const raw = path.join(out, `${engine}-full.wav`), metrics = path.join(out, `${engine}-process.json`);
     const command = engine === 'kokoro' ? process.execPath : path.join(ming, 'env/bin/python');
     const commandArgs = engine === 'kokoro' ? [path.join(ROOT, 'scripts/tts-kokoro.mjs'), script, '-v', 'am_michael', '-s', '1.0', '-o', raw]
       : [path.join(ROOT, 'scripts/benchmark-ming.py'), '--source', path.join(ming, 'source'), '--model', path.join(ming, 'model'),
-        '--script', script, '--output', raw, '--metrics', path.join(out, 'ming-stages.json')];
+        '--script', mingScript, '--output', raw, '--metrics', path.join(out, 'ming-stages.json')];
     console.log(`Benchmarking ${engine}; log: ${path.relative(ROOT, path.join(out, `${engine}.log`))}`);
     await run('/usr/bin/time', ['-f', '{"elapsedSeconds":%e,"peakRssKb":%M,"userSeconds":%U,"systemSeconds":%S,"exitCode":%x}', '-o', metrics, command, ...commandArgs], { env, output: path.join(out, `${engine}.log`) });
     const timing = JSON.parse((await readFile(metrics, 'utf8')).trim().split('\n').at(-1));

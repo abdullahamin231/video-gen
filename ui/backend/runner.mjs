@@ -558,7 +558,7 @@ export class Runner {
     if (!file) return;
     const status = await readJson(file.path).catch(() => null);
     if (this.store.jobs.get(job.id) !== job) return;
-    if (!status || !['kokoro', 'gemini'].includes(status.usedProvider) || !['generating', 'complete', 'failed'].includes(status.status)) return;
+    if (!status || !['kokoro', 'ming', 'gemini'].includes(status.usedProvider) || !['generating', 'complete', 'failed'].includes(status.status)) return;
     const modelFallback = status.requestedProvider === 'gemini' && ['quota', 'unavailable'].includes(status.modelFallback?.reason) &&
       [status.modelFallback.from, status.modelFallback.to].every(value => typeof value === 'string' && /^[a-zA-Z0-9./-]{1,120}$/.test(value)) ? status.modelFallback : null;
     const next = { requestedProvider: job.ttsProvider || 'kokoro', usedProvider: status.usedProvider, status: status.status,
