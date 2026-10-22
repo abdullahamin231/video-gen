@@ -2,8 +2,9 @@
 
 You are reading this because you are a chat agent in T3 Code (you have T3 tools such as `delegate_task` and
 `preview_open`) and the user wants to brainstorm, make a video, write a script or make a thumbnail. This replaces the
-web UI: the chat is the workspace, T3 delegated tasks are the roles, and the preview panel is where the user reads the
-script, watches the film and picks the thumbnail. Sub-agents following a brief never use this file.
+web UI: the chat is the workspace, T3 delegated tasks are the roles, and the review page
+(https://ip-208-84-101-178.tailc5adba.ts.net:8443/) is where the user reads the script, watches the film and picks the
+thumbnail. Sub-agents following a brief never use this file.
 
 The pipeline knows the state of every video and prints the single next step. You do what it prints, ask the user at
 their checkpoints, and record exactly what they say. You never write, build, review or judge anything yourself.
@@ -71,13 +72,14 @@ protects the pipeline from a sub-agent that wanders off its brief; it is not a r
 
 At each checkpoint `next` tells you what to open and what to record. The pattern is always:
 
-1. Run `npm run -s video -- watch --project <slug>` and open the overview address it prints (the root address, never
-   `/player/`) with `preview_open`, using `show: true`, `open: true` and `reuseExistingTab: true`. The panel must be
-   visible: check `preview_status` and, if `visible` is false, call `preview_open` again with the returned `tabId` and
-   `show: true`. Then call `preview_resize` with `{mode: "fill"}` on that tab so the page follows the panel's size
-   (a fixed viewport is scaled down and everything looks tiny). Tell the user they can widen the panel or use its
-   expand button for a bigger film. `watch` is read-only and runs in the background.
-2. In two or three lines, tell the user what is ready and what you need from them: approve, or say what to change
+1. Run `npm run -s video -- watch --project <slug>`. It is read-only and runs in the background. It prints an overview
+   address (`http://127.0.0.1:<port>/`). Make sure that port is served on the user's tailnet at
+   **https://ip-208-84-101-178.tailc5adba.ts.net:8443/**: run `tailscale serve --bg --https=8443 http://127.0.0.1:<port>`
+   (if it already serves a different port, run `tailscale serve --https=8443 off` first). Check that
+   `tailscale serve status` shows the port. Do not open the panel or any preview tab; the user reviews in their own
+   browser.
+2. In two or three lines, tell the user what is ready, give them **https://ip-208-84-101-178.tailc5adba.ts.net:8443/**
+   to review it, and say what you need from them: approve, or say what to change
    (for the film: at which moment, e.g. "12.5: make the chart bigger").
 3. **End your turn and wait.** Never decide for them, never approve on their behalf, never treat silence as approval.
 4. When they reply, record it word for word with the command `next` printed, always with
@@ -98,8 +100,8 @@ for word. If they change a setting ("don't make me approve the script", "five th
 `STATE: done` prints the MP4 and thumbnail paths, the review disposition, unresolved findings, limitations, the
 soundtrack measurements and the headphone checks. Give the user exactly that. Nobody in this pipeline can hear: never
 say the film sounds good, only what was measured. Never describe a waived or budget-exhausted review as passed. Open
-the overview in the panel (`preview_open` with `show: true`) so they can play the MP4, and stop the watch server when they are done
-(`watch --project <slug> --stop true`).
+the review address (https://ip-208-84-101-178.tailc5adba.ts.net:8443/) so they can play the MP4, and stop the watch server
+when they are done (`watch --project <slug> --stop true`).
 
 ## Resuming, a new chat, more than one video
 
@@ -115,12 +117,12 @@ To stop a video: cancel its open tasks (`task_cancel`), run `delegated`. To dele
 ## Rules
 
 - Keep your own context small. Act on what `next` prints and what tasks reply. Do not read briefs, docs, `film.json`,
-  `shots/`, review reports, evidence or the script yourself (the preview page shows the user the script; `next` gives
+  `shots/`, review reports, evidence or the script yourself (the review page shows the user the script; `next` gives
   you its length and verdict).
 - Use only `npm run video -- ...`. Never `npx hyperframes`, never `preview` (Studio rewrites job files), never edit
   `video.config.json`, `node_modules`, `film.json`, `shots/`, reviews or evidence.
 - Roles and models: each task line already carries its model (from `chat.config.json`: script writer and reviewer on
   the strong model, every other role on the weak one). Do not change them unless the user asks (`project-set --model`).
 - Every asset stays inside the repository, never in `/tmp`.
-- Always show the preview panel: every `preview_open` call passes `show: true`, and the panel stays visible while the user is reviewing. Never open the `/player/` address in T3; use the overview address from `watch`.
+- Never show the preview panel or the player in chat. Point the user to https://ip-208-84-101-178.tailc5adba.ts.net:8443/ for every review, and do not call `preview_open` for the film.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.
