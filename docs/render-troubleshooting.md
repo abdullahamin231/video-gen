@@ -33,7 +33,7 @@ just because the previous session stopped.
 | Quiet build or render | Check process activity and output growth before calling it hung. |
 | Competing headless browsers after a crash | Identify and stop only orphaned browsers belonging to the failed job. |
 | Browser startup says `Operation not permitted` | Check the execution sandbox and retry through the harness's permitted execution path. |
-| Missing `beats.json` after `compile` | Determine whether the job uses the film or legacy workflow. |
+| Unknown `compile` or `assemble` command | Use `build` for a `film.json` job; the older workflow has been retired. |
 | `Unknown command` or `Expected --option value` | Consult the wrapper's help and correct the command or option syntax. |
 | `next` still requests a full build | Check whether the last build was scene-scoped, stale, failed, or incomplete. |
 | Slow screenshot capture or automatic one-worker selection | Inspect capture logs and resource use before changing capture settings or worker count. |
@@ -116,16 +116,11 @@ honor existing user authorization and approval policy. Do not repeatedly request
 Confirm that the browser launches and the build or render advances. An execution permission failure does not
 justify editing scenes, upgrading dependencies, disabling unrelated protections, or replacing narration.
 
-## `beats.json` is missing, or a command is unknown
+## A command is unknown
 
-Determine the workflow before trying to repair a missing file:
-
-- **Film jobs** contain `film.json` and use `build` to compile and inspect their scenes.
-- **Legacy jobs** use `beats.json` and hand-written compositions. Their `compile` path expects that file.
-
-Running legacy `compile` against a film job can produce `ENOENT` for `beats.json`. Return to `next` and the film
-workflow; do not fabricate an empty beat grid. For a genuine legacy job, investigate its saved preparation inputs
-and instructions instead. See [Pipeline stages](agent-workflow.md#legacy-jobs).
+Production jobs use `film.json` and `build` to compile and inspect scenes. The earlier `beats.json` workflow
+and its `compile` / `assemble` commands have been retired. Recreate an older job from its saved script and
+recording using `start`, then follow `next`. Do not fabricate an empty beat grid or replace the recording.
 
 For an unsupported command, consult the repository wrapper:
 

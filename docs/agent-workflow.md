@@ -99,7 +99,8 @@ scene) with title and tags, and before any review pack `next` requires that ever
 `assets/SOURCES.json`, a file's first comment and the film title). Saving is content-addressed: identical files are
 saved once, changed files become a new patch version (`lib/library.mjs saveToLibrary`).
 
-## Legacy jobs
+## Job format
 
-Jobs without `film.json` still use the earlier `beats.json` + hand-written compositions path (`compile`, `assemble`,
-`audit`, `check`, `render`).
+Production uses `film.json` with shot specs or HTML scenes. The earlier `beats.json` workflow and its
+`compile` / `assemble` commands have been retired. Recreate an older job from its saved script and recording
+with `start`, then follow `next`; preserve the supplied recording.

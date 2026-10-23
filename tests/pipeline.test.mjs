@@ -1,18 +1,20 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {reconcile} from '../lib/timing.mjs';
+import {buildFilm} from '../lib/film.mjs';
 import {useBundle} from '../lib/library.mjs';
 import {sourceFingerprint, fileHash, loadReviewPack, REVIEW_ROLES} from '../lib/review.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const testCache = path.join(ROOT, '.cache', 'cleanup-tests');
 const run = (command, job) => spawnSync(process.execPath, [path.join(ROOT,'scripts/video.mjs'),command,'--job',job], {encoding:'utf8'});
 async function fixture(t) {
-  const job = await mkdtemp(path.join(tmpdir(),'video-pipeline-'));
+  await mkdir(testCache, {recursive: true});
+  const job = await mkdtemp(path.join(testCache, 'video-pipeline-'));
   t.after(()=>rm(job,{recursive:true,force:true}));
   for (const dir of ['assets','compositions','review']) await mkdir(path.join(job,dir));
   // Synthetic test fixture only; production preparation obtains real ASR words.
@@ -21,51 +23,56 @@ async function fixture(t) {
   const manifest = {duration:2,width:1920,height:1080,name:'fixture',canvas:'#f0eadf',
     transcription:{language:'en'},audio:{sha256:createHash('sha256').update(audio).digest('hex')}};
   const a = reconcile([{id:'w0',text:'local',start:.1,end:.4},{id:'w1',text:'machine',start:.5,end:1}], 'local machine');
-  const plan = {version:1,scenes:[{id:'opening',file:'compositions/opening.html',purpose:'Test cue-driven assembly',
-    start:{boundary:'start'},end:{boundary:'end'},beats:[{id:'device',cue:{wordId:'w1'},duration:.5,
-      action:'assemble',purpose:'Device appears',visual:'Build device',targets:['#opening-device']}]}]};
-  for (const [name,data] of Object.entries({'job.json':manifest,'alignment.json':a,'beats.json':plan}))
-    await writeFile(path.join(job,name),JSON.stringify(data));
-  await writeFile(path.join(job,'compositions/opening.html'),'<template><div data-composition-id="opening"><div id="opening-device"></div></div><script>const cues = window.VideoCues;</script></template>');
-  return {job,plan};
+  const film = {version: 2, title: 'Fixture', concept: 'A device appears', prototype: 'opening',
+    theme: {name: 'Test', description: 'Bold white device outlines on a dark surface, with yellow highlights for the active parts. Heavy labels and direct, deliberate motion keep the subject readable.', bg: '#101010', colors: {white: '#ffffff', yellow: '#ffd23f'}},
+    scenes: [{id: 'opening', start: {boundary: 'start'}, idea: 'Show the device', kind: 'html', file: 'compositions/opening.html'}]};
+  for (const [name, data] of Object.entries({'job.json': manifest, 'alignment.json': a, 'film.json': film}))
+    await writeFile(path.join(job, name), JSON.stringify(data));
+  await writeFile(path.join(job, 'compositions/opening.html'), '<template><div data-composition-id="opening"><div id="opening-device"></div></div></template>');
+  return {job, film};
 }
-test('CLI assembles supplied audio, generated cues, local helpers and timed hosts', async t=>{
-  const {job}=await fixture(t), result=run('assemble',job);
-  assert.equal(result.status,0,result.stderr);
-  const root=await readFile(path.join(job,'index.html'),'utf8');
-  assert.ok(root.includes('data-composition-src="compositions/opening.html"'));
-  assert.ok(root.includes('id="narration" src="assets/narration.wav"'));
-  assert.ok(root.includes('background:#f0eadf'));
-  const cues=await readFile(path.join(job,'assets/cues.js'),'utf8');
-  assert.ok(cues.includes('"localAt": 0.5'));
-  assert.equal(run('audit',job).status,0);
+const buildFixture = job => buildFilm(job, {inspect: false, print: false});
+test('retired commands explain the supported film workflow', () => {
+  for (const command of ['compile', 'assemble']) {
+    const result = run(command, 'jobs/none');
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /has been retired.*Use build for film.json/);
+  }
 });
-test('audit detects plan edits requiring root reassembly', async t=>{
-  const {job,plan}=await fixture(t);
-  assert.equal(run('assemble',job).status,0);
-  plan.scenes[0].file='compositions/renamed.html';
-  await writeFile(path.join(job,'compositions/renamed.html'),await readFile(path.join(job,'compositions/opening.html')));
-  await writeFile(path.join(job,'beats.json'),JSON.stringify(plan));
-  const result=run('audit',job);
-  assert.equal(result.status,1);
-  assert.match(result.stdout,/root host timing is stale/);
+test('film assembly preserves supplied audio, kit scripts and timed hosts', async t => {
+  const {job} = await fixture(t), result = await buildFixture(job);
+  assert.equal(result.ok, true, result.errors.join('\n'));
+  const root = await readFile(path.join(job, 'index.html'), 'utf8');
+  assert.match(root, /data-composition-src="compositions\/opening.html"/);
+  assert.match(root, /id="narration" src="assets\/narration.wav"/);
+  assert.match(root, /assets\/kit\/gsap.min.js/);
+  assert.equal(run('audit', job).status, 0);
 });
-test('modified audio cannot silently reuse old word timings', async t=>{
-  const {job}=await fixture(t);
-  await writeFile(path.join(job,'assets/narration.wav'),'different recording');
-  const result=run('compile',job);
-  assert.equal(result.status,1);
-  assert.match(result.stderr,/Narration changed/);
+test('film audit rejects edited sources until rebuilt', async t => {
+  const {job, film} = await fixture(t);
+  assert.equal((await buildFixture(job)).ok, true);
+  film.scenes[0].idea = 'A revised device';
+  await writeFile(path.join(job, 'film.json'), JSON.stringify(film));
+  const result = run('audit', job);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Sources changed/);
 });
-test('pipeline audit checks installed library files against frozen hashes', async t=>{
-  const {job}=await fixture(t);
+test('modified audio cannot silently reuse old word timings', async t => {
+  const {job} = await fixture(t);
+  await writeFile(path.join(job, 'assets/narration.wav'), 'different recording');
+  const result = run('plan-check', job);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Narration changed/);
+});
+test('film audit checks installed library files against frozen hashes', async t => {
+  const {job} = await fixture(t);
   const result = await useBundle(path.join(ROOT, 'library'), 'motion-primitives@1.0.0', job);
-  assert.equal(run('assemble',job).status,0);
-  assert.equal(run('audit',job).status,0);
-  await writeFile(path.join(job,result.path,'motion.js'),'changed helper');
-  const audit = run('audit',job);
-  assert.equal(audit.status,1);
-  assert.match(audit.stdout,/frozen file changed/);
+  assert.equal((await buildFixture(job)).ok, true);
+  assert.equal(run('audit', job).status, 0);
+  await writeFile(path.join(job, result.path, 'motion.js'), 'changed helper');
+  const audit = run('audit', job);
+  assert.equal(audit.status, 1);
+  assert.match(audit.stderr, /frozen file changed/);
 });
 
 test('CLI qualifies real encoded media only after prototype and final independent review records',async t=>{
@@ -84,7 +91,8 @@ test('CLI qualifies real encoded media only after prototype and final independen
   manifest.width=320;manifest.height=180;manifest.fps=30;
   manifest.audio.sha256=await fileHash(path.join(job,'assets/narration.wav'));
   await writeFile(path.join(job,'job.json'),JSON.stringify(manifest));
-  assert.equal(run('assemble',job).status,0);
+  assert.equal((await buildFixture(job)).ok, true);
+  await writeFile(path.join(job, 'review/pixels.json'), JSON.stringify({ok: true}));
   assert.equal(run('verify',job).status,0);
   const before=run('deliver',job);
   assert.equal(before.status,1);
@@ -129,14 +137,13 @@ test('CLI qualifies real encoded media only after prototype and final independen
   assert.equal(JSON.parse(await readFile(path.join(job,'job.json'))).status,'complete');
   const stale=spawnSync(process.execPath,[path.join(ROOT,'scripts/video.mjs'),'deliver','--job',job,'--reopen','true'],{encoding:'utf8'});
   assert.equal(stale.status,1);
-  assert.match(stale.stderr,/stale/);
+  assert.match(stale.stderr, /Sources changed/);
   assert.notEqual(JSON.parse(await readFile(path.join(job,'job.json'))).status,'complete');
 });
 
 test('role agents cannot advance the pipeline, and every brief opens with the sub-agent boundary', async () => {
   const {writeBrief, ROLE_BOUNDARY} = await import('../lib/briefs.mjs');
   const {mkdtemp, readFile, rm} = await import('node:fs/promises');
-  const {tmpdir} = await import('node:os');
   for (const [command, extra] of [['next', []], ['render', []], ['review-pack', []], ['deliver', []], ['save-all', []], ['build', []]]) {
     const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/video.mjs'), command, '--job', 'jobs/none', ...extra], {encoding: 'utf8', env: {...process.env, VIDEO_AGENT_ROLE: 'reviewer'}});
     assert.equal(result.status, 1, command);
@@ -145,7 +152,8 @@ test('role agents cannot advance the pipeline, and every brief opens with the su
   // A scene build is the builder's own work; it fails here only because the job does not exist.
   const scene = spawnSync(process.execPath, [path.join(ROOT, 'scripts/video.mjs'), 'build', '--job', 'jobs/none', '--scene', 'a'], {encoding: 'utf8', env: {...process.env, VIDEO_AGENT_ROLE: 'builder'}});
   assert.doesNotMatch(scene.stderr, /orchestrator's job/);
-  const job = await mkdtemp(path.join(tmpdir(), 'video-brief-'));
+  await mkdir(testCache, {recursive: true});
+  const job = await mkdtemp(path.join(testCache, 'video-brief-'));
   try {
     const text = await readFile(await writeBrief(job, 'review-x.md', '# Role: reviewer\n\nBody.\n'), 'utf8');
     assert(text.startsWith('# Role: reviewer\n\n' + ROLE_BOUNDARY));
