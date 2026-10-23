@@ -28,6 +28,7 @@ import {createProject, updateProject, listProjects, deleteProject, projectStep, 
 import {setHumanStages} from '../lib/human.mjs';
 import {renderStageBar} from '../lib/stagebar.mjs';
 import {watchInstructions} from '../lib/review-location.mjs';
+import {youtubeAuth, youtubeUpload} from '../lib/youtube-upload.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HF = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
@@ -41,7 +42,7 @@ const digest = async file => createHash('sha256').update(await readFile(file)).d
 // command is allowed, as before.
 const ROLE = process.env.VIDEO_AGENT_ROLE || '';
 const ROLE_AGENT = Boolean(ROLE) && ROLE !== 'orchestrator';
-const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review-pack', 'deliver', 'save-all', 'preview', 'mix', 'transcribe', 'alignment-approve', 'human-review', 'play',
+const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review-pack', 'deliver', 'save-all', 'preview', 'mix', 'transcribe', 'alignment-approve', 'human-review', 'play', 'youtube-auth', 'youtube-upload',
   'thumbnails', 'thumbnail-choose', 'thumbnail-feedback', 'thumbnail-settings',
   'project-new', 'project-set', 'project-delete', 'script-review', 'watch', 'watch-serve', 'delegated']);
 // Chat projects (lib/project.mjs): commands that work on a project rather than a job.
@@ -87,7 +88,7 @@ function options(args) {
     const key = args.shift();
     if (key === '--json' && (!args.length || args[0].startsWith('--'))) { result.json = true; continue; }
     if (!key.startsWith('--') || !args.length || args[0].startsWith('--')) throw new Error(`Expected --option value: ${key}`);
-    if (key === '--note' || key === '--finding' || key === '--model') (result[key.slice(2)] ||= []).push(args.shift()); // repeatable
+    if (key === '--note' || key === '--finding' || key === '--model' || key === '--tag') (result[key.slice(2)] ||= []).push(args.shift()); // repeatable
     else result[key.slice(2)] = args.shift();
   }
   return result;
@@ -517,6 +518,9 @@ project-delete --project <slug> --confirm <slug>
 
 ideas [--focus "mac hardware" --count 6 --refresh true --json]   find new video ideas (never repeats one already shown)
                                      feeds and reference channels come from ideas.config.json; YOUTUBE_API_KEY is optional
+youtube-auth                         authorize the abdupdates YouTube channel (OAuth client JSON stays in .cache)
+youtube-upload --file <video.mp4> --title "Title" [--description "..."] [--privacy private|unlisted|public] [--tag "ai" ...]
+                                     upload with resumable transfer; privacy defaults to unlisted. See docs/youtube-upload.md
 frame-stats --video <a.mp4>[,<b.mp4>] [--every 2]   measure how much of the frame a film uses (ink, spread, near-blank), to compare films
 ideas --show new|saved|rejected|used|all [--json]   list ideas found so far
 ideas --set <id> --status new|saved|rejected|used [--reason ".."]   mark an idea
@@ -533,7 +537,9 @@ try {
   const opts = options(args);
   if (ROLE_AGENT && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
     throw new Error(`\`${command}${command === 'build' ? ' without --scene' : ''}\` advances the pipeline, which is the orchestrator's job. You are the ${ROLE}: finish the brief you were given and reply with its result. Do not start sub-agents.`);
-  if (PROJECT_COMMANDS.has(command) || (['next', 'status'].includes(command) && opts.project)) {
+  if (command === 'youtube-auth') await youtubeAuth(ROOT);
+  else if (command === 'youtube-upload') await youtubeUpload(ROOT, opts);
+  else if (PROJECT_COMMANDS.has(command) || (['next', 'status'].includes(command) && opts.project)) {
     if (!opts.project && command !== 'project-new' && command !== 'projects') throw new Error(`${command} needs --project <slug> (see \`npm run video -- projects\`).`);
     await projectCommand(command, opts);
   }

@@ -4,7 +4,7 @@ You are reading this because you are the orchestrator: the user asked you to mak
 thumbnail. Sub-agents following a brief never use this file.
 
 The user asks: **"Create a video given the audio `<audio path>` and script `<script path>`."**
-You deliver a finished, independently reviewed MP4 **and a finished thumbnail**. The user never runs commands, writes JSON, or approves steps.
+You deliver a finished, independently reviewed MP4, a finished thumbnail, and an **unlisted YouTube upload**. The user never runs commands or writes JSON.
 
 You are the **orchestrator**. The pipeline knows the state of the job and prints the single next step. Specialised
 sub-agents do the creative work from self-contained brief files. This works the same in any harness.
@@ -36,8 +36,9 @@ sub-agents do the creative work from self-contained brief files. This works the 
    ```
 
 3. Do exactly what it prints, then run `next` again. Repeat until it prints `STATE: done`.
-4. Finish the thumbnail workflow below before delivering the video to the user. `STATE: done` qualifies the MP4;
-   the user request is complete only when its thumbnail is also saved and checked.
+4. Finish the thumbnail workflow below. After the thumbnail is selected and archived, upload the qualified MP4 to
+   YouTube as unlisted using the approved video title. The user request is complete when the MP4, thumbnail and
+   unlisted YouTube link are ready.
 
 `next` prints one of two kinds of step:
 
@@ -59,7 +60,8 @@ sub-agents do the creative work from self-contained brief files. This works the 
 Nothing is rendered until final review completes (passing or reaching its three-round creative review budget), and the user approves if they asked for final review: reviewers judge
 frames taken from the built HTML, and `next` then asks for one `render`.
 
-When it prints `STATE: done`, complete the thumbnail workflow, then give the user the MP4 and thumbnail paths and a short verification note from `review/delivery.json`
+When it prints `STATE: done`, complete the thumbnail workflow, upload the MP4 as unlisted, then give the user the
+MP4 and thumbnail paths, YouTube link, and a short verification note from `review/delivery.json`
 (its reviewDisposition, unresolvedFindings, limitations and advisory findings), the soundtrack's measurements (`soundtrack`: integrated LUFS and peaks,
 measured on the MP4) and the five `headphoneChecks` timestamps with what to listen for. Nobody in this pipeline can
 hear: never say the film sounds good, only what was measured. Do not run `preview` or open HyperFrames Studio: it rewrites job files and
@@ -90,6 +92,19 @@ steps) until it prints `STATE: done`:
   whole folder, every variant included, to `library/thumbnails/<slug>/`; an earlier archive moves to `history/`.
 
 Never pick for the user, never reword their feedback, and do not change a qualified film to make a still.
+
+## Upload the completed video
+
+After the thumbnail is selected and archived, upload the qualified MP4 using its approved title:
+
+```bash
+npm run video -- youtube-upload --file jobs/<slug>/renders/video.mp4 \
+  --title "<approved video title>" --privacy unlisted
+```
+
+Use the final title from the script or agreed brief; do not invent description or tags. Include the resulting YouTube
+link with the local MP4 and thumbnail paths. If authorization needs refreshing or the upload fails, follow
+[docs/youtube-upload.md](youtube-upload.md) and report any failure without claiming the upload completed.
 
 ## Rules for the orchestrator
 
@@ -194,7 +209,7 @@ vertical short-form; a chosen length then stays within `verticalMaxSeconds`. Exp
 
 When the user has a script but no recording (a script the `script-writer` wrote, or "make a video from this script"),
 generate the narration with `npm run video -- tts <script> --narration` by following [docs/tts.md](tts.md) exactly.
-For Ming jobs, follow docs/tts.md to create ming-performance.json after script review: exact reviewed words, natural thought groups, restrained emotion, subtle speed changes and purposeful pauses. Keep performance annotations out of SCRIPT.md. The required narration command loads this sidecar automatically.
+For Ming jobs, follow docs/tts.md to create ming-performance.json after script review: exact reviewed words, natural thought groups, subtle speed changes and purposeful pauses. Keep performance annotations out of SCRIPT.md. The required narration command loads this sidecar automatically and selects the built-in `US_James` voice through Ming's IP task for every segment. Use text, speed and pauseAfter in each segment; voiceInstruction and instruction fields are rejected.
 
 Use the job's selected `--provider kokoro|ming|gemini` (Ming by default) and a speed chosen from the word count.
 Gemini receives the whole script in one request per model attempt. Kokoro generates paragraphs and joins them

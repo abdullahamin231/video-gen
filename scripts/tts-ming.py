@@ -25,7 +25,7 @@ with sf.SoundFile(args.output, mode='w', samplerate=24000, channels=1, subtype='
         print(f"Ming phrase {index + 1}/{len(plan['segments'])}", flush=True)
         raw = str(Path(args.output).with_name(f'ming-phrase-{index}.wav'))
         converted = raw + '.paced.wav'
-        model.synthesize(task='FREEFORM', text=segment['text'], instruction=segment['instruction'],
+        model.synthesize(task='IP', text=segment['text'], controls={'ip': 'US_James'},
                          language_id='English', use_zero_spk_emb=True, output_path=raw)
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', raw, '-af', f"atempo={segment['speed']}",
                         '-ar', '24000', '-ac', '1', '-c:a', 'pcm_s16le', converted], check=True)

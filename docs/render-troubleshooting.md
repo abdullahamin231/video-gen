@@ -292,4 +292,5 @@ After the command exits successfully, confirm:
 Resume `next` for the normal independent review and delivery loop. A successful render or `draft-rendered` status
 is not independent review approval. Only an explicit user request for a render-only handoff changes that scope;
 do not carry a previous job's review waiver into other work. For normal completion, wait for `STATE: done` and
-report `review/delivery.json`, soundtrack measurements, and the five headphone checks.
+report `review/delivery.json`, soundtrack measurements, and the five headphone checks. After thumbnail selection,
+upload the qualified MP4 to YouTube as unlisted and include its link; see [YouTube upload setup](youtube-upload.md).

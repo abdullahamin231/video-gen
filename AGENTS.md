@@ -23,3 +23,4 @@ Narration-synchronised explainer films, built by a pipeline (`npm run video -- .
 - Generate TTS with `npm run video -- tts` (see docs/tts.md), never direct `npx hyperframes tts`. All caches must stay inside the repository `.cache/`.
 - Keep every asset inside the repository, never in `/tmp`. Never edit `video.config.json` unless the user asks.
 - Keep a supplied recording unchanged; never replace it with TTS.
+- After local delivery and thumbnail selection, the orchestrator uploads each completed video to the abdupdates YouTube channel as unlisted, unless the user explicitly opts out. Only the orchestrator uploads; see [docs/youtube-upload.md](docs/youtube-upload.md).

@@ -14,6 +14,7 @@ each stage does and where its rules are enforced, for people changing the pipeli
 | Your review | `human-review` (or the UI's film checkpoint), `play` | → `review/human/<stage>.json`: approve, or notes at moments, bound to the pack | `lib/human.mjs`, `lib/player.mjs` |
 | Render (once, after the final reviews) | `render` | → `renders/picture.mp4` (HyperFrames), `renders/mix.wav` + `renders/video.mp4` (pipeline mix: narration untouched, effects, ducked music, master gain until -16 LUFS / peaks ≤ -4 dB on the MP4), `review/mix.json`, `review/sound/` (cue sheets, `listen.md`), `review/render-verification.json`, `review/pixels.json`, `review/render-source.json` | HyperFrames lint/render, `lib/mix.mjs`, `lib/sound-check.mjs` + `scripts/sfx/cue_sheet.py`, `lib/pixels.mjs`, `verify` (MP4 audio vs the mix) |
 | Deliver | `deliver` | → `review/delivery.json`, `review/REPORT.md`, `job.status: complete` | `qualifyDelivery` + film audit + pixel checks |
+| YouTube upload (post-delivery) | orchestrator runs `youtube-upload` after thumbnail selection | qualified `renders/video.mp4` → unlisted YouTube video and link | `lib/youtube-upload.mjs`; see [youtube-upload.md](youtube-upload.md) |
 
 `next` (`lib/film.mjs nextStep`) derives the state from these files: no film.json and no complete visual plan → script
 writer (`briefs/visuals.md`; jobs that already have a film.json skip this); missing/invalid plan → director; missing
@@ -27,7 +28,8 @@ visual failures → director revision; all three pass and the job's `humanReview
 build the remaining scenes; final pass → render once (stale render → render; pixel errors → repair) → deliver. Querying the same failed pack does not consume another round.
 Review counters are excluded from render fingerprints. Persisted completion is requalified before `next` reports done.
 
-`status [--json]` (`lib/film.mjs jobProgress`) is `next`'s read-only twin for the job UI: it applies the same checks in
+`next` and `deliver` qualify only the local MP4. After the thumbnail stage, the orchestrator uploads that MP4 as
+unlisted and reports its YouTube link. `status [--json]` (`lib/film.mjs jobProgress`) is `next`'s read-only twin for the job UI: it applies the same checks in
 the same order but writes nothing (no briefs, acceptance receipts or review-round counters). It reports every step as
 done/current/repair/blocked/pending with its detail, every scene (owner, timing, built, check and review problems) and
 each reviewer's verdict. A change to `nextStep`'s order must be mirrored in `jobProgress`.

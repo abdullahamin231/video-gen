@@ -5,6 +5,25 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { geminiRequest, geminiSpeech, generateSpeech, readTtsStatus, GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL, QUOTA_NOTICE } from '../lib/tts.mjs';
 import http from 'node:http';
+import { mingPlan } from '../lib/ming.mjs';
+
+test('Ming IP plans preserve text and pacing and reject free-form instructions', () => {
+  const plan = mingPlan('First thought. Second thought.', {
+    segments: [
+      { text: 'First thought.', speed: 1.04, pauseAfter: 0.45 },
+      { text: 'Second thought.', speed: 0.96, pauseAfter: 0 },
+    ],
+  }, 1.1);
+  assert.deepEqual(plan.segments, [
+    { text: 'First thought.', speed: 1.04 * 1.1, pauseAfter: 0.45 },
+    { text: 'Second thought.', speed: 0.96 * 1.1, pauseAfter: 0 },
+  ]);
+  assert.throws(() => mingPlan('Changed words.', { segments: [{ text: 'Original words.' }] }), /exact reviewed narration/);
+  for (const value of ['Free-form direction.', '', null]) {
+    assert.throws(() => mingPlan('Words.', { voiceInstruction: value, segments: [{ text: 'Words.' }] }), /Remove voiceInstruction/);
+    assert.throws(() => mingPlan('Words.', { segments: [{ text: 'Words.', instruction: value }] }), /Remove instruction from segment 1/);
+  }
+});
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 async function fixture(t) {

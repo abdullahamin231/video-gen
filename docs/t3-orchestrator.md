@@ -103,9 +103,19 @@ for word. If they change a setting ("don't make me approve the script", "five th
 ## 5. Delivery
 
 `STATE: done` prints the MP4 and thumbnail paths, the review disposition, unresolved findings, limitations, the
-soundtrack measurements and the headphone checks. Give the user exactly that. Nobody in this pipeline can hear: never
-say the film sounds good, only what was measured. Never describe a waived or budget-exhausted review as passed. Run
-`watch` and verify its Tailscale route as in section 4, then give the user the review address
+soundtrack measurements and the headphone checks. After thumbnail selection, upload the finished MP4 as unlisted:
+
+```bash
+npm run -s video -- youtube-upload --file jobs/<slug>/renders/video.mp4 \
+  --title "<approved video title>" --privacy unlisted
+```
+
+Use the title already established for the video. If the upload command reports that authorization expired, follow
+[docs/youtube-upload.md](youtube-upload.md) to reauthorize; for server auth from a laptop, it explains the temporary
+Tailscale SSH tunnel. Include the YouTube link alongside the local MP4 and thumbnail paths. If upload fails, report
+that separately and do not claim the video was uploaded. Nobody in this pipeline can hear: never say the film sounds
+good, only what was measured. Never describe a waived or budget-exhausted review as passed. Run `watch` and verify
+its Tailscale route as in section 4, then give the user the review address
 (https://ip-208-84-101-178.tailc5adba.ts.net:8443/) to play the MP4 in their own browser. Stop the watch server
 when they are done (`watch --project <slug> --stop true`).
 

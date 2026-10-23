@@ -28,8 +28,10 @@ in `~/.cache` or `/tmp`, and never edit `video.config.json` while setting up.
 | An agent CLI, signed in | current | does the creative work: [Claude Code](https://code.claude.com) (`claude`), Codex (`codex`), OpenCode (`opencode`) or Pi (`pi`) | `claude --version` (or the one you use) |
 | Network access | | npm, Whisper model, voice data, fonts, idea feeds, the agents' providers | |
 
-No API keys are required. Optional: `YOUTUBE_API_KEY` (ideas use the official API instead of public pages),
-`VG_ALLOW_WEB_IMAGES=1` (agents may download raster images). Put them in the ignored `.env` if wanted.
+Video creation itself needs no API keys. Optional: `YOUTUBE_API_KEY` (ideas use the official API instead of public
+pages), `VG_ALLOW_WEB_IMAGES=1` (agents may download raster images). Put them in the ignored `.env` if wanted. Automatic
+YouTube uploads use OAuth, with a separate client and refresh token under `.cache/video-gen/youtube-oauth/`; see
+[YouTube upload setup](docs/youtube-upload.md).
 
 ### Steps
 
@@ -104,7 +106,9 @@ No API keys are required. Optional: `YOUTUBE_API_KEY` (ideas use the official AP
    Optional provider-specific role defaults are in [chat.config.json](chat.config.json): Codex uses Sol/Luna,
    Claude uses Opus/Haiku, and OpenCode selects available free models. The orchestrator resolves exact IDs from
    T3’s live catalog. The read-only review server is started by `watch` and served through Tailscale on port 8443;
-   the agent verifies the route before sharing it. The existing web UI can keep running alongside T3, with its own route.
+   the agent verifies the route before sharing it. After delivery and thumbnail selection, the orchestrator uploads the
+   MP4 to YouTube as unlisted and returns its link. Configure OAuth once before the first video using
+   [docs/youtube-upload.md](docs/youtube-upload.md). The existing web UI can keep running alongside T3, with its own route.
 
 9. **Keep the web UI as an alternative.** On a desktop: `npm run ui` and open http://127.0.0.1:4310. On a server, to use it from
    a phone or laptop: install [Tailscale](https://tailscale.com/download/linux) and sign in **(person)**
@@ -118,6 +122,10 @@ Without T3 or the UI, give an agent a job directly (below).
 ## Give the agent a job
 
 > Create a video given the audio `inputs/audio/source.mp3` and script `inputs/scripts/<your-script>.md`.
+
+After review, delivery and thumbnail selection, the orchestrator uploads the finished MP4 to the configured YouTube
+channel as unlisted. The OAuth client and refresh token stay under `.cache/video-gen/youtube-oauth/` and are never
+committed; setup and server authorization are documented in [docs/youtube-upload.md](docs/youtube-upload.md).
 
 Works in any harness that reads `AGENTS.md` (Codex, OpenCode) or `CLAUDE.md` (Claude Code). That short file sends the
 orchestrator to [docs/orchestrator.md](docs/orchestrator.md) and keeps sub-agents on their briefs. The orchestrator runs

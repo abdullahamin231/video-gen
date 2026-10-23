@@ -218,4 +218,4 @@ Keep current technical checks, fresh film reviewers and thumbnail completion req
 
 Evaluate the pilot across several domains and more than one story form. Track whether the human finds worthwhile ideas, how much research is discarded, factual blockers, substantial rewrites, feedback time and production rework. Compare the human's understanding of the storyboard's promise with its intended takeaway. Later, examine retention and fulfillment of the opening promise alongside reach; comparisons are observational unless an appropriate controlled test is used.
 
-The first useful deliverable is a small batch of sourced idea cards and one revisable visual story package. That tests whether we can choose and develop worthwhile videos before investing in a fully automated publishing system.
+The first useful deliverable is a small batch of sourced idea cards and one revisable visual story package. That tests whether we can choose and develop worthwhile videos before expanding the current unlisted upload step into a broader automated publishing system.
