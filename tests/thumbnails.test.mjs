@@ -36,7 +36,7 @@ test('variants are made from different angles, reviewed, and a blocked one goes 
   assert.equal(first.state, 'thumbnail variants');
   assert.match(first.text, /thumbnail-maker: "Read .*thumbnail-v1\.md/); assert.match(first.text, /thumbnail-v2\.md/);
   const brief1 = await readFile(path.join(job, 'briefs/thumbnail-v1.md'), 'utf8'), brief2 = await readFile(path.join(job, 'briefs/thumbnail-v2.md'), 'utf8');
-  assert.match(brief1, /IT'S NOT THE CHIP/); assert.match(brief1, /as written/); assert.match(brief2, /A warning/);
+  assert.match(brief1, /IT'S NOT THE CHIP/); assert.match(brief1, /as written/); assert.match(brief2, /A useful outcome or an evidenced problem/);
   assert.match(brief1, /thumbnail-export/);
   await make(job, 'v1'); await make(job, 'v2');
   const review = await thumbnailStep(job);

@@ -107,10 +107,14 @@ soundtrack measurements and the headphone checks. After thumbnail selection, upl
 
 ```bash
 npm run -s video -- youtube-upload --file jobs/<slug>/renders/video.mp4 \
-  --title "<approved video title>" --privacy unlisted
+  --title "<approved video title>" --description "<approved short description>" --privacy unlisted
 ```
 
-Use the title already established for the video. If the upload command reports that authorization expired, follow
+At the thumbnail checkpoint, present the selected variant's title, headline and short description together, following
+[video-click-psychology.md](video-click-psychology.md). Retain an already approved title unless the person explicitly
+chooses a proposed change; thumbnail selection alone does not approve a changed title. Obtain their decision on the
+short description at that checkpoint and use the approved copy for upload. Do not invent copy at upload time.
+If the upload command reports that authorization expired, follow
 [docs/youtube-upload.md](youtube-upload.md) to reauthorize; for server auth from a laptop, it explains the temporary
 Tailscale SSH tunnel. Include the YouTube link alongside the local MP4 and thumbnail paths. If upload fails, report
 that separately and do not claim the video was uploaded. Nobody in this pipeline can hear: never say the film sounds

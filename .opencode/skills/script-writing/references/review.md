@@ -28,6 +28,12 @@ Read it first as the intended viewer, then check the evidence. Address these que
   find or draw them, and every shown number or claim is supported. Vague direction ("an engaging visual of X") on a
   central idea is blocking; it is what the builders will otherwise produce generically.
 
+Check the three matched packaging alternatives and the selected title, thumbnail headline and short description
+in `VISUALS.md` against `docs/video-click-psychology.md`. Identify the audience, the reason to click, how the image
+adds to the title, and the exact payoff in the film. Check claims in all three pieces of copy, preserve meaningful
+qualifications, and flag missing copy for revision. Benefits and questions are valid; negativity is optional.
+An editorial ranking predicts appeal and must not claim measured performance.
+
 Check claims against the saved sources (`SOURCES.md` and `sources/`); do not fetch new material yourself. If a
 central claim needs evidence that was never saved, mark the review `incomplete` and name the missing source, so the
 host can send the researcher for it.

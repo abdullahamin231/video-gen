@@ -114,9 +114,16 @@ surfaces, line weight, shapes, typography, what each colour means, motion person
 ### <next-scene-id>
 ...
 
+## Packaging alternatives
+<Three matched title/headline/short-description packages, with audience, click motivation, payoff and sourcing;
+see docs/video-click-psychology.md. Recommend one below.>
+
 ## Thumbnail
 - Title: <the video's title: specific, names the thing (model, device, company, number), tells the viewer what they get>
-- Headline: <2–4 large uppercase words: a verdict, warning or accusation the video answers (see "Title and thumbnail")>
+- Headline: <usually 2–4 readable words: a benefit, discovery, question, result or evidenced warning>
+- Description: <two sentences, roughly 30–60 words: topic, viewer benefit and what the film explains>
+- Audience: <the intended viewer and what matters to them>
+- Click motivation: <the specific unanswered question or useful outcome>
 - Subject: <the one central image and its silhouette; the thing being judged, big (its logo, the device)>
 - Layout and colours: <placement, background, accent colours, in the film's theme>
 - Relationship to the title: <what the image adds that the title does not say>
@@ -126,27 +133,22 @@ surfaces, line weight, shapes, typography, what each colour means, motion person
 
 ## Title and thumbnail
 
-People choose what to watch from the thumbnail and title together, at the size of a thumbnail on a phone. The channel we
-model (`docs/kaiexplains-thumbnail-study.md`) splits the work: the **title** is specific
-and measured ("OpenRouter is Quietly Giving Nerfed AI Model (STOP Using Wrong Endpoint)"), and the **headline** on
-the image is the gut reaction to it, in two to four words: "OPENROUTER IS LYING", "LOCAL AI IS DEAD", "USELESS",
-"DON'T OVERPAY", "CLAUDE GET NERFED". Half of that channel's headlines play on fear of loss or of being cheated.
+Read `docs/video-click-psychology.md` and apply its findings and required output. Develop three different matched
+packages (title, thumbnail headline and short description), then recommend one. Preserve explicitly approved copy;
+other suggestions remain proposals. Keep all packaging outside `SCRIPT.md`.
 
-- **Make the headline a verdict, a warning or an accusation**, not a description. "TRY BEFORE BUYING" describes;
-  "DON'T BUY THIS YET" warns. "BEYOND NEPTUNE" describes; "NEPTUNE ISN'T THE END" corrects. Statements, not
-  questions: none of the reference headlines uses a question mark.
-- **Use the fear the viewer already has** when the topic has one (wasting money, being lied to, being left behind,
-  a tool getting worse), and name who or what it is about. For news, the threat itself is the headline.
-- **Tie it to the title and to the opening.** The headline is the title's claim with the hedges removed, and the
-  film's cold open voices that same fear or belief in the first thirty seconds, then the film settles it. A viewer who
-  clicked on "OPENROUTER IS LYING" must hear about it at once.
-- **It must be defensible from the film.** Strong is fine; false is not. An accusation against a named company or
-  person needs the evidence in the research and the film's own conclusion behind it ("IS LYING" when the film shows
-  the provider serving something else than advertised; not when the film concludes the rumour is wrong). When the film
-  overturns the belief, headline the real finding instead ("IT'S NOT THE MODEL"). A number on the image comes from
-  `research.md`.
-- **One idea, big.** The thing being judged fills a third of the frame; the headline is the largest text; red marks
-  the bad thing, yellow the key word. Nothing else needs reading.
+- **Clarity and relevance first.** Name the subject and why this viewer should care. Use plain words and one idea.
+- **Open a specific information gap.** Reveal enough to understand the question; let the film explain the answer.
+  Useful outcomes, surprising mechanisms, comparisons and evidenced warnings are all valid. Questions are allowed.
+- **Make the title and image work together.** Usually 2–4 big words on the image add a consequence or contrast;
+  the title identifies the subject and offer. The short description adds scope and benefit in natural language.
+- **Deliver the promise.** The opening raises the same question promptly and the film resolves it. Cite the scene
+  and words where that happens. Do not remove qualifications that change a claim, invent a test or imply deception
+  without evidence. Numbers retain their conditions. An accusation needs support for the accusation itself.
+- **One idea, big.** One recognizable subject, readable type and a clear visual hierarchy at phone size.
+- **Use the reference as a style reference.** `docs/kaiexplains-thumbnail-study.md` describes a small channel sample;
+  it does not prove that warnings, accusations, uppercase text or a particular colour cause more clicks. Fear is
+  optional, and no angle is a guaranteed winner. Rank editorially; actual performance requires audience testing.
 
 ## Scenes
 

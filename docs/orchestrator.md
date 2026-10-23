@@ -99,10 +99,13 @@ After the thumbnail is selected and archived, upload the qualified MP4 using its
 
 ```bash
 npm run video -- youtube-upload --file jobs/<slug>/renders/video.mp4 \
-  --title "<approved video title>" --privacy unlisted
+  --title "<approved video title>" --description "<approved short description>" --privacy unlisted
 ```
 
-Use the final title from the script or agreed brief; do not invent description or tags. Include the resulting YouTube
+At the thumbnail checkpoint, present the selected variant's title, headline and short description together, following
+[video-click-psychology.md](video-click-psychology.md). Retain an already approved title unless the person explicitly
+chooses a proposed change; thumbnail selection alone does not approve a changed title. Obtain their decision on the
+short description there. Use the approved copy; do not invent descriptions or tags at upload time. Include the resulting YouTube
 link with the local MP4 and thumbnail paths. If authorization needs refreshing or the upload fails, follow
 [docs/youtube-upload.md](youtube-upload.md) and report any failure without claiming the upload completed.
 
