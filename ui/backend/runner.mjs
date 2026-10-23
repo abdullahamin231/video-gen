@@ -50,7 +50,6 @@ async function removeFolder(root, folder) {
   if (info.isSymbolicLink()) return rm(target, { force: true }); // the link itself, never what it points at
   await rm(target, { recursive: true, force: true });
 }
-export function modelFor(job, role, pins = {}) { return routeModel(job, role, pins).model; }
 
 // Which pipeline step a delegated agent works on: what `status` said when it was launched, refined by its brief.
 function stepFor(job, role, task) {

@@ -4,15 +4,15 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {extractNarration, normalizeWords, reconcile, compilePlan, browserCues, jobNameFor} from '../lib/timing.mjs';
-import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, verifyLibraryCopies, saveToLibrary, saveAll} from '../lib/library.mjs';
-import {sourceFingerprint, fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile, REVIEW_ROLES} from '../lib/review.mjs';
+import {extractNarration, normalizeWords, reconcile, jobNameFor} from '../lib/timing.mjs';
+import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, saveToLibrary, saveAll} from '../lib/library.mjs';
+import {fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile} from '../lib/review.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
 import {parseStages, parseNote, recordHumanReview} from '../lib/human.mjs';
 import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail, MAX_THUMBNAILS} from '../lib/thumbnails.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
 import {audioEnv, audioPython} from '../lib/sfx.mjs';
-import {isFilmJob, planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, jobProgress, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
+import {planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, jobProgress, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
 import {installKit} from '../lib/world.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {setupManim} from '../lib/manim.mjs';
@@ -69,7 +69,7 @@ const probe = async file => JSON.parse(await run('ffprobe', ['-v', 'error', '-sh
 // Commands that change a film's sources, reviews or render. Once a job is delivered they would quietly send it back into
 // production (status → rendering/draft-rendered, stale reviews), so they need an explicit --reopen true.
 const PRODUCTION_COMMANDS = new Set(['transcribe', 'plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'kit-update',
-  'alignment-approve', 'compile', 'assemble', 'check', 'review-pack', 'human-review', 'review-submit', 'deliver', 'render', 'library-use']);
+  'alignment-approve', 'check', 'review-pack', 'human-review', 'review-submit', 'deliver', 'render', 'library-use']);
 async function guardDelivered(job, command, opts) {
   if (!PRODUCTION_COMMANDS.has(command)) return;
   if (command === 'human-review' && opts.want !== undefined) return;
@@ -103,23 +103,6 @@ async function jobPath(opts) {
   const latest = await json(path.join(ROOT, '.video/latest.json')).catch(() => null);
   if (!latest) throw new Error('No job selected. Prepare a job or pass --job jobs/<name>.');
   return path.resolve(ROOT, latest.job);
-}
-async function state(job) {
-  const [manifest, alignment, plan] = await Promise.all([
-    json(path.join(job, 'job.json')), json(path.join(job, 'alignment.json')), json(path.join(job, 'beats.json'))]);
-  const measured = normalizeWords(alignment.words, manifest.duration);
-  if (measured.length !== alignment.words.length) throw new Error('Invalid alignment words.');
-  if (await digest(path.join(job, 'assets/narration.wav')) !== manifest.audio.sha256)
-    throw new Error('Narration changed since preparation. Create a new job instead of reusing stale timings.');
-  return {manifest, alignment, timing: compilePlan(plan, alignment, manifest.duration)};
-}
-async function compile(job) {
-  const s = await state(job);
-  await save(path.join(job, 'timing.json'), s.timing);
-  await writeFile(path.join(job, 'assets/cues.js'),
-    `/* Generated from measured words and beats.json; do not hand-edit. */\nwindow.VideoCues = ${JSON.stringify(browserCues(s.timing), null, 2)};\n`);
-  console.log(`Resolved ${s.timing.scenes.reduce((n, s) => n + s.beats.length, 0)} beats across ${s.timing.scenes.length} scenes.`);
-  return s;
 }
 async function prepare(opts) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(opts.name || '')) throw new Error('--name must be a lowercase job slug.');
@@ -158,8 +141,6 @@ async function prepare(opts) {
   await writeFile(path.join(job, 'inputs/narration.txt'), narration);
   await run('ffmpeg', ['-v', 'error', '-i', audio, '-ss', String(start), '-t', String(duration),
     '-vn', '-ar', '48000', '-ac', '1', '-c:a', 'pcm_s16le', path.join(job, 'assets/narration.wav')]);
-  await copyFile(path.join(ROOT, 'public/gsap.min.js'), path.join(job, 'assets/gsap.min.js'));
-  await copyFile(path.join(ROOT, 'lib/motion.js'), path.join(job, 'assets/motion.js'));
   const actualDuration = Number((await probe(path.join(job, 'assets/narration.wav'))).format.duration);
   const manifest = {version: 1, name: opts.name, createdAt: new Date().toISOString(),
     duration: actualDuration, format, width: settings.width, height: settings.height, fps,
@@ -251,58 +232,6 @@ async function start(opts) {
   }
 }
 
-const escape = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function assemble(job) {
-  const {manifest: m, timing} = await compile(job);
-  for (const scene of timing.scenes) if (!await exists(path.join(job, scene.file))) throw new Error(`Missing scene HTML: ${scene.file}`);
-  const hosts = timing.scenes.map((s, i) => `<div id="host-${s.id}" class="clip" data-composition-id="${s.id}" data-composition-src="${s.file}" data-start="${s.start}" data-duration="${s.duration}" data-track-index="${i + 1}" data-width="${m.width}" data-height="${m.height}"></div>`).join('\n');
-  await writeFile(path.join(job, 'index.html'), `<!doctype html>
-<html lang="${escape(m.transcription.language)}"><head><meta charset="utf-8"><title>${escape(m.name)}</title>
-<script src="assets/gsap.min.js"></script><script src="assets/cues.js"></script><script src="assets/motion.js"></script>
-<style>html,body{margin:0;width:100%;height:100%;background:${/^#[a-fA-F0-9]{6}$/.test(m.canvas || '') ? m.canvas : '#151915'}}#root{position:relative;width:100%;height:100%;overflow:hidden}.clip{position:absolute;inset:0}</style></head><body>
-<div id="root" data-composition-id="main" data-start="0" data-duration="${m.duration}" data-width="${m.width}" data-height="${m.height}">
-${hosts}
-<audio id="narration" src="assets/narration.wav" data-start="0" data-duration="${m.duration}" data-track-index="0" data-volume="1"></audio>
-</div><script>window.__timelines['main'] = gsap.timeline({paused:true});</script></body></html>\n`);
-  console.log(`Assembled ${path.relative(ROOT, job)}/index.html with source narration.`);
-}
-async function audit(job) {
-  const {manifest, timing} = await compile(job), errors = [], warnings = [...timing.warnings];
-  errors.push(...await verifyLibraryCopies(job));
-  const files = new Map();
-  for (const scene of timing.scenes) {
-    const source = await readFile(path.join(job, scene.file), 'utf8').catch(() => '');
-    files.set(scene.file, source);
-    if (!source) {errors.push(`Missing scene: ${scene.file}`); continue;}
-    if (!source.includes(`data-composition-id="${scene.id}"`) && !source.includes(`data-composition-id='${scene.id}'`))
-      errors.push(`${scene.id}: root composition id does not match plan.`);
-    if (!source.includes('VideoCues')) errors.push(`${scene.id}: scene does not consume generated cue timing.`);
-    for (const beat of scene.beats) for (const target of beat.targets) {
-      const id = target.slice(1);
-      if (!source.includes(`id="${id}"`) && !source.includes(`id='${id}'`)) errors.push(`${beat.id}: target ${target} absent from HTML.`);
-    }
-  }
-  const root = await readFile(path.join(job, 'index.html'), 'utf8').catch(() => '');
-  if (!root.includes('assets/narration.wav') || !root.includes('assets/cues.js')) errors.push('Root must contain supplied narration and cue script.');
-  for (const scene of timing.scenes) {
-    const host = root.match(new RegExp(`<div\\b[^>]*id=["']host-${scene.id}["'][^>]*>`))?.[0] || '';
-    if (!host.includes(`data-start="${scene.start}"`) || !host.includes(`data-duration="${scene.duration}"`) ||
-        !host.includes(`data-composition-src="${scene.file}"`))
-      errors.push(`${scene.id}: root host timing is stale or missing; run assemble.`);
-  }
-  for (const [file, source] of [...files, ['index.html', root]]) {
-    if (/Math\.random\s*\(|Date\.now\s*\(|requestAnimationFrame\s*\(|setInterval\s*\(/.test(source))
-      errors.push(`${file}: nondeterministic animation clock/randomness.`);
-    if (/(?:src|href)=["']https?:\/\//.test(source)) warnings.push(`${file}: external URL present; freeze render assets locally.`);
-  }
-  const report = {ok: !errors.length, duration: manifest.duration, sceneCount: timing.scenes.length,
-    beatCount: timing.scenes.reduce((n, s) => n + s.beats.length, 0), errors, warnings,
-    note: 'Pacing warnings are advisory. Inspect runtime motion and audio sync; static analysis cannot prove creative quality.'};
-  await save(path.join(job, 'review/audit.json'), report);
-  console.log(JSON.stringify(report, null, 2));
-  if (errors.length) throw new Error('Pipeline audit failed.');
-  return report;
-}
 async function verify(job) {
   const manifest = await json(path.join(job, 'job.json')), file = await localFile(job, 'renders/video.mp4');
   const metadata = await probe(file), video = metadata.streams.find(s => s.codec_type === 'video');
@@ -323,7 +252,7 @@ async function verify(job) {
   // A film's soundtrack is mixed by the pipeline (renders/mix.wav: narration unprocessed + sound effects + music, one
   // master gain). The render must carry exactly that mix; without one (older jobs) it must carry the narration alone.
   const narrationFile = await localFile(job, 'assets/narration.wav'), mixFile = path.join(job, 'renders/mix.wav');
-  const mixReport = await isFilmJob(job) && await exists(mixFile) ? await json(path.join(job, 'review/mix.json')).catch(() => null) : null;
+  const mixReport = await exists(mixFile) ? await json(path.join(job, 'review/mix.json')).catch(() => null) : null;
   const reference = mixReport ? mixFile : narrationFile;
   const soundtrack = mixReport ? {reference: 'renders/mix.wav (narration unprocessed + declared sound effects + music, master gain ' + mixReport.gainDb + ' dB)',
     narrationOnlyCorrelation: (await compareNarration(file, narrationFile)).correlation, loudness: {integratedLufs: mixReport.integratedLufs, truePeakDb: mixReport.truePeakDb,
@@ -480,7 +409,7 @@ prepare --name <slug> --audio <file> --script <file> [--start 0 --length 30 --fo
         [--language en --model small.en --engine faster-whisper|hyperframes]
         [--words measured-words.json --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
-compile | assemble | audit | check | preview | render | verify [--job jobs/<slug>]
+audit | check | preview | render | verify [--job jobs/<slug>]
 render [--quality delivery --workers 3 --reuse-build true]  render + mix + verify, once, after the final reviews; reuse-build requires a current successful full build
 mix                                  redo the soundtrack mix on the current render (sources unchanged)
 review-pack --stage prototype|final [--start N --end N] [--from html|render]  freeze review evidence (frames from the built HTML by default; nothing is rendered)
@@ -534,6 +463,8 @@ try {
     await run(process.execPath, [path.join(ROOT, 'scripts/tts.mjs'), ...args]);
     process.exit(0);
   }
+  if (['compile', 'assemble'].includes(command))
+    throw new Error(`The legacy ${command} command has been retired. Use build for film.json jobs; recreate older jobs from their saved script and recording with start.`);
   const opts = options(args);
   if (ROLE_AGENT && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
     throw new Error(`\`${command}${command === 'build' ? ' without --scene' : ''}\` advances the pipeline, which is the orchestrator's job. You are the ${ROLE}: finish the brief you were given and reply with its result. Do not start sub-agents.`);
@@ -573,7 +504,7 @@ try {
     await guardDelivered(job, command, opts);
     if (command === 'transcribe') {
       const manifest = await json(path.join(job,'job.json'));
-      if (await exists(path.join(job,'beats.json'))) throw new Error('Prepared job already exists; create a new job to change transcription.');
+      if (await exists(path.join(job,'film.json'))) throw new Error('Prepared job already exists; create a new job to change transcription.');
       if (opts.model) manifest.transcription.model = opts.model;
       if (opts.engine) manifest.transcription.engine = opts.engine;
       await save(path.join(job,'job.json'), manifest);
@@ -628,21 +559,17 @@ try {
       alignment.review = {approved: true, note: opts.note}; await save(file, alignment);
       console.log(`Alignment review recorded.\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
     }
-    else if (command === 'compile') await compile(job);
-    else if (command === 'assemble') await assemble(job);
-    else if (command === 'audit') { if (await isFilmJob(job)) console.log(JSON.stringify(await filmAudit(job), null, 2)); else await audit(job); }
+    else if (command === 'audit') console.log(JSON.stringify(await filmAudit(job), null, 2));
     else if (command === 'verify') await verify(job);
     else if (command === 'review-pack') {
-      const film = await isFilmJob(job);
       let start = numeric(opts.start,0,'start'), end = opts.end === undefined ? undefined : numeric(opts.end,0,'end');
-      if (film && (opts.stage || 'final') === 'prototype' && opts.start === undefined) {
+      if ((opts.stage || 'final') === 'prototype' && opts.start === undefined) {
         const {prototypeInterval} = await import('../lib/film.mjs');
         const iv = prototypeInterval(await json(path.join(job,'timing.json')), await json(path.join(job,'film.json')), (await json(path.join(job,'job.json'))).duration);
         start = iv.start; end = iv.end;
       }
       const pack = await createReviewPack(job, {stage:opts.stage || 'final', start, end, from: opts.from || 'html'});
-      const packPath = path.join(job,pack.packPath), packSha256 = await fileHash(packPath), briefs = [];
-      void briefs;
+      const packPath = path.join(job,pack.packPath), packSha256 = await fileHash(packPath);
       const written = await writeReviewerBriefs(job, pack, packPath, packSha256);
       console.log(JSON.stringify({stage:pack.stage,packPath,packSha256,sourceHash:pack.sourceHash,videoSha256:pack.videoSha256,interval:pack.interval,evidenceCount:pack.evidence.length,briefs:written,
         next:`npm run video -- next --job ${path.relative(ROOT, job)}`},null,2));
@@ -719,15 +646,12 @@ try {
       const manifest = await json(path.join(job,'job.json'));
       manifest.status = 'awaiting-review'; delete manifest.completedAt; delete manifest.delivery;
       await save(path.join(job,'job.json'),manifest);
-      const filmMode = await isFilmJob(job);
-      if (filmMode) {
-        await filmAudit(job);
-        const timing = await json(path.join(job,'timing.json'));
-        if (timing.missing?.length) throw new Error(`Cannot deliver missing scenes: ${timing.missing.join(', ')}`);
-        const pixels = await json(path.join(job,'review/pixels.json')).catch(() => null);
-        if (!pixels?.ok) throw new Error('Pixel checks on the render have not passed; render again after repairs.');
-        await writeProductionReport(job);
-      } else await audit(job);
+      await filmAudit(job);
+      const timing = await json(path.join(job,'timing.json'));
+      if (timing.missing?.length) throw new Error(`Cannot deliver missing scenes: ${timing.missing.join(', ')}`);
+      const pixels = await json(path.join(job,'review/pixels.json')).catch(() => null);
+      if (!pixels?.ok) throw new Error('Pixel checks on the render have not passed; render again after repairs.');
+      await writeProductionReport(job);
       await verify(job);
       const qualification = await qualifyDelivery(job);
       const listen = await json(path.join(job,'review/sound/listen.json')).catch(() => null), mixed = await json(path.join(job,'review/mix.json')).catch(() => null);
@@ -741,30 +665,13 @@ try {
       await save(path.join(job,'job.json'), manifest);
       console.log(JSON.stringify({...qualification,output:path.relative(ROOT,path.join(job,'renders/video.mp4'))},null,2));
     }
-    else if (command === 'check') { if (await isFilmJob(job)) { const r = await buildFilm(job); if (!r.ok) process.exitCode = 1; await hf(['lint'], {cwd: job}); } else {await audit(job); await hf(['check', '--snapshots'], {cwd: job});} }
+    else if (command === 'check') { const r = await buildFilm(job); if (!r.ok) process.exitCode = 1; await hf(['lint'], {cwd: job}); }
     else if (command === 'preview') await hf(['preview', '--background', '--port', opts.port || '3002'], {cwd: job});
-    else if (command === 'render' && await isFilmJob(job)) {
+    else if (command === 'render') {
       await renderFilm(job, {hf, verify, quality: opts.quality || 'delivery', force: opts.force === 'true',
         reuseBuild: opts['reuse-build'] === 'true', workers: opts.workers});
       console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
     }
-    else if (command === 'render') {
-      const manifest = await json(path.join(job,'job.json'));
-      if (![24,30,60].includes(manifest.fps)) throw new Error('Job fps must be 24, 30, or 60.');
-      manifest.status = 'rendering'; delete manifest.completedAt; delete manifest.delivery;
-      await save(path.join(job,'job.json'), manifest);
-      await audit(job);
-      const sourceHash = await sourceFingerprint(job);
-      await hf(['check', '--snapshots'], {cwd: job});
-      if (sourceHash !== await sourceFingerprint(job)) throw new Error('Production sources changed during checks. Check and render again.');
-      await hf(['render', '--quality', opts.quality || 'delivery', '--fps', String(manifest.fps), '--output', 'renders/video.mp4'], {cwd: job});
-      await verify(job);
-      if (sourceHash !== await sourceFingerprint(job)) throw new Error('Production sources changed during rendering. Render again before review.');
-      await writeReviewFile(job,'review/render-source.json', JSON.stringify({version:1,sourceHash,
-        videoSha256:await fileHash(await localFile(job,'renders/video.mp4'))},null,2)+'\n');
-      manifest.status = 'draft-rendered';
-      await save(path.join(job,'job.json'),manifest);
-      console.log('Draft rendered. Commission independent reviews, repair findings, and run deliver to qualify completion.');
-    } else throw new Error(`Unknown command: ${command}`);
+    else throw new Error(`Unknown command: ${command}`);
   }
 } catch (error) {console.error(`video: ${error.message}`); process.exitCode = 1;}
