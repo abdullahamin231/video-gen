@@ -71,10 +71,37 @@ atempo. `pauseAfter` inserts 0–2 seconds (default 0.25) after that segment, in
 Use modest variation; do not force the target length by rushing every phrase. Internal pauses and emotional delivery are
 model-guided, not exact timestamp controls.
 
-Supported case-sensitive vocal cues: `[Breathing]`, `[Cough]`, `[Sigh]`, `[Laughter]`, `[Uhm]`, `[Surprise-ah]`,
-`[Surprise-oh]`, `[Dissatisfaction-hnn]`, `[Confirmation-en]`, `[Question-ei]`, `[Question-ah]`, `[Question-en]`,
-`[Question-oh]`, `[Question-huh]`. Unsupported cues such as `<PANIC>` or `[Gasp]` are not valid delivery controls.
-Only use vocal events when the content justifies them; most explainer paragraphs need none.
+### Complete Ming inline cue catalog
+
+All 14 inline cues supported by our pinned Ming version are available to `US_James`. Choose from this full catalog;
+the four cues in the server example are illustrations, not a restricted selection. Spelling and case must match exactly.
+
+| Cue | Vocal event |
+| --- | --- |
+| `[Breathing]` | Audible breathing |
+| `[Cough]` | A cough |
+| `[Sigh]` | A sigh |
+| `[Laughter]` | Laughing |
+| `[Uhm]` | Hesitation sound |
+| `[Surprise-ah]` | Surprised “ah” |
+| `[Surprise-oh]` | Surprised “oh” |
+| `[Dissatisfaction-hnn]` | Displeased “hnn” |
+| `[Confirmation-en]` | Affirmative “en” |
+| `[Question-ei]` | Questioning “ei” |
+| `[Question-ah]` | Questioning “ah” |
+| `[Question-en]` | Questioning “en” |
+| `[Question-oh]` | Questioning “oh” |
+| `[Question-huh]` | Questioning “huh” |
+
+These generate vocal events; they are not generic emotion labels. Unsupported cues such as `<PANIC>` or `[Gasp]`
+are rejected. The adapter's allowlist in `lib/ming.mjs` matches the complete upstream `PARALINGUISTIC_TAGS` list in
+`ming_tiny/task_protocol.py`. Reference: [pinned Ming cue documentation](https://github.com/inclusionAI/Ming-3.0-tts/blob/028c1eace193e7acdb256453da89b6e9207e052b/cookbooks/instruction_en.md#paralinguistic-tags-new).
+
+Every Ming delivery plan gets an explicit expressive-cue pass after script review. Use this bracketed-cue format in
+segment text to shape natural breaths and reactions, as in the expressive US_James server example: surprise at the
+running server, a breath before taking action, a sigh of relief, then laughter at the closing joke. Choose cues for the
+meaning and the narrator’s attitude. Human-like conversational delivery is the goal; there is no cue quota, and a
+serious explanation should not acquire forced laughter or repeated sighs. Keep all cues in the sidecar, out of SCRIPT.md.
 
 ```bash
 npm run video -- tts jobs/scripts/<slug>/SCRIPT.md --narration --provider ming -s 1.0 -o jobs/scripts/<slug>/narration.wav

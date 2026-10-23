@@ -19,6 +19,10 @@ test('Ming IP plans preserve text and pacing and reject free-form instructions',
     { text: 'Second thought.', speed: 0.96 * 1.1, pauseAfter: 0 },
   ]);
   assert.throws(() => mingPlan('Changed words.', { segments: [{ text: 'Original words.' }] }), /exact reviewed narration/);
+  const expressiveText = '[Surprise-oh] Wait... why is the server still running? [Breathing] Disconnect the network first. [Sigh] There. [Laughter] We caught it in time.';
+  const spokenText = 'Wait... why is the server still running? Disconnect the network first. There. We caught it in time.';
+  assert.equal(mingPlan(spokenText, { segments: [{ text: expressiveText }] }).segments[0].text, expressiveText,
+    'supported inline cues reach synthesis while matching the clean reviewed script');
   for (const value of ['Free-form direction.', '', null]) {
     assert.throws(() => mingPlan('Words.', { voiceInstruction: value, segments: [{ text: 'Words.' }] }), /Remove voiceInstruction/);
     assert.throws(() => mingPlan('Words.', { segments: [{ text: 'Words.', instruction: value }] }), /Remove instruction from segment 1/);
@@ -26,6 +30,17 @@ test('Ming IP plans preserve text and pacing and reject free-form instructions',
 });
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+test('Ming accepts the complete documented inline cue catalog', async () => {
+  const guide = await readFile(path.join(root, 'docs/tts.md'), 'utf8');
+  const cues = [...guide.matchAll(/^\| `\[([^\]]+)\]` \|/gm)].map(match => match[1]);
+  assert.equal(cues.length, 14, 'the complete pinned upstream catalog is documented');
+  for (const cue of cues) {
+    const text = `[${cue}] These are the reviewed words.`;
+    assert.equal(mingPlan('These are the reviewed words.', { segments: [{ text }] }).segments[0].text, text);
+  }
+  assert.throws(() => mingPlan('Words.', { segments: [{ text: '[Gasp] Words.' }] }), /Unsupported Ming cue/);
+});
+
 async function fixture(t) {
   await mkdir(path.join(root, '.cache'), { recursive: true });
   const dir = await mkdtemp(path.join(root, '.cache/tts-test-'));

@@ -41,7 +41,7 @@ prototype, final film, thumbnail.
    A supplied script is used as written (and its `VISUALS.md` if one sits beside it); a supplied recording is kept
    unchanged and never replaced by TTS.
    Omitting `--tts` selects Ming. Before narration, follow the printed instruction to create `ming-performance.json`
-   from the approved script with natural emotion, pacing and pauses (see [docs/tts.md](tts.md)).
+   from the approved script with natural pacing, pauses and an explicit expressive-cue pass. Choose from the full 14-cue catalog in [docs/tts.md](tts.md#complete-ming-inline-cue-catalog), not only these examples. Add supported inline bracketed cues such as `[Breathing]`, `[Surprise-oh]`, `[Sigh]` and `[Laughter] to segment text where they fit the meaning and sound conversational; keep `SCRIPT.md` clean. Use `US_James` through the adapter, with no free-form instruction fields (see [docs/tts.md](tts.md)).
    Install its runtime once with `npm run video -- tts --setup-ming`. Explicit `--tts kokoro` or `--tts gemini` is preserved.
 3. Tell the user the video has started and that you will come back at each checkpoint.
 
