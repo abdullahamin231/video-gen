@@ -120,7 +120,7 @@ see docs/video-click-psychology.md. Recommend one below.>
 
 ## Thumbnail
 - Title: <the video's title: specific, names the thing (model, device, company, number), tells the viewer what they get>
-- Headline: <usually 2–4 readable words: a benefit, discovery, question, result or evidenced warning>
+- Headline: <usually 2–4 readable words creating a specific mystery without revealing the answer>
 - Description: <two sentences, roughly 30–60 words: topic, viewer benefit and what the film explains>
 - Audience: <the intended viewer and what matters to them>
 - Click motivation: <the specific unanswered question or useful outcome>
@@ -140,6 +140,10 @@ other suggestions remain proposals. Keep all packaging outside `SCRIPT.md`.
 - **Clarity and relevance first.** Name the subject and why this viewer should care. Use plain words and one idea.
 - **Open a specific information gap.** Reveal enough to understand the question; let the film explain the answer.
   Useful outcomes, surprising mechanisms, comparisons and evidenced warnings are all valid. Questions are allowed.
+- **Keep the answer for the video.** Thumbnail text creates the mystery; the title establishes the subject; the
+  video delivers the answer. Tease an incident, contradiction, consequence or unexplained result without revealing
+  the cause, fix or final verdict. Keep the central resolution out of the short description too. Follow an explicit
+  request for different wording, and never invent scale such as "biggest of the decade" without supporting evidence.
 - **Make the title and image work together.** Usually 2–4 big words on the image add a consequence or contrast;
   the title identifies the subject and offer. The short description adds scope and benefit in natural language.
 - **Deliver the promise.** The opening raises the same question promptly and the film resolves it. Cite the scene

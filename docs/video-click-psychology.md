@@ -46,6 +46,17 @@ Before writing copy, identify the intended viewer, what they care about, the fil
 one unresolved question, and the exact passage that pays off the promise. Work from the film and its research;
 do not invent a more dramatic story.
 
+**Channel preference: thumbnail text creates the mystery; the title establishes the subject; the video delivers
+the answer.** Make this the default for every proposed package. Tease a specific incident, contradiction, consequence
+or unexplained result without revealing the cause, solution or final verdict. Keep enough context in the title and
+image for viewers to understand what they are curious about. A question mark is optional; mystery can be a statement.
+For example, a PHP title can establish the security topic while thumbnail text such as "BEFORE YOUR CODE RUNS…"
+leaves how that happens unresolved, rather than giving the lesson as "YOUR PHP EXPOSED". Use examples only when
+the film supports them. "THE BIGGEST HACK OF THE DECADE" requires evidence for that comparison; dramatic scale
+must not be invented to create mystery. This is the creator's editorial preference, not a research-proven optimum.
+An explicit request for different wording takes priority. Descriptions explain scope and benefit without giving
+away the central explanation or resolution.
+
 The script writer develops **three genuinely different matched packages** in `VISUALS.md` under
 `## Packaging alternatives`, then recommends one in the existing `## Thumbnail` section. Use distinct motivations
 where the material allows: useful outcome, surprising explanation, and an evidenced problem or comparison.
@@ -55,8 +66,9 @@ Every package contains:
 
 - **Title:** specific subject plus a compelling benefit, contrast or unanswered question. Prefer plain words and
   put identifying words early. Around 45–65 characters is a drafting target, not a limit or proven optimum.
-- **Headline:** usually 2–4 readable words on the thumbnail. A result, question, discovery, benefit, warning or
-  verdict can work. Add information to the title instead of copying it. Preserve qualifications that change meaning.
+- **Headline:** usually 2–4 readable words on the thumbnail that create a specific mystery. Tease the stakes or an
+  unexplained result; withhold the cause, solution and final verdict. Add to the title rather than copying it.
+  Preserve qualifications that change meaning.
 - **Description:** two sentences, roughly 30–60 words, with the topic and benefit first, followed by what the film
   actually explains or demonstrates. Use natural topic terms; no keyword stuffing, invented proof or generic hype.
 - **Rationale:** intended viewer, why they would care, what they would want to learn, and what the image adds.
@@ -74,6 +86,9 @@ Reviewers assess immediate clarity, audience relevance, a worthwhile unanswered 
 complementary title/image copy, and whether both description and headline honestly match the film. Unsupported
 claims block; a positive angle or question does not. Rank by expected appeal and delivery of the promise, explain
 tradeoffs, and never claim a package is empirically the best without channel test evidence.
+Check that a viewer can name the unanswered question after reading the title and thumbnail together. If the copy
+gives away the central answer or is too vague to understand, request a revision unless the person explicitly asked
+for that wording. Apply the same spoiler check to the short description.
 
 After selection, the orchestrator presents the selected title and description for the person's decision. Use the
 approved copy for upload (`youtube-upload --title ... --description ...`). Thumbnail selection alone does not imply

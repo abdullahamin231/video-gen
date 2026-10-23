@@ -32,6 +32,9 @@ Check the three matched packaging alternatives and the selected title, thumbnail
 in `VISUALS.md` against `docs/video-click-psychology.md`. Identify the audience, the reason to click, how the image
 adds to the title, and the exact payoff in the film. Check claims in all three pieces of copy, preserve meaningful
 qualifications, and flag missing copy for revision. Benefits and questions are valid; negativity is optional.
+Thumbnail text should create a specific mystery, the title should establish the subject, and the video should deliver
+the answer. Request revision if the proposed headline or description reveals the central cause, fix or final verdict,
+or if the mystery lacks enough context to understand, unless the person explicitly requested that wording.
 An editorial ranking predicts appeal and must not claim measured performance.
 
 Check claims against the saved sources (`SOURCES.md` and `sources/`); do not fetch new material yourself. If a
