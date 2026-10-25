@@ -1,0 +1,105 @@
+"""No model downloads: exercise the conditioning contract with a recording fake."""
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from ming_continuity import MingNarrator, REFERENCE_TEXT
+
+
+class Waveform:
+    def __init__(self, text=None):
+        self.text = text
+
+    def numel(self):
+        return 240000
+
+    def isfinite(self):
+        return self
+
+    def all(self):
+        return True
+
+
+class Model:
+    sample_rate = 24000
+
+    def __init__(self):
+        self.calls = []
+        self.prompts = []
+
+    def prepare_text(self, text, task, language, length):
+        # Simulate upstream boundaries even within one performance segment.
+        return text.split('|')
+
+    def synthesize(self, **kwargs):
+        self.calls.append(kwargs)
+        if 'prompt_wav_path' in kwargs:
+            self.prepare_prompt(kwargs['prompt_wav_path'], kwargs['use_spk_emb'])
+        return Waveform(kwargs['text'])
+
+    def prepare_prompt(self, path, use_spk_emb):
+        if (path, use_spk_emb) not in self.prompts:
+            self.prompts.append((path, use_spk_emb))
+
+
+class ContinuityTests(unittest.TestCase):
+    def test_all_fragments_and_segments_share_one_reference(self):
+        model = Model()
+        narrator = MingNarrator(model, '.cache/test-reference.wav')
+        self.assertEqual([w.text for w in narrator.synthesize('Opening.|Next thought.')],
+                         ['Opening.', 'Next thought.'])
+        self.assertEqual([w.text for w in narrator.synthesize('[Sigh] Last thought.')],
+                         ['[Sigh] Last thought.'])
+        anchor, *speech = model.calls
+        self.assertEqual(anchor['text'], REFERENCE_TEXT)
+        self.assertTrue(anchor['use_zero_spk_emb'])
+        self.assertTrue(anchor['raw_text'])
+        self.assertEqual(len(model.prompts), 1)
+        for call in speech:
+            self.assertEqual(call['prompt_wav_path'], anchor['output_path'])
+            self.assertEqual(call['prompt_text'], REFERENCE_TEXT)
+            self.assertTrue(call['use_spk_emb'])
+            self.assertFalse(call['use_zero_spk_emb'])
+            self.assertTrue(call['raw_text'])
+            self.assertEqual(call['controls'], {'ip': 'US_James'})
+
+    def test_long_unpunctuated_fragment_is_bounded_without_losing_words(self):
+        text = ' '.join(f'word{i}' for i in range(150))
+        model = Model()
+        chunks = [w.text for w in MingNarrator(model, '.cache/test-reference.wav').synthesize(text)]
+        self.assertEqual(' '.join(chunks), text)
+        self.assertTrue(all(len(chunk.split()) <= 24 for chunk in chunks))
+        self.assertEqual(len(chunks), 7)
+
+    def test_reference_failure_stops_instead_of_resetting_voice(self):
+        model = Model()
+        def fail(*args):
+            raise ValueError('reference encoding failed')
+        model.prepare_prompt = fail
+        with self.assertRaisesRegex(ValueError, 'reference encoding failed'):
+            list(MingNarrator(model, '.cache/test-reference.wav').synthesize('Speech.'))
+        self.assertEqual(len(model.calls), 2)
+        self.assertTrue(model.calls[-1]['use_spk_emb'])
+
+    def test_empty_reference_stops(self):
+        model = Model()
+        class Empty(Waveform):
+            def numel(self):
+                return 0
+        model.synthesize = lambda **kwargs: Empty()
+        with self.assertRaisesRegex(ValueError, 'too short'):
+            list(MingNarrator(model, '.cache/test-reference.wav').synthesize('Speech.'))
+
+    def test_invalid_speech_stops_before_pcm_conversion(self):
+        model = Model()
+        class Invalid(Waveform):
+            def all(self):
+                return False
+        model.synthesize = lambda **kwargs: Waveform() if 'output_path' in kwargs else Invalid()
+        with self.assertRaisesRegex(ValueError, 'invalid audio'):
+            list(MingNarrator(model, '.cache/test-reference.wav').synthesize('Speech.'))
+
+
+if __name__ == '__main__':
+    unittest.main()

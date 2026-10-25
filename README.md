@@ -119,6 +119,11 @@ YouTube uploads use OAuth, with a separate client and refresh token under `.cach
 
 Without T3 or the UI, give an agent a job directly (below).
 
+Ming narration and benchmarks share a fixed acoustic reference across all text fragments and performance
+segments, preventing the previous unconditioned voice resets. Generate the full narration in one TTS command.
+Existing WAVs require explicit regeneration; model reinstallation is unnecessary. See
+[voice continuity, regeneration and listening checks](docs/tts.md#voice-continuity-and-the-former-voice-change-bug).
+
 ## Give the agent a job
 
 > Create a video given the audio `inputs/audio/source.mp3` and script `inputs/scripts/<your-script>.md`.

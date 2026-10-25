@@ -12,9 +12,44 @@ output format and fallback. Keep every input and output inside the repository.
 
 ### Voice selection
 
-The production adapter in `scripts/tts-ming.py` selects the built-in `US_James` voice through Ming's IP task for every
-segment, matching `scripts/benchmark-ming.py`. This applies to newly generated narration; existing recordings keep
-their original voice. IP voice selection replaces FREEFORM delivery instructions.
+The production adapter in `scripts/tts-ming.py` and the benchmark worker share
+`scripts/ming_continuity.py`. They generate one neutral, cue-free `US_James` audio reference per invocation,
+then condition **every spoken fragment in every performance segment** on that same audio, its transcript and
+its extracted speaker embedding. The reference itself is never included in the narration. IP voice selection
+replaces FREEFORM delivery instructions. This applies to newly generated narration; existing recordings keep
+their original voice.
+
+### Voice continuity and the former voice-change bug
+
+Selecting the same IP voice name alone did not preserve acoustic identity. Upstream Ming split text internally
+and generated each fragment independently with a zero speaker embedding. Our previous adapter also restarted
+that process for each performance segment. Those boundaries could sound like a different speaker.
+
+The shared adapter now owns bounded fragment generation, calls `synthesize(raw_text=True)` for each fragment
+to prevent a second hidden split, and supplies the same reference WAV, transcript and real speaker embedding
+with `use_spk_emb=True` and `use_zero_spk_emb=False`. Only the neutral reference uses a zero embedding.
+Upstream semantic splitting is retained for manageable decode lengths; unusually long clauses are further
+bounded to 24 whitespace-separated words. The short reference leaves room in Ming's finite decode context
+for the target speech. Speed and pauses are applied afterward, leaving the reference
+unmodified. The model and encoded prompt stay loaded across the whole narration. A reference-generation or
+encoding failure stops the job; there is no fallback to independently selected voices.
+
+`tts-status.json` records `voice: "US_James"` and `continuityMode: "fixed-acoustic-reference-v1"` for new Ming
+runs. The benchmark records the same continuity mode in its stage metrics. Reference files live inside the
+repository: narration uses its private temporary cache directory, removed after completion or failure; the
+benchmark deletes its reference in a `finally` block.
+
+Keep all performance segments in **one** `npm run video -- tts ... --narration --provider ming` invocation.
+Do not generate segments separately or bypass the shared adapter. No sidecar changes or model reinstallation
+are needed for this fix. Existing generated WAVs are not repaired automatically: explicitly regenerate affected
+narration with its original reviewed script and sidecar, then rebuild its alignment and film through the normal
+pipeline. Never regenerate a supplied human recording.
+
+This prevents the known unconditioned resets; it does not prove that a generative voice can never vary in timbre.
+Check the opening, internal fragment joins and performance-segment joins by listening before approval. If a
+change remains, retain the script, sidecar, status and WAV for diagnosis; do not claim a pass from signal measurements.
+Use `npm run video -- tts --benchmark --engine both --out outputs/tts-benchmarks/voice-continuity` for a fresh
+comparison through the same fixed synthesis path. Historical benchmarks describe the earlier implementation.
 
 Install once **in the checkout that runs the UI and jobs**:
 
@@ -26,7 +61,7 @@ Requires git, Python 3.12 with venv support, and ffmpeg. `MING_SETUP_PYTHON` can
 The CPU environment, pinned upstream source and roughly 3 GB of model files live in `.cache/video-gen/ming-benchmark/`.
 Setup adapts three upstream autocast scopes for CPU without changing weights. Existing benchmark installations at that location are reused.
 No API key is needed. Setup downloads code and weights; generation then runs offline. Check upstream LICENSE and LEGAL.md for deployment terms.
-Ming is slower than Kokoro: our 8-vCPU benchmark took 70.5 seconds for 20.4 seconds of speech; performance varies with delivery and text.
+Ming is slower than Kokoro. Historical CPU timings predate acoustic-reference conditioning; new runs also generate and encode a reference. Measure current performance on the target host.
 A separate worktree needs its own setup. Do not move shared model caches out of another checkout.
 
 When **Ming is selected**, the orchestrator creates `ming-performance.json` beside the reviewed `SCRIPT.md`.
@@ -107,7 +142,7 @@ serious explanation should not acquire forced laughter or repeated sighs. Keep a
 npm run video -- tts jobs/scripts/<slug>/SCRIPT.md --narration --provider ming -s 1.0 -o jobs/scripts/<slug>/narration.wav
 ```
 
-The sidecar is loaded automatically; `--performance <repository-file.json>` selects another path. Ming loads once for the
+The sidecar is loaded automatically; `--performance <repository-file.json>` selects another path. Ming loads once, holds one acoustic reference for the
 whole job and joins the segments into the normal 24 kHz mono narration WAV, with 1.5 seconds of trailing silence.
 Missing installation, invalid plans and generation errors stop with an error; Ming does not silently switch providers.
 Measure the duration and review pronunciation, transitions and cue fidelity before proceeding. Do not claim listening quality

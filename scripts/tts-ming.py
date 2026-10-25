@@ -17,7 +17,9 @@ torch.set_num_threads(8)
 torch.set_num_interop_threads(1)
 torch.manual_seed(1895)
 from ming_tts import MingTTS
+from ming_continuity import MingNarrator
 model = MingTTS(args.model, device='cpu', text_normalization=False)
+narrator = MingNarrator(model, Path(args.output).with_name('ming-voice-reference.wav'))
 plan = json.loads(Path(args.plan).read_text())
 # Keep the model loaded across all phrases. Files live in the wrapper's private cache directory.
 with sf.SoundFile(args.output, mode='w', samplerate=24000, channels=1, subtype='PCM_16') as result:
@@ -25,8 +27,8 @@ with sf.SoundFile(args.output, mode='w', samplerate=24000, channels=1, subtype='
         print(f"Ming phrase {index + 1}/{len(plan['segments'])}", flush=True)
         raw = str(Path(args.output).with_name(f'ming-phrase-{index}.wav'))
         converted = raw + '.paced.wav'
-        model.synthesize(task='IP', text=segment['text'], controls={'ip': 'US_James'},
-                         language_id='English', use_zero_spk_emb=True, output_path=raw)
+        waveform = torch.cat(list(narrator.synthesize(segment['text'])), dim=-1)
+        sf.write(raw, waveform.squeeze(0).cpu().float().numpy(), model.sample_rate)
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', raw, '-af', f"atempo={segment['speed']}",
                         '-ar', '24000', '-ac', '1', '-c:a', 'pcm_s16le', converted], check=True)
         audio, _ = sf.read(converted, dtype='float32')
