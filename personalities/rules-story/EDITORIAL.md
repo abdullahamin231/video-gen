@@ -1,0 +1,9 @@
+# Rules-story editorial personality
+
+This is the hard-coded default for fictional storytelling, uncanny survival instructions and Bradikinin-like requests. Do not turn it into a science lesson. Use the creator reference https://www.youtube.com/@BradikininVideos as the style target, with original scripts and assets.
+
+Structure: an impossible event involving an everyday thing; an immediate instruction; seven numbered rules; escalating consequences; a reversal that changes the meaning of an earlier rule; a disturbing closing consequence. Each rule needs a concrete action or prohibition, a reason to care and a consequence. Keep geography, objects and rule logic consistent. Avoid repetitive paraphrases and padding. The narrator speaks directly to the viewer with calm procedural confidence and occasional dry, restrained humour. Do not use an excited marketing voice or force laughter into Ming delivery.
+
+Fiction stays identifiable as fiction. Research any factual statements and distinguish them from invented lore. Do not copy a reference episode's plot, wording, institutional identity or presenter voice. A reference URL supplies style direction, not permission to download its footage. A researcher can provide factual background; the writer invents the scenario and rules and marks that material as original fiction in research.md.
+
+Keep SCRIPT.md clean and use the normal script/visual-plan file structure. Events, scene IDs, spoken boundaries, prototype and assets still need to be explicit in VISUALS.md. For this genre a scene's mechanism means the visible rule, violation or consequence; it need not be a scientific demonstration. Titles pair a concrete anomaly with a short command. Thumbnails use the central anomaly and a readable warning, matching DESIGN.md; avoid the explainer thumbnail study's visual style.

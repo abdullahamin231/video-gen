@@ -3,6 +3,14 @@
 The orchestrator follows the [orchestrator.md](orchestrator.md) loop (`start`, then `next` until done). This file explains what
 each stage does and where its rules are enforced, for people changing the pipeline.
 
+
+Before these stages, AGENTS.md infers a production personality and reads its `personalities/<id>/ORCHESTRATOR.md`.
+`project-new` freezes the ID/version/hash and full instruction package; `start`/`prepare` inherit it from the script
+folder. `lib/personalities.mjs` validates snapshots and readiness, and all generated role/thumbnail briefs carry the
+selected instructions. Legacy jobs default to the existing explainer. Review fingerprints include the frozen
+package. News and app-review packages cannot enter the current render pipeline until their declared media
+adapters are implemented. See [personality packages](../personalities/README.md).
+
 | Stage | Command | Inputs → outputs | Enforced by |
 |---|---|---|---|
 | Prepare | `start` (wraps `prepare`) | audio + script (+ `--format`, `--length`, defaults from `video.config.json`) → `jobs/<slug>/`, named by `jobNameFor` in `lib/timing.mjs` (script file name, else its `#` title, else its folder, else its opening words; generic names like `script` are skipped; `--name` overrides) with clipped WAV, ASR words, `alignment.json`, kit copy, `briefs/director.md`; `job.json` records `format`, `width`, `height` | `scripts/video.mjs`, `lib/format.mjs resolveSettings` |

@@ -1,0 +1,3 @@
+# Rules-story tools
+
+Use original local SVG pictograms, the existing deterministic scene kit, text, paths, circles, simple progress cells, strike-throughs and restrained cuts/reveals. Existing scene IDs, timing attributes, phrase cues and source-file requirements remain in docs/SCENE_SPEC.md. Its colourful explainer examples are schema examples only. Use library-search for compatible original assets; restyle a permitted asset into this profile. Keep every file in the repository and record source/rights for sound, music, icons and fonts. Never record or download the reference creator's footage or audio.

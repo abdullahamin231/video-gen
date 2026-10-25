@@ -1,5 +1,7 @@
 # Orchestrator runbook: make the completed video
 
+This is the shared production/state-machine runbook. First follow [AGENTS.md](../AGENTS.md) to infer the personality and read `personalities/<id>/ORCHESTRATOR.md`. That folder owns editorial, design, tools and review instructions; this file does not impose the explainer style on every genre. Resume with the saved `productionProfile`. New projects freeze the selected instructions and propagate them to delegated briefs. Never ask the user to type a personality ID.
+
 You are reading this because you are the orchestrator: the user asked you to make a video, write a script or make a
 thumbnail. Sub-agents following a brief never use this file.
 
@@ -14,7 +16,7 @@ sub-agents do the creative work from self-contained brief files. This works the 
 1. From the repository root, create the job (quote paths; near-miss filenames are resolved automatically):
 
    ```bash
-   npm run video -- start --audio "<audio path>" --script "<script path>"
+   npm run video -- start --audio "<audio path>" --script "<script path>" --profile <inferred-id>
    ```
 
    Add `--length 30` (and `--start <s>`) only when the user asks for an excerpt ("first 30 seconds" → `--length 30`).

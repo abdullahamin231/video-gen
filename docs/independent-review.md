@@ -1,5 +1,7 @@
 # Independent review for autonomous video production
 
+**Personality scope:** the job's frozen `production-profile.json` owns editorial/design/review direction. Technical schema, timing, legibility, evidence and independence requirements here remain shared. Scientific metaphor, drawing-only, constant-motion and explainer-style examples apply to `explainer`; other personalities use their own `DESIGN.md` and `REVIEW.md`. A fixed personality's visual grammar is a production requirement, not an optional theme preference. Do not impose another personality's style.
+
 The user supplies audio and script paths and receives a finished MP4. The
 production agent directs, builds, renders, commissions independent reviews,
 repairs defects, and qualifies delivery. Review is an internal production

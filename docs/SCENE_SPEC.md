@@ -1,5 +1,7 @@
 # Scene spec reference
 
+**Personality scope:** the job's frozen `production-profile.json` owns editorial/design/review direction. Technical schema, timing, legibility, evidence and independence requirements here remain shared. Scientific metaphor, drawing-only, constant-motion and explainer-style examples apply to `explainer`; other personalities use their own `DESIGN.md` and `REVIEW.md`. A fixed personality's visual grammar is a production requirement, not an optional theme preference. Do not impose another personality's style.
+
 A scene is one JSON file, `shots/<scene-id>.json`. The pipeline compiles every scene into one shared world
 (one SVG coordinate space, one camera, one timeline), so objects from earlier scenes can stay, move, and transform.
 `npm run video -- build --job jobs/<slug> --scene <id>` validates your file, runs it in a browser, and prints errors

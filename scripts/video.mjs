@@ -21,6 +21,7 @@ import {directorBrief, writeBrief} from '../lib/briefs.mjs';
 import {findVisualPlan, VISUALS_FILE} from '../lib/visuals.mjs';
 import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/channel.mjs';
 import {loadConfig, resolveSettings} from '../lib/format.mjs';
+import {PERSONALITIES, inferPersonality, loadPersonality, preparationPersonality, freezePersonality, assertRenderReady} from '../lib/personalities.mjs';
 import {readdir} from 'node:fs/promises';
 import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
 import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation,
@@ -111,8 +112,10 @@ async function prepare(opts) {
   if (await exists(job)) throw new Error(`Job exists: ${job}. Use a new --name; existing work is never overwritten.`);
   const audio = path.resolve(ROOT, opts.audio), script = path.resolve(ROOT, opts.script);
   const [metadata, sourceScript] = await Promise.all([probe(audio), readFile(script, 'utf8')]);
+  const personality = preparationPersonality(path.dirname(script), sourceScript, opts.profile);
+  assertRenderReady(personality);
   const config = await loadConfig(ROOT), settings = resolveSettings(opts, config, Number(metadata.format.duration));
-  const channel = await loadChannelTheme(ROOT, config);
+  const channel = personality.profile.id === 'explainer' ? await loadChannelTheme(ROOT, config) : null;
   const {start, duration, format, fps} = settings;
   for (const w of settings.warnings) console.warn(`Warning: ${w}`);
   const language = opts.language || 'en', model = opts.model || (language === 'en' ? 'small.en' : 'small');
@@ -130,6 +133,7 @@ async function prepare(opts) {
   await writeFile(path.join(job, 'package.json'), JSON.stringify({name: opts.name, private: true, type: 'module',
     scripts: {next: `npm --prefix ../.. run video -- next --job jobs/${opts.name}`}}, null, 2) + '\n');
   for (const dir of ['inputs', 'assets', 'compositions', 'review', 'renders', 'shots', 'components', 'briefs']) await mkdir(path.join(job, dir), {recursive: true});
+  const productionProfile = await freezePersonality(job, personality);
   await installKit(job);
   await writeFile(path.join(job, 'inputs/source-script.md'), sourceScript);
   // The writer's visual plan travels with the script; without one, `next` asks a writer for it before planning.
@@ -150,7 +154,7 @@ async function prepare(opts) {
     ...(visuals ? {visuals: {path: VISUALS_FILE, source: path.relative(ROOT, visuals), sha256: await digest(visuals)}} : {}),
     ...(channel ? {channelTheme: {path: CHANNEL_THEME_FILE, source: path.relative(ROOT, channel.file), sha256: await digest(channel.file)}} : {}),
     transcription: {language, model, engine, suppliedWords: !!opts.words},
-    creativeMode: 'agent-discretion', workflow: 'faceless-explainer', status: 'awaiting-transcription',
+    productionProfile, creativeMode: 'agent-discretion', workflow: personality.profile.workflow, status: 'awaiting-transcription',
     review: {producerAgentIds: ['/root'], requiredRoles: ['visual-mechanism', 'narration-fidelity', 'continuity-legibility']},
     canvas: '#151915'};
   await save(path.join(job, 'job.json'), manifest);
@@ -327,7 +331,7 @@ async function projectCommand(command, opts) {
   const slug = opts.project;
   if (command === 'project-new') {
     const project = await createProject(ROOT, opts, {resolveInput, setIdeaStatus});
-    console.log(`Created project ${project.slug} (jobs/scripts/${project.slug}/). Checkpoints: ${project.review.join(', ') || 'none'}.\nNext: npm run video -- next --project ${project.slug}`);
+    console.log(`Created project ${project.slug} (jobs/scripts/${project.slug}/). Personality: ${project.productionProfile.id}. Checkpoints: ${project.review.join(', ') || 'none'}.\nNext: npm run video -- next --project ${project.slug}`);
   } else if (command === 'projects') {
     const list = await listProjects(ROOT);
     if (opts.json) console.log(JSON.stringify(list));
@@ -386,7 +390,7 @@ const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
 
-start --audio <file> --script <file> [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review prototype,final]   create a job (a VISUALS.md beside the script is picked up automatically)
+start --audio <file> --script <file> [--profile <id>] [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review prototype,final]   create a job (a VISUALS.md beside the script is picked up automatically)
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
                                      the job is named from the script file, else its folder or title (e.g. jobs/scripts/<slug>/SCRIPT.md → <slug>); --name overrides
 next [--job jobs/<slug>]             print the single next step (state machine)
@@ -405,7 +409,7 @@ setup-audio                          check ffmpeg, install librosa (beat analysi
 music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
 kit-update                           refresh the job's frozen kit copy from lib/kit
 
-prepare --name <slug> --audio <file> --script <file> [--start 0 --length 30 --format landscape|vertical]
+prepare --name <slug> --audio <file> --script <file> [--profile <id>] [--start 0 --length 30 --format landscape|vertical]
         [--language en --model small.en --engine faster-whisper|hyperframes]
         [--words measured-words.json --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
@@ -433,7 +437,8 @@ library-add --source <bundle-dir>   publish a new immutable artifact version
 library-use --item <id@version> --job jobs/<slug>  freeze files and record hashes
 
 Chat projects (T3 Code; docs/t3-orchestrator.md): the whole video from an agreed brief, one step at a time
-project-new --name <slug> [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|ming|gemini --audio f --script f --music f
+profiles | profile-route --prompt "<request>" [--profile <id>]   inspect personalities / infer routing (read-only)
+project-new --name <slug> [--profile explainer|rules-story|news-financial|news-political|app-review] [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|ming|gemini --audio f --script f --music f
             --review script,prototype,final,thumbnail|none --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
 next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews on Tailscale)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
@@ -468,7 +473,13 @@ try {
   const opts = options(args);
   if (ROLE_AGENT && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
     throw new Error(`\`${command}${command === 'build' ? ' without --scene' : ''}\` advances the pipeline, which is the orchestrator's job. You are the ${ROLE}: finish the brief you were given and reply with its result. Do not start sub-agents.`);
-  if (command === 'youtube-auth') await youtubeAuth(ROOT);
+  if (command === 'profiles') console.log(JSON.stringify(PERSONALITIES.map(id => loadPersonality(id).profile), null, 2));
+  else if (command === 'profile-route') {
+    const prompt = opts.prompt || (opts['brief-file'] ? await readFile(path.resolve(ROOT, opts['brief-file']), 'utf8') : '');
+    if (!prompt.trim()) throw new Error('profile-route needs --prompt <request> or --brief-file <file>.');
+    console.log(JSON.stringify(inferPersonality(prompt, opts.profile), null, 2));
+  }
+  else if (command === 'youtube-auth') await youtubeAuth(ROOT);
   else if (command === 'youtube-upload') await youtubeUpload(ROOT, opts);
   else if (PROJECT_COMMANDS.has(command) || (['next', 'status'].includes(command) && opts.project)) {
     if (!opts.project && command !== 'project-new' && command !== 'projects') throw new Error(`${command} needs --project <slug> (see \`npm run video -- projects\`).`);

@@ -1,0 +1,7 @@
+{
+  "id": "explainer",
+  "version": 1,
+  "name": "Scientific / educational explainer",
+  "workflow": "faceless-explainer",
+  "renderReady": true
+}

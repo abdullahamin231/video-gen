@@ -1,0 +1,5 @@
+# Rules-story review
+
+Required: consistent black/white/red visual grammar; sparse pictograms; the correct active rule; readable warning/captions; controlled narrator direction; logical escalation; a supported twist/payoff; stable objects and geography. Reject colourful explainer treatments, unnecessary slide cards, generic stock footage, copied branding, inconsistent rules and misleading factual framing. A deliberate hold or hard cut is valid here. Do not reject the film merely because it lacks the explainer's continuous physical animation or scientific causal diagram.
+
+Use docs/independent-review.md for evidence, independence and report format; apply this rubric to visual-mechanism findings. Narrative consequence, recognisable rule/violation and suspense fulfil this genre's mechanism requirement. Profile compliance is a production requirement, not an optional taste preference. Prototype acceptance locks the look; later scenes must match it. Never infer listening quality from stills or transcripts.

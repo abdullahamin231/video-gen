@@ -1,9 +1,15 @@
 # Audio + script → animated video
 
 An agent-assisted HyperFrames production repo. Give an AI agent a recording and
-script: it consults the installed skills, designs the visuals with full creative
-discretion, and delivers a narration-synchronized MP4. The pipeline makes timing,
-assets, assembly, and rendering reproducible without forcing a visual template.
+script: it consults the installed skills, designs the visuals within the selected
+production personality, and delivers a narration-synchronized MP4. The pipeline makes timing,
+assets, assembly, and rendering reproducible; each personality owns its design standard.
+
+Video personalities are selected automatically from the request through [AGENTS.md](AGENTS.md).
+Their separate [instruction folders](personalities/README.md) cover the existing explainer, fixed Bradikinin-style
+storytelling, financial news, political news and hands-on app review. The user does not need to type an ID.
+Selection and instructions are frozen per project and carried into delegated briefs. Explainer and storytelling
+use the current renderer; news/audio-edit and app-capture adapters remain explicit prerequisites.
 
 ## Setup
 

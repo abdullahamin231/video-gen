@@ -1,3 +1,5 @@
+import {inferPersonality} from '../../lib/personalities.mjs';
+
 // Codex runs tool calls inside code cells that yield after a few seconds; each check on a yielded cell re-sends the
 // whole conversation. One cell that waits for the result costs one request instead of dozens.
 export const CODEX_NOTE = `CODEX: every time a code cell yields, checking on it re-sends your whole conversation. Never poll from separate turns.
@@ -26,10 +28,14 @@ const mingDirection = `For Ming, after script review, create ming-performance.js
 const narrationCommand = job => `npm run video -- tts ${job.scriptPath}/SCRIPT.md --narration --provider ${job.ttsProvider || 'kokoro'} --status ${job.scriptPath}/tts-status.json -s <speed from docs/tts.md> -o ${job.scriptPath}/narration.wav`;
 
 export function orchestratorPrompt(job, { resume = false } = {}) {
+  const selection = inferPersonality(job.prompt);
+  const routing = `PERSONALITY ROUTING: First recover any existing job/script project's frozen productionProfile. Resume that personality without reclassifying. For new work, follow AGENTS.md to infer the treatment. The conservative fallback ${selection.id ? `suggests ${selection.id}; read personalities/${selection.id}/ORCHESTRATOR.md` : 'requires one financial/political routing clarification'}. Pass the inferred --profile yourself; never make the user type an ID. Include the selected personality's instructions in every delegated brief. Its renderReady check is mandatory; news and app-review adapters are not implemented, so do not substitute an animated explainer or attempt their narration/render path.`;
   const continuation = resume ? `The local runner resumed this thread (${job.id}). Continue from the existing artifacts in ${job.scriptPath}/ and ${job.jobPath}/.
 First call the video_runner feedback tool and apply any new direction. If you were waiting on a checkpoint or question when you stopped, call that tool again: a decision made meanwhile is returned at once.
 Use the startup order below to resume from the first incomplete step. Preserve completed script research and independently passed reviews; do not restart finished work.\n\n` : '';
   return `${continuation}You are the video production orchestrator for a local UI. The user has authorized producing the entire video and thumbnail from this high-level brief. Work autonomously. Read docs/orchestrator.md once and follow it and its pipeline exactly. Do not modify the pipeline or UI code.
+
+${routing}
 
 USER BRIEF:
 ${job.prompt}
@@ -37,7 +43,7 @@ ${job.prompt}
 THREAD CONTRACT:
 ${!job.audioPath && job.ttsProvider === 'ming' ? '- ' + mingDirection + '\n' : ''}- Thread id: ${job.id}. Its script/research/narration directory is ${job.scriptPath}/. The video job directory MUST be ${job.jobPath}/. Do not touch other jobs.
 - Create the job with an explicit name, because \`start\` otherwise names it from the script's heading:
-  npm run video -- start --name ${job.slug} --audio <recording> --script ${job.scriptPath}/SCRIPT.md --format ${job.format}${humanFlag(job)}${thumbnailFlags(job)}
+  npm run video -- start --name ${job.slug} --audio <recording> --script ${job.scriptPath}/SCRIPT.md --profile <resolved personality ID> --format ${job.format}${humanFlag(job)}${thumbnailFlags(job)}
   If ${job.jobPath}/job.json already exists, never run start again; continue with next. An empty directory is not a prepared job. Every later job command uses --job ${job.jobPath}.
 - ${job.duration ? `Requested target duration: ${job.duration} seconds. Duration is the script target.` : 'No target duration was requested: the length is the script writer\'s call. Tell the writer so (it chooses a length that fits the material and records why); do not ask the user, and do not invent a length yourself.'} Format: ${job.format}. Do NOT truncate audio with --length unless the user explicitly requests an excerpt.
 - ${job.audioPath ? `Use supplied recording ${job.audioPath}. Keep it unchanged. Never synthesize over a supplied recording.` : `No recording was supplied. The user selected ${job.ttsProvider || 'kokoro'} narration. Follow docs/tts.md and run this ONE command for the entire reviewed script: ${narrationCommand(job)}. The command sends the whole script in one Gemini request per model attempt; Kokoro splits and joins paragraphs itself. Do not generate paragraphs separately or override the selected provider. Gemini quota exhaustion or persistent service overload automatically tries the backup Gemini model and regenerates the whole narration. If the backup also hits quota, the command uses Kokoro. Model and provider switches record notices for the UI. Authentication, location and invalid-request errors must be surfaced; never silently substitute another voice.`}

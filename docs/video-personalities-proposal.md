@@ -1,5 +1,8 @@
 # Video personalities and T3 integration proposal
 
+**Implementation update:** automatic routing and separate personality instruction packages are now implemented in [personalities/](../personalities/README.md) and AGENTS.md. Projects freeze the profile, prepared jobs inherit it, and generated role briefs use it. The --profile option now exists for agents; users describe the video normally. Explainer and rules-story use the existing renderer. News timeline/audio and app capture/cursor adapters remain unimplemented and explicitly gated. The original proposal below records the larger design and remaining work.
+
+
 25 October 2026. Design proposal, not an enabled feature. No production started, external footage downloaded, or reference video recorded. Browser-only inspection of channel metadata, the creator's website, and selected paused frames; neither reference film was reviewed in full. Earlier research in video-supervisors-research.md remains historical; this proposal follows the newer request for footage-led news and an active computer-use family.
 
 ## Decision

@@ -1,5 +1,7 @@
 # Quality standard (directors, builders and reviewers)
 
+**Personality scope:** the job's frozen `production-profile.json` owns editorial/design/review direction. Technical schema, timing, legibility, evidence and independence requirements here remain shared. Scientific metaphor, drawing-only, constant-motion and explainer-style examples apply to `explainer`; other personalities use their own `DESIGN.md` and `REVIEW.md`. A fixed personality's visual grammar is a production requirement, not an optional theme preference. Do not impose another personality's style.
+
 The operational runbook is [orchestrator.md](orchestrator.md). This file is the creative and review standard. The
 briefs written by the pipeline summarise it for each role; directors and reviewers read it in full.
 

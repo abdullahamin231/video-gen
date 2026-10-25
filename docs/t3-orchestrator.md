@@ -1,5 +1,7 @@
 # Making videos from a T3 Code chat
 
+This is the shared production/state-machine runbook. First follow [AGENTS.md](../AGENTS.md) to infer the personality and read `personalities/<id>/ORCHESTRATOR.md`. That folder owns editorial, design, tools and review instructions; this file does not impose the explainer style on every genre. Resume with the saved `productionProfile`. New projects freeze the selected instructions and propagate them to delegated briefs. Never ask the user to type a personality ID.
+
 You are reading this because you are a chat agent in T3 Code (you have T3 tools such as `delegate_task` and
 `preview_open`) and the user wants to brainstorm, make a video, write a script or make a thumbnail. T3 is the primary
 production workspace; the existing web UI remains available as an alternative. The chat is the workspace,
@@ -18,6 +20,7 @@ audience, length and sources. You may run:
 - `npm run -s video -- ideas [--focus "<topic>"]`: fresh video ideas (never repeats one). Mark one the user rejects
   with `ideas --set <id> --status rejected --reason "<their reason>"`.
 - `npm run -s video -- projects`: every video made from a chat and where it is.
+- `npm run -s video -- profile-route --prompt "<request>"` and `profiles`: read-only personality routing/catalog.
 
 Do not research the topic yourself or draft the script: that is the researcher's and writer's job, from sources.
 
@@ -34,7 +37,7 @@ prototype, final film, thumbnail.
 2. Create the project:
 
    ```bash
-   npm run -s video -- project-new --name <slug> [--format vertical] [--duration 90] [--tts ming|kokoro|gemini] \
+   npm run -s video -- project-new --name <slug> --profile <inferred-id> [--format vertical] [--duration 90] [--tts ming|kokoro|gemini] \
      [--script <file> --audio <file>] [--music <file>] [--review script,prototype,final,thumbnail|none] [--thumbnails 3] [--idea <id>]
    ```
 

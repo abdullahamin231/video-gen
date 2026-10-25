@@ -1,0 +1,8 @@
+{
+  "id": "news-financial",
+  "version": 1,
+  "name": "Financial news and commentary",
+  "workflow": "news-edit",
+  "renderReady": false,
+  "blocker": "Source-clip audio, editorial timeline and multi-speaker captions are not implemented in the current renderer."
+}
