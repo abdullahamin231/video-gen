@@ -22,6 +22,8 @@ import {findVisualPlan, VISUALS_FILE} from '../lib/visuals.mjs';
 import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/channel.mjs';
 import {loadConfig, resolveSettings} from '../lib/format.mjs';
 import {PERSONALITIES, inferPersonality, loadPersonality, preparationPersonality, freezePersonality, assertRenderReady} from '../lib/personalities.mjs';
+import {transcribeNews, ingestNews, newsPlan, isNews, verifyNews} from '../lib/news.mjs';
+import {readPersonality} from '../lib/personalities.mjs';
 import {readdir} from 'node:fs/promises';
 import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
 import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation,
@@ -70,7 +72,7 @@ const probe = async file => JSON.parse(await run('ffprobe', ['-v', 'error', '-sh
 // Commands that change a film's sources, reviews or render. Once a job is delivered they would quietly send it back into
 // production (status → rendering/draft-rendered, stale reviews), so they need an explicit --reopen true.
 const PRODUCTION_COMMANDS = new Set(['transcribe', 'plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'kit-update',
-  'alignment-approve', 'check', 'review-pack', 'human-review', 'review-submit', 'deliver', 'render', 'library-use']);
+  'news-ingest', 'news-transcribe', 'alignment-approve', 'check', 'review-pack', 'human-review', 'review-submit', 'deliver', 'render', 'library-use']);
 async function guardDelivered(job, command, opts) {
   if (!PRODUCTION_COMMANDS.has(command)) return;
   if (command === 'human-review' && opts.want !== undefined) return;
@@ -175,7 +177,7 @@ async function finishPreparation(job, manifest, narration) {
   await save(path.join(job, 'alignment.json'), alignment);
   await writeFile(path.join(job, 'SCRIPT.md'), `# Recorded excerpt\n\n${words.map(w => w.text).join(' ')}\n`);
   await writeBrief(job, 'director.md', directorBrief(job, manifest, alignment));
-  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: faceless-explainer\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult docs/orchestrator.md, docs/agent-workflow.md and docs/independent-review.md.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nProduction is driven by the orchestrator alone: npm run video -- next --job jobs/${manifest.name}. An agent following a brief in briefs/ follows only that brief.\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
+  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: ${manifest.workflow}\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult docs/orchestrator.md, docs/agent-workflow.md and docs/independent-review.md.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nProduction is driven by the orchestrator alone: npm run video -- next --job jobs/${manifest.name}. An agent following a brief in briefs/ follows only that brief.\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
   manifest.status = 'prepared';
   await save(path.join(job, 'job.json'), manifest);
@@ -237,6 +239,7 @@ async function start(opts) {
 }
 
 async function verify(job) {
+  if (isNews(readPersonality(job))) { const report = await verifyNews(job); console.log(JSON.stringify(report,null,2)); return report; }
   const manifest = await json(path.join(job, 'job.json')), file = await localFile(job, 'renders/video.mp4');
   const metadata = await probe(file), video = metadata.streams.find(s => s.codec_type === 'video');
   const audio = metadata.streams.find(s => s.codec_type === 'audio');
@@ -409,7 +412,7 @@ setup-audio                          check ffmpeg, install librosa (beat analysi
 music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
 kit-update                           refresh the job's frozen kit copy from lib/kit
 
-prepare --name <slug> --audio <file> --script <file> [--profile <id>] [--start 0 --length 30 --format landscape|vertical]
+news-ingest --job <job> --source <id> --file <repository-local cleared file>\nnews-transcribe --job <job> --source <id> [--model small.en --language en]  original-file word times; review draft before use\nnews-check --job <job>               validate news sources, rights, claims, edit and required speech subtitles\nprepare --name <slug> --audio <file> --script <file> [--profile <id>] [--start 0 --length 30 --format landscape|vertical]
         [--language en --model small.en --engine faster-whisper|hyperframes]
         [--words measured-words.json --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
@@ -556,6 +559,9 @@ try {
         : `use it as {"type": "image", "src": "${a.path}", ...}${a.name.startsWith('fonts/') ? ' or in theme.fontFiles' : ''}. Look at it before using it`;
       console.log(`Saved ${a.path} (library: ${lib.item}). ${use[0].toUpperCase()}${use.slice(1)}.`);
     }
+    else if (command === 'news-ingest') console.log(JSON.stringify(await ingestNews(job, opts.source, opts.file),null,2));
+    else if (command === 'news-transcribe') console.log(JSON.stringify(await transcribeNews(job,opts.source,{model:Array.isArray(opts.model)?opts.model.at(-1):opts.model||'small.en',language:opts.language||'en',replace:opts.replace==='true'}),null,2));
+    else if (command === 'news-check') console.log(JSON.stringify({ok:true,captions:(await newsPlan(job)).captions.length}));
     else if (command === 'save') {
       if (!opts.file || !opts.title?.trim() || !opts.tags?.trim()) throw new Error('save needs --file <job file> --title "<what it is>" --tags "<words someone would search for>"');
       const r = await saveToLibrary(LIBRARY, job, {file: opts.file, title: opts.title, tags: opts.tags, note: opts.note || '', id: opts.id});

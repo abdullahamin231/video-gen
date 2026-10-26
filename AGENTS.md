@@ -31,7 +31,7 @@ The user describes the video in ordinary language; never make them memorise or t
 
 Each folder owns `EDITORIAL.md`, `DESIGN.md`, `TOOLS.md` and `REVIEW.md`; read only the selected package. Shared runbooks own transport, delegation and checkpoints, not a universal design style. Do not append the explainer's drawing/motion rules to other personalities. Profiles are frozen per project and cannot be switched by `project-set`; start a new project for an explicit change of genre. The provider/model profiles in `chat.config.json` are unrelated to these editorial personalities.
 
-News and computer-use instructions are selectable, but their media adapters are not implemented yet. Their descriptors set `renderReady: false`; respect the pipeline's precise blocked message. Do not present instruction routing as a completed news editor/capture system, bypass readiness checks, record commercial footage, or substitute an animated explainer.
+Financial and political news use the real-media `news-edit` adapter (see [docs/news.md](docs/news.md)): cleared photos/article views and clips, original commentary, retained source speech, mandatory subtitles and encoded delivery checks. Missing media/rights cause precise source blockers. Computer-use/app capture remains unimplemented (`renderReady: false`). Never record commercial references without documented authorization/rights or substitute an animated explainer.
 
 ## Rules for everyone
 

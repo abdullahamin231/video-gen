@@ -11,7 +11,7 @@ import { UsageService, applyUsage, totalUsage } from './usage.mjs';
 import { computeProgress, computeHealth, scriptDisposition } from './progress.mjs';
 import { routeModel, CLAUDE_AGENT_TYPES, DELEGATE_ROLES } from '../shared/routing.mjs';
 import { recordHumanReview, setHumanStages } from '../../lib/human.mjs';
-import { thumbnailStatus, chooseThumbnail, addThumbnailFeedback } from '../../lib/thumbnails.mjs';
+import { thumbnailGeometry, thumbnailStatus, chooseThumbnail, addThumbnailFeedback } from '../../lib/thumbnails.mjs';
 import { QUOTA_NOTICE, modelFallbackNotice } from '../../lib/tts.mjs';
 
 const LIVE = new Set(['starting', 'running', 'waiting']);
@@ -455,7 +455,8 @@ export class Runner {
     const video = await jobFile(this.root, job, `${job.jobPath}/renders/video.mp4`).catch(() => fail('Missing renders/video.mp4'));
     const png = await jobFile(this.root, job, `${thumb}/thumbnail.png`).catch(() => fail('Missing thumbnail/thumbnail.png'));
     const size = pngSize(await readFile(png.path));
-    if (size?.width !== 1280 || size?.height !== 720) fail('Thumbnail must be a real 1280×720 PNG');
+    const g = thumbnailGeometry(await readJson(path.join(this.root,job.jobPath,'job.json')).catch(()=>({})));
+    if (size?.width !== g.width || size?.height !== g.height) fail(`Thumbnail must be a real ${g.width}×${g.height} PNG`);
     const files = await folderFiles(this.root, thumb);
     let preview = '';
     // A small feed-size preview is optional; when one exists it is shown with the outputs.

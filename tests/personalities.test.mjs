@@ -39,7 +39,7 @@ test('each personality has its own complete package, with truthful renderer read
     const snapshot = loadPersonality(id);
     assert.match(snapshot.files['ORCHESTRATOR.md'], new RegExp(`--profile ${id}`));
     assert.match(snapshot.sha256, /^[a-f0-9]{64}$/);
-    if (['explainer', 'rules-story'].includes(id)) assert.doesNotThrow(() => assertRenderReady(snapshot));
+    if (id !== 'app-review') assert.doesNotThrow(() => assertRenderReady(snapshot));
     else assert.throws(() => assertRenderReady(snapshot), /not implemented/);
   }
 });
@@ -139,11 +139,11 @@ test('preparation inherits the frozen personality rather than reclassifying the 
 
 test('unsupported film workflows stop as blocked and cannot bypass readiness through render reuse', async t => {
   const dir = await fixture(t);
-  const metadata = await freezePersonality(dir, loadPersonality('news-political'));
+  const metadata = await freezePersonality(dir, loadPersonality('app-review'));
   await writeFile(path.join(dir, 'job.json'), JSON.stringify({productionProfile: metadata, duration: 10}));
   const step = await nextStep(dir);
   assert.equal(step.state, 'blocked');
-  assert.match(step.text, /Source-clip audio/);
+  assert.match(step.text, /not implemented/);
   await assert.rejects(renderFilm(dir, {reuseBuild: true}), /not implemented/);
 });
 
@@ -165,4 +165,20 @@ test('prepared personality projects support inspection, status and listing while
   const metadata = await freezePersonality(job, different);
   await writeFile(path.join(job, 'job.json'), JSON.stringify({status: 'prepared', productionProfile: metadata}));
   await assert.rejects(inspect(root, project), /personality differs from its script project/);
+});
+
+
+test('legacy frozen news capability is supported without changing its identity or admitting future blocked adapters', async t => {
+  const root=await fixture(t), catalog=path.join(root,'catalog');
+  await cp(path.resolve('personalities/news-political'),path.join(catalog,'news-political'),{recursive:true});
+  const definition=JSON.parse(await readFile(path.join(catalog,'news-political/profile.json')));
+  definition.version=1;definition.renderReady=false;definition.blocker='Source-clip audio, editorial timeline and multi-speaker captions are not implemented in the current renderer.';
+  await writeFile(path.join(catalog,'news-political/profile.json'),JSON.stringify(definition));
+  const legacy=loadPersonality('news-political',catalog);
+  await freezePersonality(root,legacy);
+  const before=await readFile(path.join(root,PROFILE_FILE),'utf8');
+  assert.doesNotThrow(()=>assertRenderReady(readPersonality(root)));
+  assert.equal(await readFile(path.join(root,PROFILE_FILE),'utf8'),before);
+  const future=structuredClone(legacy);future.profile.version=99;future.profile.blocker='Future adapter not implemented';
+  assert.throws(()=>assertRenderReady(future),/Future adapter/);
 });

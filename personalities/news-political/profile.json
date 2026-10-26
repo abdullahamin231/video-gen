@@ -1,8 +1,7 @@
 {
   "id": "news-political",
-  "version": 1,
+  "version": 2,
   "name": "Political news and commentary",
   "workflow": "news-edit",
-  "renderReady": false,
-  "blocker": "Source-clip audio, editorial timeline and multi-speaker captions are not implemented in the current renderer."
+  "renderReady": true
 }

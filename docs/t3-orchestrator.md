@@ -120,8 +120,7 @@ chooses a proposed change; thumbnail selection alone does not approve a changed 
 short description at that checkpoint and use the approved copy for upload. Do not invent copy at upload time.
 Every thumbnail variant and the selected/archived image must match the video's orientation: vertical videos require
 1080×1920 (9:16) thumbnails with 180×320 previews; landscape videos use 1280×720 (16:9) with 320×180 previews.
-Require a portrait composition and phone-size review for vertical jobs. The current thumbnail exporter/briefs still
-hard-code landscape; report this as a pipeline blocker for vertical thumbnails rather than approving the wrong format.
+Require a portrait composition and phone-size review for vertical jobs. The thumbnail exporter, briefs and acceptance checks enforce the output orientation; compose portrait artwork for vertical jobs.
 If the upload command reports that authorization expired, follow
 [docs/youtube-upload.md](youtube-upload.md) to reauthorize; for server auth from a laptop, it explains the temporary
 Tailscale SSH tunnel. Include the YouTube link alongside the local MP4 and thumbnail paths. If upload fails, report
@@ -172,3 +171,6 @@ To stop a video: cancel its open tasks (`task_cancel`), run `delegated`. To dele
 - Every asset stays inside the repository, never in `/tmp`.
 - Never show the preview panel or the player in chat. Point the user to https://ip-208-84-101-178.tailc5adba.ts.net:8443/ for every review, and do not call `preview_open` for the film.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.
+
+
+For financial/political news, use the real-media adapter and mandatory subtitle/encoded acceptance contract in [news.md](news.md). Preserve frozen profiles and normal approvals. Missing source rights are actionable source prerequisites, not an unimplemented-news blocker.

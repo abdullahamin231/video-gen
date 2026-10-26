@@ -8,6 +8,12 @@ At project creation pass --profile news-financial yourself. This is an agent opt
 
 The project freezes these instructions into production-profile.json. Every delegated role receives that snapshot. Do not switch the personality of an existing project, overwrite its snapshot, or edit video.config.json. Explicitly requested changes of genre require a new project; preserve the existing one.
 
-## Capability boundary
+## Real-media production
 
-This personality has active routing and a complete instruction package, but its media adapter is not implemented. Read TOOLS.md for the exact prerequisite. The pipeline may gather sources and plan; it must stop before generating narration or preparing/rendering an incompatible film. Do not bypass a blocked step. This repository change sets up personalities; it does not authorise recording any commercial material or claim those adapters now exist.
+The news-edit adapter implements actual cleared stills/article views, source excerpts, original commentary,
+source audio and mandatory subtitles. Read ../../docs/news.md for source selection, ingestion, claim/rights
+ledgers, news.json edit timing, review and encoded acceptance. Use the normal wrapper and human checkpoints.
+Missing source rights or recordings are actionable source prerequisites; never record commercial references,
+invent news imagery or substitute a cartoon explainer. Existing frozen profiles keep their identity; the runtime
+recognises this adapter capability without rewriting production-profile.json. Do not start or upload a film as
+part of software testing.

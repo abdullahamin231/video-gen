@@ -244,3 +244,6 @@ script. Never use TTS when the user supplied a recording.
 Jobs live in `jobs/<slug>/` and scripts in `jobs/scripts/<slug>/` (script, research, sources, narration), both ignored by Git. Reusable work belongs in `library/` and the kit (`lib/kit/kit.js`).
 
 Readability is non-waivable: obscured, illegible or unintentionally overlapping text blocks delivery even after three creative review rounds. Intentional layering needs an explicit reason and clearly readable text.
+
+
+For financial/political news, use the real-media adapter and mandatory subtitle/encoded acceptance contract in [news.md](news.md). Preserve frozen profiles and normal approvals. Missing source rights are actionable source prerequisites, not an unimplemented-news blocker.

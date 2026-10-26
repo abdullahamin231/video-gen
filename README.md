@@ -9,7 +9,7 @@ Video personalities are selected automatically from the request through [AGENTS.
 Their separate [instruction folders](personalities/README.md) cover the existing explainer, fixed Bradikinin-style
 storytelling, financial news, political news and hands-on app review. The user does not need to type an ID.
 Selection and instructions are frozen per project and carried into delegated briefs. Explainer and storytelling
-use the current renderer; news/audio-edit and app-capture adapters remain explicit prerequisites.
+use their dedicated render paths. Financial/political news support real-media edits with required subtitles and source/rights ledgers; see [docs/news.md](docs/news.md). App capture remains an explicit prerequisite.
 
 ## Setup
 

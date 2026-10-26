@@ -101,7 +101,7 @@ Primary references used for adapters and accounting: [Codex non-interactive mode
 
 ## Completion boundary
 
-An agent writing “done” does not complete a thread. `complete` re-reads the pipeline with the read-only `status` and requires state `done`, an MP4, a 1280×720 PNG, an editable thumbnail source, a thumbnail brief, a fresh independently invoked thumbnail reviewer with a passing `thumbnail/REVIEW.json`, and a matching archive under `library/thumbnails/<slug>/`. The qualified film's evidence is not modified by the UI. Reviewer judgments still depend on the actual agents inspecting the material; a server cannot mechanically prove subjective creative quality.
+An agent writing “done” does not complete a thread. `complete` re-reads the pipeline with the read-only `status` and requires state `done`, an MP4, an orientation-matched PNG (1280×720 landscape, 1080×1920 vertical), an editable thumbnail source, a thumbnail brief, a fresh independently invoked thumbnail reviewer with a passing `thumbnail/REVIEW.json`, and a matching archive under `library/thumbnails/<slug>/`. The qualified film's evidence is not modified by the UI. Reviewer judgments still depend on the actual agents inspecting the material; a server cannot mechanically prove subjective creative quality.
 
 ## Local state and tests
 
