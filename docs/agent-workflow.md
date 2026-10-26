@@ -8,8 +8,10 @@ Before these stages, AGENTS.md infers a production personality and reads its `pe
 `project-new` freezes the ID/version/hash and full instruction package; `start`/`prepare` inherit it from the script
 folder. `lib/personalities.mjs` validates snapshots and readiness, and all generated role/thumbnail briefs carry the
 selected instructions. Legacy jobs default to the existing explainer. Review fingerprints include the frozen
-package. News and app-review packages cannot enter the current render pipeline until their declared media
-adapters are implemented. See [personality packages](../personalities/README.md).
+package. News packages cannot enter the current render pipeline until their declared media adapter is implemented;
+app-review records browser sessions with `app-capture` and compiles the pointer and camera from its action log, while
+native desktop surfaces stay outside that adapter. See [personality packages](../personalities/README.md) and
+[app capture](app-capture.md).
 
 | Stage | Command | Inputs → outputs | Enforced by |
 |---|---|---|---|

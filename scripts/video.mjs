@@ -24,7 +24,7 @@ import {loadConfig, resolveSettings} from '../lib/format.mjs';
 import {PERSONALITIES, inferPersonality, loadPersonality, preparationPersonality, freezePersonality, assertRenderReady} from '../lib/personalities.mjs';
 import {readdir} from 'node:fs/promises';
 import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
-import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation,
+import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation, carryCaptures,
   assertNoDelegation, projectOfJob, requireQuote, logDecision} from '../lib/project.mjs';
 import {setHumanStages} from '../lib/human.mjs';
 import {renderStageBar} from '../lib/stagebar.mjs';
@@ -133,6 +133,8 @@ async function prepare(opts) {
   await writeFile(path.join(job, 'package.json'), JSON.stringify({name: opts.name, private: true, type: 'module',
     scripts: {next: `npm --prefix ../.. run video -- next --job jobs/${opts.name}`}}, null, 2) + '\n');
   for (const dir of ['inputs', 'assets', 'compositions', 'review', 'renders', 'shots', 'components', 'briefs']) await mkdir(path.join(job, dir), {recursive: true});
+  // An app review's session was recorded before the script, so it travels into the job with its evidence.
+  await carryCaptures(script, job);
   const productionProfile = await freezePersonality(job, personality);
   await installKit(job);
   await writeFile(path.join(job, 'inputs/source-script.md'), sourceScript);
@@ -406,6 +408,11 @@ review-template --stage S --role R   write a pre-filled reviewer report
 alignment-approve --note "..."       record review of a low script match
 setup-manim                          install ManimCE locally for "manim" objects
 setup-audio                          check ffmpeg, install librosa (beat analysis for music)
+app-capture --plan <file.json> [--job <job|jobs/scripts/<slug>> --dir capture/<task>]   record a scripted task in headless Chrome
+                                     (no baked pointer) and write recording.mp4, actions.jsonl, pointer.json, shots/ and
+                                     manifest.json; in a project this runs before the film job exists (docs/app-capture.md)
+capture-scene --capture <dir> --scene <id> [--fit 0.9 --cursor-size 54]   cut the recording per capture/<task>/edits.json and compile
+                                     shots/<id>.json: giant cursor, click rings, camera push-in/pull-out (build it afterwards)
 music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
 kit-update                           refresh the job's frozen kit copy from lib/kit
 
@@ -567,6 +574,47 @@ try {
       console.log(nextHint(job).trim());
     }
     else if (command === 'music') await musicImport(job, opts);
+    else if (command === 'app-capture') {
+      if (!opts.plan) throw new Error('app-capture needs --plan <capture-plan.json> (task, url and steps; see docs/app-capture.md).');
+      const plan = await json(path.resolve(ROOT, opts.plan));
+      const dir = opts.dir ? path.resolve(job, opts.dir) : path.join(job, 'capture', path.basename(String(plan.task || 'session')));
+      const {captureSession} = await import('../lib/capture.mjs');
+      console.log(`Recording ${plan.task} at ${plan.viewport?.join('×') ?? '1440×900'}…`);
+      const result = await captureSession(dir, plan, {onProgress: step => { if (step.do !== 'encode') console.log(`  ${step.do}${step.target ? ` ${step.target}` : ''}${step.why ? ` — ${step.why}` : ''}`); }});
+      const clicks = result.actions.filter(a => a.type === 'click').length;
+      const failed = result.manifest.results.filter(r => r.kind === 'assert' && !r.ok);
+      console.log(`\nRecorded ${path.relative(ROOT, result.recording)} — ${result.manifest.duration}s, ${result.manifest.frames} frames, ${clicks} click(s), ${result.manifest.frameSize.join('×')} px.`);
+      console.log(`Evidence: ${path.relative(ROOT, path.join(dir, 'manifest.json'))}, actions.jsonl, pointer.json, shots/.`);
+      if (result.manifest.aborted) {
+        console.log(`\nThe session stopped early — ${result.manifest.aborted}`);
+        console.log('The recording, action log and manifest up to that point are kept as evidence: the app did not do what the plan expected.');
+        process.exitCode = 1;
+      }
+      if (failed.length) {
+        console.log(`\n${failed.length} assertion(s) did not hold — keep them as evidence and write the review from what happened:`);
+        for (const f of failed) console.log(`  ${f.target || 'page'}: expected "${f.expected}" — ${f.observed}`);
+        process.exitCode = 1;
+      } else if (!result.manifest.aborted) console.log('\nNext: write capture/<task>/edits.json (cue phrases + source ranges), then run capture-scene.');
+    }
+    else if (command === 'capture-scene') {
+      if (!opts.capture) throw new Error('capture-scene needs --capture <capture directory> (from app-capture).');
+      if (!opts.scene) throw new Error('capture-scene needs --scene <id>; it is the scene in film.json this capture belongs to.');
+      const captureDir = path.resolve(job, opts.capture);
+      const edits = await json(path.join(captureDir, 'edits.json'));
+      if (opts.scene) edits.scene = opts.scene === 'true' ? edits.scene : opts.scene;
+      const manifest = await json(path.join(job, 'job.json')).catch(() => ({}));
+      const frame = [manifest.width || 1920, manifest.height || 1080];
+      const {compileCaptureScene} = await import('../lib/appcapture.mjs');
+      const result = await compileCaptureScene(job, captureDir, edits, {
+        width: numeric(opts.width, frame[0], 'width'), height: numeric(opts.height, frame[1], 'height'),
+        fit: Number(opts.fit ?? 0.9), cursorSize: numeric(opts['cursor-size'], 54, 'cursor-size'),
+      });
+      console.log(`Compiled ${path.relative(ROOT, result.file)} from capture "${result.capture.task}".`);
+      for (const edit of result.report) console.log(`  ${edit.id}: ${edit.cut[0]}–${edit.cut[1]}s (${edit.duration}s), ${edit.clicks} click(s), camera ${edit.camera}`);
+      for (const warning of result.warnings) console.log(`  warning: ${warning}`);
+      console.log(`\nCues used: ${result.report.map(e => e.cue).join(', ')}. The scene must already exist in film.json with the same id ("${edits.scene}").`);
+      console.log(`Next: npm run video -- build --job ${path.relative(ROOT, job)} --scene ${edits.scene}`);
+    }
     else if (command === 'mix') await remixFilm(job, {verify});
     else if (command === 'kit-update') { await installKit(job); console.log('Kit refreshed. Run build.'); }
     else if (command === 'alignment-approve') {

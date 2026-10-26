@@ -31,7 +31,7 @@ The user describes the video in ordinary language; never make them memorise or t
 
 Each folder owns `EDITORIAL.md`, `DESIGN.md`, `TOOLS.md` and `REVIEW.md`; read only the selected package. Shared runbooks own transport, delegation and checkpoints, not a universal design style. Do not append the explainer's drawing/motion rules to other personalities. Profiles are frozen per project and cannot be switched by `project-set`; start a new project for an explicit change of genre. The provider/model profiles in `chat.config.json` are unrelated to these editorial personalities.
 
-News and computer-use instructions are selectable, but their media adapters are not implemented yet. Their descriptors set `renderReady: false`; respect the pipeline's precise blocked message. Do not present instruction routing as a completed news editor/capture system, bypass readiness checks, record commercial footage, or substitute an animated explainer.
+News instructions are selectable, but their media adapter is not implemented yet. Their descriptors set `renderReady: false`; respect the pipeline's precise blocked message. Do not present instruction routing as a completed news editor, bypass readiness checks, record commercial footage, or substitute an animated explainer. App-review is ready for browser applications: `npm run video -- app-capture` records a scripted session in headless Chrome without compositing the pointer, and `capture-scene` derives the pointer, click rings and camera moves from its action log ([docs/app-capture.md](docs/app-capture.md)). Native desktop windows and OS dialogs stay outside that adapter; report the boundary instead of faking the surface.
 
 ## Rules for everyone
 

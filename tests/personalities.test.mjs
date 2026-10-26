@@ -39,7 +39,7 @@ test('each personality has its own complete package, with truthful renderer read
     const snapshot = loadPersonality(id);
     assert.match(snapshot.files['ORCHESTRATOR.md'], new RegExp(`--profile ${id}`));
     assert.match(snapshot.sha256, /^[a-f0-9]{64}$/);
-    if (['explainer', 'rules-story'].includes(id)) assert.doesNotThrow(() => assertRenderReady(snapshot));
+    if (['explainer', 'rules-story', 'app-review'].includes(id)) assert.doesNotThrow(() => assertRenderReady(snapshot));
     else assert.throws(() => assertRenderReady(snapshot), /not implemented/);
   }
 });
@@ -104,17 +104,38 @@ test('story direction/build briefs exclude explainer design and retain the fixed
   assert.match(await readFile(file, 'utf8'), /Frozen rules-story\/REVIEW.md/);
 });
 
-test('news uses its own source rubric and app review stops before inventing a script', async t => {
+test('news uses its own source rubric and app review records the session before it writes', async t => {
   const root = await fixture(t);
   await createProject(root, {name: 'news', brief: 'Cover today\'s financial news.'});
   await projectStep(root, 'news');
   const news = await readFile(path.join(root, 'jobs/scripts/news/briefs/research.md'), 'utf8');
   assert.match(news, /verify ownership\/public-domain/);
   assert.doesNotMatch(news, /Show the real thing, drawn/);
+
   await createProject(root, {name: 'app', brief: 'Review T3 Code entirely.'});
-  const step = await projectStep(root, 'app');
-  assert.equal(step.state, 'blocked');
-  assert.match(step.text, /Actual app use and capture evidence must precede the script/);
+  const S = path.join(root, 'jobs/scripts/app');
+  let step = await projectStep(root, 'app');
+  assert.equal(step.state, 'record the session');
+  assert.match(step.text, /app-capture --job jobs\/scripts\/app/);
+  assert.match(step.text, /native window/);
+  assert.equal((await projectStatus(root, 'app')).phase, 'recording the session');
+
+  // The manifest is the evidence. A stray folder without one leaves the gate closed.
+  await mkdir(path.join(S, 'capture/F1'), {recursive: true});
+  assert.equal((await projectStep(root, 'app')).state, 'record the session');
+  await writeFile(path.join(S, 'capture/F1/manifest.json'), JSON.stringify({task: 'F1', viewport: [2560, 1600]}));
+  step = await projectStep(root, 'app');
+  assert.equal(step.state, 'gather the sources');
+  await closeDelegation(root, 'app');
+
+  await mkdir(path.join(S, 'sources'), {recursive: true});
+  await writeFile(path.join(S, 'SOURCES.md'), '# Sources');
+  step = await projectStep(root, 'app');
+  assert.equal(step.state, 'write the script and its visual plan');
+  const brief = await readFile(path.join(S, 'briefs/write.md'), 'utf8');
+  assert.match(brief, /The recorded session is the evidence/);
+  assert.match(brief, /capture\/F1\/manifest\.json/);
+  assert.match(brief, /Do not describe a flow the log does not contain/);
 });
 
 test('legacy jobs retain the explainer while unknown explicit and ambiguous new choices fail', async t => {
