@@ -1,6 +1,6 @@
 {
   "id": "news-political",
-  "version": 2,
+  "version": 3,
   "name": "Political news and commentary",
   "workflow": "news-edit",
   "renderReady": true

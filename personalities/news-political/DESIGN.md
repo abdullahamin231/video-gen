@@ -1,13 +1,23 @@
 # Political news design
 
-Use the actual cleared news/event footage and permitted articles/primary records with commentary. Actual source photographs and permitted document/article views with original commentary are valid still scenes. No cartoons, invented documentary imagery, generic diagrams or PowerPoint-style scene sequences. Use clean cuts, deliberate pauses, relevant reframes and clear source attribution. Never conceal context with a crop.
+Use actual cleared news/event clips, relevant B-roll, original commentary and brief permitted article/primary-record inserts. No cartoons, standalone illustrative photo sequences, generic diagrams or PowerPoint-style scenes. A succession of genuine order pages with narration still fails the requested news treatment. Use readable type and composed delivery while keeping the picture relevant and developing.
 
-When an actual supplied/cleared presenter recording is available, retain a circular presenter at bottom left; otherwise omit it and report the missing recording without inventing an identity. Use our own presenter or a separately authorised identity. Size relative to the output format and keep clear of source captions, speaker names, subtitles and article text. Move the source content or presenter deliberately if a source lower-third occupies that area. A still portrait is not a lip-synchronised presenter. Never borrow a news host's face/voice as ours.
+## Editing and evidence
 
-Keep the original source speaker audible when showing an excerpt and keep commentary distinct. Label archival material by date when it could be mistaken for current footage. Caption all audible speakers and preserve their meaning.
+Open on the actual event, speaker, action or consequence and establish a specific viewer question. Show a meaningful excerpt in context, add our interpretation, inspect the decisive record briefly and return to people or activity. Cut when the thought or useful visual information changes. Preserve an intact quotation or unfolding action when it warrants a longer shot; avoid arbitrary cuts, repeated loops and constant zooms.
 
+For article/record inserts, identify the source/date and frame the exact passage large enough to read. Reveal or highlight it at the relevant commentary phrase, retaining qualifications. Allow reading time, then return to footage. Do not hold miniature full PDFs or use page changes, slow zooms and changing subtitles as the film's visual development.
 
-Subtitles are mandatory for commentary and every retained audible source speaker. Use the adapter's high-contrast
-subtitle rail, separate from source/date/speaker attribution. Check full and phone-size frames, source lower thirds,
-crop context and any presenter inset. Both vertical and landscape output and orientation-matched thumbnails are
-supported. Motion is limited to justified editorial clarification; real media remains primary.
+Select footage for the sentence being spoken. Label archival/contextual material when it could be mistaken for the current event. Never imply that unrelated crowds, patients, locations or reaction shots establish what happened. Use real-data charts/maps only when the specific data or geography matters, with source, date, units, denominators and uncertainty. No decorative institutional flowcharts or invented election results.
+
+## Circular presenter and framing
+
+When an actual supplied/cleared presenter recording is available, retain the circular presenter at bottom left. Use our own presenter or a separately authorised identity. Keep it clear of source captions, speaker names, article text and subtitles. Recompose deliberately when a source lower third occupies that area. A still portrait is not a lip-synchronised presenter; never borrow a news host's face/voice or invent one. If no recording is available, report that input gap and retain the footage-and-commentary treatment.
+
+Compose for the saved orientation. Vertical crops must preserve the relevant person/action and context; use an intentional inset when a wide source cannot safely be cropped. Avoid tiny pages or landscape clips floating in empty portrait space. Match thumbnails to the video's saved dimensions and check phone-size readability. Use restrained original news graphics with separate headline, source/date, speaker and subtitle functions.
+
+## Source speech and captions
+
+Keep the original source speaker audible in quoted excerpts and distinguish our commentary. Do not remove qualifications or imply a response using a reaction from another moment. A silent contextual B-roll use needs an explicit reason; do not mute a quotation and replace its words with narration. Cleared natural sound can provide continuity without competing with speech.
+
+Subtitles are mandatory for all commentary and every retained audible source speaker, burned in with an SRT sidecar. Check speaker identity, meaning, source offsets and sync, plus source/presenter/subtitle collisions at full and phone size. Do not fabricate documentary imagery or a speaker's words. A technically valid render dominated by long-held document pages fails this visual treatment.

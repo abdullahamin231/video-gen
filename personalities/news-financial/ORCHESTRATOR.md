@@ -13,6 +13,8 @@ The project freezes these instructions into production-profile.json. Every deleg
 The news-edit adapter implements actual cleared stills/article views, source excerpts, original commentary,
 source audio and mandatory subtitles. Read ../../docs/news.md for source selection, ingestion, claim/rights
 ledgers, news.json edit timing, review and encoded acceptance. Use the normal wrapper and human checkpoints.
+Before committing narration, check that cleared footage can sustain DESIGN.md and record the timed shot plan
+in VISUALS.md; do not silently downgrade to a still/page slideshow.
 Missing source rights or recordings are actionable source prerequisites; never record commercial references,
 invent news imagery or substitute a cartoon explainer. Existing frozen profiles keep their identity; the runtime
 recognises this adapter capability without rewriting production-profile.json. Do not start or upload a film as

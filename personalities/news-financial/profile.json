@@ -1,6 +1,6 @@
 {
   "id": "news-financial",
-  "version": 2,
+  "version": 3,
   "name": "Financial news and commentary",
   "workflow": "news-edit",
   "renderReady": true

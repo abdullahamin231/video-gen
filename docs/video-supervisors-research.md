@@ -2,6 +2,10 @@
 
 Research date: 23 October 2026. Research and proposed architecture only: no production, pipeline changes, model installation, footage downloads or recordings.
 
+**Design update (26 October 2026):** The presentation-style and document/photo formats proposed below are
+superseded by the footage-led [financial](../personalities/news-financial/DESIGN.md) and
+[political](../personalities/news-political/DESIGN.md) design instructions.
+
 ## Recommendation
 
 Keep three production supervisors: the existing scientific/technical explainer, a financial briefing supervisor, and a political commentary supervisor. Keep tech-product blogging as a separate research track until its format and evidence workflow are settled. A product review is different from explaining a technical concept, even when both concern technology.

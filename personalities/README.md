@@ -27,4 +27,4 @@ News renderReady=true is backed by actual adapter/render tests, including encode
 
 No video.config.json changes, T3 fork, native picker or provider-model change is needed. T3 reads AGENTS.md and the selected orchestrator; its usual delegated-role lifecycle remains in docs/t3-orchestrator.md. The video-gen web UI also receives profile routing instructions. chat.config.json provider profiles stay separate.
 
-Financial and political profiles now use the verified real-media news-edit adapter (v2); see [news workflow](../docs/news.md). Old frozen v1 news projects retain their identity and gain the adapter capability without snapshot edits. Browser-app capture is supported; native desktop windows and OS dialogs remain outside that adapter.
+Financial and political catalog profiles are v3 for the footage-led design revision and use the verified real-media news-edit adapter; see [news workflow](../docs/news.md). Old frozen v1 news projects retain their identity and gain the adapter capability without snapshot edits. Browser-app capture is supported; native desktop windows and OS dialogs remain outside that adapter.
