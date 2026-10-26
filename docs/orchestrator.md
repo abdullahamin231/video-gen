@@ -59,6 +59,18 @@ sub-agents do the creative work from self-contained brief files. This works the 
   they said with `human-review --decision approve` or `--decision revise --note "12.5: <their words>"`. Never decide for
   them and never reword a note: `next` sends each note to the scene at its moment.
 
+When the user or supervisor requests Discord notifications for approval/question checkpoints, send one concise ping
+per pending request with the project, decision needed, and review/supervisor link:
+
+```bash
+node scripts/discord-notify.mjs --request-id <stable-request-id> --message "<project, decision needed, review/supervisor link>"
+```
+
+The helper reads `DISCORD_WEBHOOK_URL` from `.env` without printing it, confirms the HTTP response, and records
+successful request IDs in `.cache/discord-approval-notified.json` to suppress duplicates. The orchestrator or a
+delegated agent assigned to notify may run it. Never expose the URL or treat a notification as approval; keep the
+decision in the normal review workflow. Report missing configuration or delivery failures without credentials.
+
 Nothing is rendered until final review completes (passing or reaching its three-round creative review budget), and the user approves if they asked for final review: reviewers judge
 frames taken from the built HTML, and `next` then asks for one `render`.
 

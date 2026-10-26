@@ -90,6 +90,18 @@ At each checkpoint `next` tells you what to open and what to record. The pattern
 2. In two or three lines, tell the user what is ready, give them **https://ip-208-84-101-178.tailc5adba.ts.net:8443/**
    to review it, and say what you need from them: approve, or say what to change
    (for the film: at which moment, e.g. "12.5: make the chart bigger").
+   When the user or supervisor requests Discord notifications for this run, send one concise ping with the project,
+   decision needed, and review/supervisor link:
+
+   ```bash
+   node scripts/discord-notify.mjs --request-id <stable-request-id> --message "<project, decision needed, review/supervisor link>"
+   ```
+
+   Use a stable ID for this checkpoint so the shared `.cache/discord-approval-notified.json` ledger suppresses duplicate
+   sends. The helper reads `DISCORD_WEBHOOK_URL` from `.env` without displaying it and reports delivery status. A
+   delegated agent assigned to notify may run the same helper; the main orchestrator can also send on its behalf.
+   Never expose the URL or treat a ping as approval. Report missing configuration or delivery failures without credentials.
+
 3. **End your turn and wait.** Never decide for them, never approve on their behalf, never treat silence as approval.
 4. When they reply, record it word for word with the command `next` printed, always with
    `--quote "<their whole message>"`. Each film note is `"<seconds>: <their words>"`; a note without a time covers the

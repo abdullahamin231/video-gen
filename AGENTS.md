@@ -42,3 +42,13 @@ News and computer-use instructions are selectable, but their media adapters are 
 - Keep every asset inside the repository, never in `/tmp`. Never edit `video.config.json` unless the user asks.
 - Keep a supplied recording unchanged; never replace it with TTS.
 - After local delivery and thumbnail selection, the orchestrator uploads each completed video to the abdupdates YouTube channel as unlisted, unless the user explicitly opts out. Only the orchestrator uploads; see [docs/youtube-upload.md](docs/youtube-upload.md).
+
+## Discord approval notifications
+
+When a user or supervisor requests Discord notifications for approval/question checkpoints, the orchestrator or any delegated agent assigned to send one must use [`scripts/discord-notify.mjs`](scripts/discord-notify.mjs):
+
+```bash
+node scripts/discord-notify.mjs --request-id <stable-request-id> --message "<project, decision needed, review/supervisor link>"
+```
+
+Use one stable request ID per pending checkpoint; the helper records successful deliveries in `.cache/discord-approval-notified.json` and skips duplicate IDs. It loads `DISCORD_WEBHOOK_URL` from `.env` without printing it and reports the HTTP delivery result. Never expose the webhook URL or count a notification as approval. Keep decisions in the normal T3/review workflow. If configuration is missing or delivery fails, report that without credentials.
