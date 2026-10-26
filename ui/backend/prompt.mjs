@@ -41,6 +41,7 @@ USER BRIEF:
 ${job.prompt}
 
 THREAD CONTRACT:
+${!job.audioPath && job.ttsProvider === 'ming' ? '- Ming uses a shared FIFO queue across videos. A queued TTS command is healthy: wait for that same invocation, monitor tts-status.json, and do not launch duplicate retries or change providers because of queue waiting.\n' : ''}
 ${!job.audioPath && job.ttsProvider === 'ming' ? '- ' + mingDirection + '\n' : ''}- Thread id: ${job.id}. Its script/research/narration directory is ${job.scriptPath}/. The video job directory MUST be ${job.jobPath}/. Do not touch other jobs.
 - Create the job with an explicit name, because \`start\` otherwise names it from the script's heading:
   npm run video -- start --name ${job.slug} --audio <recording> --script ${job.scriptPath}/SCRIPT.md --profile <resolved personality ID> --format ${job.format}${humanFlag(job)}${thumbnailFlags(job)}

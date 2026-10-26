@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { cacheDir } from '../lib/cache.mjs';
+import { spawnTts } from '../lib/tts-process.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TEXT = 'Every time you open a website, your browser asks a server for information. The server checks the request, finds the right data, and sends a response. Most of this happens in a fraction of a second. Good engineering makes those steps reliable. Clear error messages help us find the cause, fix the problem, and keep the system running. Both voices read this exact passage. We measure generation time and memory, then compare their clarity, pacing, pronunciation, and natural delivery.';
@@ -11,7 +12,7 @@ async function run(command, args, { env = process.env, output } = {}) {
   const log = output ? await open(output, 'w') : null;
   try {
     await new Promise((resolve, reject) => {
-      const child = spawn(command, args, { cwd: ROOT, env, stdio: ['ignore', log ? log.fd : 'inherit', log ? log.fd : 'inherit'] });
+      const { child } = spawnTts(command, args, { cwd: ROOT, env, stdio: ['ignore', log ? log.fd : 'inherit', log ? log.fd : 'inherit'] });
       child.on('error', reject); child.on('close', code => code === 0 ? resolve() : reject(new Error(`${path.basename(command)} exited ${code}; see ${output || 'output'}`)));
     });
   } finally { await log?.close(); }

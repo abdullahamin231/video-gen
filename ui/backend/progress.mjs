@@ -58,8 +58,16 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
     const narration = has(`${scriptDir}/narration.wav`), tts = commandRunning('tts');
     const provider = ({ kokoro: 'Kokoro', ming: 'Ming', gemini: 'Gemini' })[job.ttsStatus?.usedProvider || job.ttsProvider || 'kokoro'] || 'Kokoro';
     const notice = job.ttsStatus?.fallback ? ' · Gemini usage limit reached; using Kokoro' : provider === 'Gemini' && job.ttsStatus?.model ? ` · ${job.ttsStatus.model}` : '';
-    script.push(stepFrom('narration', `Narration (${provider})`, tts ? 'current' : narration ? 'done' : 'pending',
-      `${tts ? 'Generating speech' : narration ? `${scriptDir}/narration.wav` : provider}${notice}`, { file: narration ? `${scriptDir}/narration.wav` : '' }));
+    const speech = job.ttsStatus;
+    const queued = speech?.status === 'queued', generating = speech?.status === 'generating';
+    const detail = queued ? `Waiting for Ming${Number.isInteger(speech.queuePosition) ? ` · ${speech.queuePosition} job(s) ahead` : ''}`
+      : generating && speech.phase === 'loading-model' ? 'Loading Ming model'
+      : generating && speech.phrase ? `Generating speech · phrase ${speech.phrase} of ${speech.phrases}`
+      : speech?.status === 'cancelled' ? 'Narration paused'
+      : speech?.status === 'failed' ? 'Narration generation failed'
+      : tts || generating ? 'Generating speech' : narration ? `${scriptDir}/narration.wav` : provider;
+    script.push(stepFrom('narration', `Narration (${provider})`, tts || queued || generating ? 'current' : narration ? 'done' : 'pending',
+      `${detail}${notice}`, { file: narration ? `${scriptDir}/narration.wav` : '' }));
   }
   phases.push({ id: 'script', label: 'Script & narration', steps: script });
 

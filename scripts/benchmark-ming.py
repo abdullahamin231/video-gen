@@ -12,6 +12,8 @@ parser.add_argument('--script', required=True)
 parser.add_argument('--output', required=True)
 parser.add_argument('--metrics', required=True)
 args = parser.parse_args()
+from ming_queue import acquire_worker_slot
+lease = acquire_worker_slot()
 sys.path.insert(0, args.source)
 import torch
 torch.set_num_threads(8)
@@ -37,3 +39,4 @@ metrics = dict(continuityMode=CONTINUITY_MODE, modelLoadSeconds=loaded-started, 
     torchVersion=torch.__version__, dtype=str(next(model.model.parameters()).dtype), threads=torch.get_num_threads())
 Path(args.metrics).write_text(json.dumps(metrics, indent=2))
 print(json.dumps(metrics), flush=True)
+lease.close()

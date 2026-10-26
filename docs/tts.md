@@ -64,6 +64,31 @@ No API key is needed. Setup downloads code and weights; generation then runs off
 Ming is slower than Kokoro. Historical CPU timings predate acoustic-reference conditioning; new runs also generate and encode a reference. Measure current performance on the target host.
 A separate worktree needs its own setup. Do not move shared model caches out of another checkout.
 
+### Concurrent videos and the Ming queue
+
+You can produce multiple videos at once. Within a checkout, all Ming narration and
+Ming benchmark processes share a FIFO queue in `.cache/ming-queue/`, including calls
+using different `VG_CACHE` folders. Only one process loads the model and synthesizes
+at a time. Waiting workers use only Python's standard library; they do not load
+Torch or model weights. Research, script work, capture, rendering and other TTS
+providers can continue independently.
+
+The CLI reports queue admission and the number of jobs ahead. `tts-status.json`
+and the UI distinguish `queued`, model loading and `generating` with the current
+phrase number. Queue waiting has no generation deadline: a long queue is expected
+when many videos request narration together. Keep the whole narration in its
+original single command; do not launch duplicate retries while it is queued.
+
+Stopping the TTS command cancels its worker and records `cancelled`. Process locks
+are released by the OS even after a crash or forced kill; the next worker removes
+abandoned tickets automatically. No manual lock deletion is needed. A worker also
+exits if its immediate launcher disappears. A cancelled or killed narration must
+be rerun through the same command; completed output is replaced only after a full
+successful run. The queue does not change the selected provider or voice.
+
+The queue is local to this checkout, not a distributed service: another machine
+or independently installed worktree has its own queue.
+
 When **Ming is selected**, the orchestrator creates `ming-performance.json` beside the reviewed `SCRIPT.md`.
 Keep the reviewed script free of delivery tags so captions, word counts and alignment remain clean. Put exact spoken words
 and delivery cues only in this sidecar. Its segments, with supported cues removed, must match the reviewed narration exactly

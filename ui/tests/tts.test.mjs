@@ -78,6 +78,30 @@ test('runner passes selected narration to the CLI and shows one durable fallback
   await runner.syncNarration(job); assert.equal(job.ttsStatus, null, 'a supplied recording bypasses generated narration state');
 });
 
+test('runner and progress expose queued Ming position, model loading, phrase progress and cancellation', async t => {
+  const directory = await fixture(t), store = new Store(path.join(directory, 'state'));
+  const job = store.create({ ...defaults, ttsProvider: 'ming' });
+  job.scriptPath = path.relative(root, path.join(directory, 'script'));
+  await mkdir(path.join(root, job.scriptPath), { recursive: true });
+  const runner = new Runner({ root, store, codexRollouts: null });
+  t.after(async () => { await runner.shutdown(); await rm(directory, { recursive: true, force: true }); });
+  const statuses = [
+    [{ status: 'queued', queuePosition: 2, phase: 'waiting-for-ming' }, /Waiting for Ming · 2 job\(s\) ahead/],
+    [{ status: 'generating', queuePosition: 0, phase: 'loading-model' }, /Loading Ming model/],
+    [{ status: 'generating', queuePosition: 0, phase: 'synthesizing', phrase: 2, phrases: 5 }, /phrase 2 of 5/],
+    [{ status: 'cancelled' }, /Narration paused/],
+  ];
+  for (const [status, detail] of statuses) {
+    await writeFile(path.join(root, job.scriptPath, 'tts-status.json'), JSON.stringify({ requestedProvider: 'ming', usedProvider: 'ming', ...status }));
+    await runner.syncNarration(job);
+    assert.equal(job.ttsStatus.status, status.status);
+    assert.equal(job.ttsStatus.queuePosition, status.queuePosition ?? null);
+    const step = computeProgress(job).phases[0].steps.find(step => step.id === 'narration');
+    assert.match(step.detail, detail);
+    if (['queued', 'generating'].includes(status.status)) assert.equal(step.status, 'current');
+  }
+});
+
 test('fresh and resumed prompts use a whole-script command and selected provider, while supplied recordings bypass TTS', () => {
   const job = { ...defaults, id: 'test', slug: 'test', scriptPath: 'jobs/scripts/test', jobPath: 'jobs/test', ttsProvider: 'gemini' };
   for (const resume of [false, true]) {

@@ -9,6 +9,8 @@ parser = argparse.ArgumentParser()
 for name in ('source', 'model', 'plan', 'output'):
     parser.add_argument('--' + name, required=True)
 args = parser.parse_args()
+from ming_queue import acquire_worker_slot, queue_event
+lease = acquire_worker_slot()
 sys.path.insert(0, args.source)
 import numpy as np
 import soundfile as sf
@@ -24,6 +26,9 @@ plan = json.loads(Path(args.plan).read_text())
 # Keep the model loaded across all phrases. Files live in the wrapper's private cache directory.
 with sf.SoundFile(args.output, mode='w', samplerate=24000, channels=1, subtype='PCM_16') as result:
     for index, segment in enumerate(plan['segments']):
+        queue_event({'status': 'generating', 'queuePosition': 0,
+                     'phase': 'synthesizing', 'phrase': index + 1,
+                     'phrases': len(plan['segments'])})
         print(f"Ming phrase {index + 1}/{len(plan['segments'])}", flush=True)
         raw = str(Path(args.output).with_name(f'ming-phrase-{index}.wav'))
         converted = raw + '.paced.wav'
@@ -38,3 +43,4 @@ with sf.SoundFile(args.output, mode='w', samplerate=24000, channels=1, subtype='
         result.write(np.zeros(round(segment['pauseAfter'] * 24000), dtype='float32'))
         Path(raw).unlink()
         Path(converted).unlink()
+lease.close()

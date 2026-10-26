@@ -562,10 +562,14 @@ export class Runner {
     if (!file) return;
     const status = await readJson(file.path).catch(() => null);
     if (this.store.jobs.get(job.id) !== job) return;
-    if (!status || !['kokoro', 'ming', 'gemini'].includes(status.usedProvider) || !['generating', 'complete', 'failed'].includes(status.status)) return;
+    if (!status || !['kokoro', 'ming', 'gemini'].includes(status.usedProvider) || !['queued', 'generating', 'complete', 'failed', 'cancelled'].includes(status.status)) return;
     const modelFallback = status.requestedProvider === 'gemini' && ['quota', 'unavailable'].includes(status.modelFallback?.reason) &&
       [status.modelFallback.from, status.modelFallback.to].every(value => typeof value === 'string' && /^[a-zA-Z0-9./-]{1,120}$/.test(value)) ? status.modelFallback : null;
     const next = { requestedProvider: job.ttsProvider || 'kokoro', usedProvider: status.usedProvider, status: status.status,
+      queuePosition: Number.isInteger(status.queuePosition) && status.queuePosition >= 0 ? status.queuePosition : null,
+      phase: ['waiting-for-ming', 'loading-model', 'synthesizing'].includes(status.phase) ? status.phase : null,
+      phrase: Number.isInteger(status.phrase) && status.phrase > 0 ? status.phrase : null,
+      phrases: Number.isInteger(status.phrases) && status.phrases > 0 ? status.phrases : null,
       model: typeof status.model === 'string' ? status.model.slice(0, 120) : null,
       modelFallback: modelFallback ? { from: modelFallback.from, to: modelFallback.to, reason: modelFallback.reason } : null,
       fallback: status.fallback?.reason === 'quota' && status.requestedProvider === 'gemini' ? { reason: 'quota', notice: QUOTA_NOTICE } : null };

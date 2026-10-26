@@ -55,12 +55,19 @@ const DURING_DELEGATION = new Set(['status', 'projects', 'watch', 'watch-serve',
 const advances = (command, opts) => (ORCHESTRATOR_ONLY.has(command) && !DURING_DELEGATION.has(command)) || (command === 'build' && !opts.scene);
 const nextHint = job => ROLE_AGENT ? '\nDone with this command. Finish your brief and reply; the orchestrator advances the pipeline.' : `\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`;
 
-function run(command, args, {cwd = ROOT, capture = false, env = {}} = {}) {
+function run(command, args, {cwd = ROOT, capture = false, env = {}, forwardSignals = false} = {}) {
   return new Promise((resolve, reject) => {
     // Some CLI naming uses PWD rather than process.cwd(). Keep both consistent
     // when npm invokes the job from the repository root.
     const child = spawn(command, args, {cwd, env: {...process.env, PWD: cwd, ...env},
       stdio: capture ? ['ignore', 'pipe', 'inherit'] : 'inherit'});
+    const stop = signal => child.kill(signal);
+    const term = () => stop('SIGTERM'), interrupt = () => stop('SIGINT');
+    if (forwardSignals) {
+      process.on('SIGTERM', term); process.on('SIGINT', interrupt);
+      const cleanup = () => { process.off('SIGTERM', term); process.off('SIGINT', interrupt); };
+      child.once('close', cleanup); child.once('error', cleanup);
+    }
     let output = '';
     if (capture) child.stdout.on('data', chunk => {output += chunk;});
     child.on('error', reject);
@@ -476,7 +483,7 @@ Creative design is performed by the agent; see docs/orchestrator.md and docs/age
 try {
   const [command = 'help', ...args] = process.argv.slice(2);
   if (command === 'tts') {
-    await run(process.execPath, [path.join(ROOT, 'scripts/tts.mjs'), ...args]);
+    await run(process.execPath, [path.join(ROOT, 'scripts/tts.mjs'), ...args], {forwardSignals: true});
     process.exit(0);
   }
   if (['compile', 'assemble'].includes(command))
