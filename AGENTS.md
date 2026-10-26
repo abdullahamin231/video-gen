@@ -35,6 +35,7 @@ News and computer-use instructions are selectable, but their media adapters are 
 
 ## Rules for everyone
 
+- Thumbnails inherit the video's orientation across every personality: vertical videos require 9:16 portrait thumbnails (1080×1920), landscape videos use 16:9 thumbnails (1280×720). Apply this to every variant, preview, chosen thumbnail and archive. Never stretch or letterbox a landscape design into portrait; compose for the target frame. See docs/video-click-psychology.md.
 - Use only `npm run video -- ...`; never run `npx hyperframes` (except the setup steps in README.md), `hyperframes upgrade`, or edit `node_modules`.
 - Generate TTS with `npm run video -- tts` (see docs/tts.md), never direct `npx hyperframes tts`. All caches must stay inside the repository `.cache/`.
 - Generate each Ming narration in one TTS invocation. Production and benchmarks must use `scripts/ming_continuity.py` to reuse one acoustic reference across all fragments and performance segments; never restart unconditioned IP generation per segment. See [voice continuity](docs/tts.md#voice-continuity-and-the-former-voice-change-bug).

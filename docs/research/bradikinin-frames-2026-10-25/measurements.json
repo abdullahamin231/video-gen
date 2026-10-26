@@ -1,0 +1,91 @@
+{
+  "dog": {
+    "title": "If Your Dog Ever Stands On Two Legs\u2026 ACT NORMAL",
+    "url": "https://www.youtube.com/watch?v=Vpw2D6LsIV0",
+    "duration": 272.733333,
+    "downloadResolution": [
+      1280,
+      720
+    ],
+    "overviewFrames": 19,
+    "overviewStep": 15,
+    "medianBackgroundRGB": [
+      4,
+      4,
+      4
+    ],
+    "medianDarkPixelSharePct": 91.14,
+    "medianBrightPixelSharePct": 3.76,
+    "maxRedPixelSharePct": 1.1,
+    "maxYellowPixelSharePct": 4.49,
+    "maxGreenPixelSharePct": 0.56,
+    "sourceSha256": "e8c744fcdc12cce36ad828853e29983081806cd85123e934dd69e29773ae8456"
+  },
+  "phone": {
+    "title": "If Your Phone Ever Charges To 101%\u2026 DO NOT UNPLUG IT",
+    "url": "https://www.youtube.com/watch?v=1eKx2HunTbU",
+    "duration": 280.666667,
+    "downloadResolution": [
+      1280,
+      720
+    ],
+    "overviewFrames": 19,
+    "overviewStep": 15,
+    "medianBackgroundRGB": [
+      4,
+      4,
+      4
+    ],
+    "medianDarkPixelSharePct": 78.38,
+    "medianBrightPixelSharePct": 3.19,
+    "maxRedPixelSharePct": 0.64,
+    "maxYellowPixelSharePct": 0.87,
+    "maxGreenPixelSharePct": 0.1,
+    "sourceSha256": "6a5d8adeb6235c686056e542f36cf4245ebcc9c4778e216c4ad17dd42adaaa0e"
+  },
+  "cat": {
+    "title": "If Your Cat Ever Watches You Sleep\u2026 DO NOT OPEN YOUR EYES",
+    "url": "https://www.youtube.com/watch?v=JGRGlHESsXw",
+    "duration": 396.9,
+    "downloadResolution": [
+      1280,
+      720
+    ],
+    "overviewFrames": 20,
+    "overviewStep": 20,
+    "medianBackgroundRGB": [
+      4,
+      4,
+      4
+    ],
+    "medianDarkPixelSharePct": 81.68,
+    "medianBrightPixelSharePct": 11.84,
+    "maxRedPixelSharePct": 0.74,
+    "maxYellowPixelSharePct": 1.67,
+    "maxGreenPixelSharePct": 5.89,
+    "sourceSha256": "91ea3138aacef8036d754fe16f84688ce9182a5a850aa7c9a3af490620f80e85"
+  },
+  "short": {
+    "title": "If Your Cat Ever Watches You Sleep\u2026 DO NOT REACT TO THE PAW",
+    "url": "https://www.youtube.com/watch?v=pac91pYEQWs",
+    "duration": 25.033333,
+    "downloadResolution": [
+      360,
+      640
+    ],
+    "overviewFrames": 9,
+    "overviewStep": 3,
+    "medianBackgroundRGB": [
+      0,
+      0,
+      0
+    ],
+    "medianDarkPixelSharePct": 82.66,
+    "medianBrightPixelSharePct": 14.1,
+    "maxRedPixelSharePct": 0.32,
+    "maxYellowPixelSharePct": 0.35,
+    "maxGreenPixelSharePct": 0.0,
+    "sourceSha256": "da90653f7557a48a83ad9edd0c18ba7f99eed4efd92dfa4093f07a15cf202fdf"
+  },
+  "method": "Uniform overview frames. Dark=mean RGB below20; bright=meanRGB above180. Colour masks are coarse diagnostic thresholds on decoded JPEGs, not recovered design tokens. Black stage and transient glitch frames affect these metrics. Video-only downloads; audio was not analysed."
+}

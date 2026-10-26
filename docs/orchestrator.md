@@ -81,7 +81,12 @@ steps) until it prints `STATE: done`:
   `thumbnail-maker` per brief, each from a different angle (the visual plan's thumbnail as written, a warning, an
   accusation, a big number, the surprising mechanism). The briefs carry the visual plan's "## Thumbnail" section and
   point at [docs/kaiexplains-thumbnail-study.md](kaiexplains-thumbnail-study.md). Makers export with
-  `thumbnail-export`, which renders the SVG to `thumbnail.png` (1280×720) and `preview-320x180.png`.
+  `thumbnail-export`. Required output follows the video: vertical uses a 1080×1920 portrait thumbnail and
+  180×320 preview; landscape uses a 1280×720 thumbnail and 320×180 preview. All variants, the selected image
+  and its archive must retain that orientation. Follow [the shared thumbnail format contract](video-click-psychology.md).
+  The current exporter and generated briefs still hard-code landscape dimensions; vertical thumbnail export
+  needs a pipeline fix before it can satisfy this contract. Report that blocker rather than accepting landscape
+  output for a vertical film or bypassing the exporter.
 - One fresh `thumbnail-reviewer` (never a maker) judges every new or changed variant at full and feed size and records
   `pass` or `blocked` with `thumbnail-verdict`, then ranks the passing ones. A blocked variant goes back to its maker
   with the findings, up to three times; the others stay.

@@ -82,7 +82,16 @@ Each thumbnail maker writes one coherent package into its variant's `BRIEF.md` w
 and `Description:` lines, plus rationale and payoff evidence. Preserve an explicitly approved title; propose changes
 separately. Reply with all three pieces of copy so they can be reviewed together.
 
-Reviewers assess immediate clarity, audience relevance, a worthwhile unanswered question, readability at 320×180,
+Thumbnail orientation follows the video for every personality and every variant. For a vertical video use a
+9:16 portrait canvas, 1080×1920, with a 180×320 feed preview. For a landscape video use a 16:9 canvas,
+1280×720, with a 320×180 feed preview. Read the saved project/job format rather than assuming landscape.
+State orientation, output dimensions and preview dimensions in the visual plan's thumbnail section and every
+maker brief. Compose the subject and headline for that frame; do not stretch, letterbox or simply crop a finished
+landscape layout into portrait. Keep key text and subjects inside the video's applicable safe area and check
+readability at the matching feed size. Chosen and archived files must retain the approved orientation.
+Wrong orientation, clipping or distortion blocks thumbnail approval regardless of visual quality.
+
+Reviewers assess immediate clarity, audience relevance, a worthwhile unanswered question, readability at the matching feed size,
 complementary title/image copy, and whether both description and headline honestly match the film. Unsupported
 claims block; a positive angle or question does not. Rank by expected appeal and delivery of the promise, explain
 tradeoffs, and never claim a package is empirically the best without channel test evidence.

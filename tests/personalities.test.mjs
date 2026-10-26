@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, readFile, writeFile, rm, cp} from 'node:fs/promises';
 import path from 'node:path';
 import {PERSONALITIES, PROFILE_FILE, inferPersonality, loadPersonality, freezePersonality, readPersonality, personalityBrief, assertRenderReady, preparationPersonality} from '../lib/personalities.mjs';
-import {createProject, loadProject, projectStep, closeDelegation, updateProject} from '../lib/project.mjs';
+import {createProject, loadProject, projectStep, closeDelegation, updateProject, inspect, projectStatus, listProjects} from '../lib/project.mjs';
 import {directorBrief, builderBrief, writeBrief} from '../lib/briefs.mjs';
 import {sourceFingerprint} from '../lib/review.mjs';
 import {nextStep, renderFilm} from '../lib/film.mjs';
@@ -57,7 +57,7 @@ test('frozen instructions survive catalog edits and reject missing, changed or m
   assert.equal(readPersonality(dir).files['DESIGN.md'], snapshot.files['DESIGN.md']);
   await assert.rejects(freezePersonality(dir, loadPersonality('explainer')), /frozen/);
   const brief = personalityBrief(dir, '# Writer\nOriginal task.');
-  assert.match(brief, /Production personality: rules-story v1/);
+  assert.match(brief, /Production personality: rules-story v[0-9]+/);
   assert.ok(!brief.includes(loadPersonality('explainer').files['DESIGN.md']));
   const before = await sourceFingerprint(dir);
   await writeFile(path.join(dir, PROFILE_FILE), JSON.stringify(catalogEdit));
@@ -78,13 +78,13 @@ test('automatic project routing persists through research and revision without a
   assert.equal((await loadProject(root, 'story')).productionProfile.sha256, readPersonality(dir).sha256);
   await projectStep(root, 'story');
   const research = await readFile(path.join(dir, 'briefs/research.md'), 'utf8');
-  assert.match(research, /rules-story v1/);
+  assert.match(research, /rules-story v[0-9]+/);
   assert.match(research, /seven numbered rules/);
   await closeDelegation(root, 'story');
   await writeFile(path.join(dir, 'SOURCES.md'), '# Original premise and factual background');
   await projectStep(root, 'story');
   const writer = await readFile(path.join(dir, 'briefs/write.md'), 'utf8');
-  assert.match(writer, /rules-story v1/);
+  assert.match(writer, /rules-story v[0-9]+/);
   await assert.rejects(updateProject(root, 'story', {profile: 'explainer'}), /frozen/);
 });
 
@@ -94,11 +94,11 @@ test('story direction/build briefs exclude explainer design and retain the fixed
   const manifest = {duration: 12, width: 1920, height: 1080};
   const alignment = {words: [{text: 'Listen', start: 0, end: 1}]};
   const director = directorBrief(dir, manifest, alignment);
-  assert.match(director, /fixed Bradikinin-style visual grammar/);
+  assert.match(director, /Bradikinin frame-study specification/);
   assert.doesNotMatch(director, /Show the real thing, drawn|Everything else you draw as SVG|Invent at least 2 genuinely different whole-film concepts/);
   const film = {concept: 'Rules', scenes: [{id: 'opening', idea: 'Rule one', carry: [], start: {boundary: 'start'}}]};
   const builder = builderBrief(dir, manifest, film, {id: 'opening', start: 0, end: 12}, alignment);
-  assert.match(builder, /A figure can hold/);
+  assert.match(builder, /Short holds, clean cuts/);
   assert.doesNotMatch(builder, /every object arrives with motion/);
   const file = await writeBrief(dir, 'build-opening.md', builder);
   assert.match(await readFile(file, 'utf8'), /Frozen rules-story\/REVIEW.md/);
@@ -145,4 +145,24 @@ test('unsupported film workflows stop as blocked and cannot bypass readiness thr
   assert.equal(step.state, 'blocked');
   assert.match(step.text, /Source-clip audio/);
   await assert.rejects(renderFilm(dir, {reuseBuild: true}), /not implemented/);
+});
+
+test('prepared personality projects support inspection, status and listing while rejecting a mismatched film', async t => {
+  const root = await fixture(t);
+  const project = await createProject(root, {name: 'story', brief: 'Create a horror story about an intercom.'});
+  const scriptDir = path.join(root, 'jobs/scripts/story'), job = path.join(root, 'jobs/story');
+  await freezePersonality(job, readPersonality(scriptDir));
+  await writeFile(path.join(job, 'job.json'), JSON.stringify({
+    name: 'story', duration: 60, status: 'prepared', productionProfile: project.productionProfile,
+  }));
+  assert.equal((await inspect(root, project)).phase, 'film: prepared');
+  const status = await projectStatus(root, 'story');
+  assert.equal(status.phase, 'film: prepared');
+  assert.ok(status.stages.groups.length, 'the stage bar can obtain its complete status model');
+  assert.equal((await listProjects(root))[0].phase, 'film: prepared');
+  await rm(path.join(job, PROFILE_FILE));
+  const different = loadPersonality('explainer');
+  const metadata = await freezePersonality(job, different);
+  await writeFile(path.join(job, 'job.json'), JSON.stringify({status: 'prepared', productionProfile: metadata}));
+  await assert.rejects(inspect(root, project), /personality differs from its script project/);
 });

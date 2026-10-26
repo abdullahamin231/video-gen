@@ -52,6 +52,13 @@ brief, with phone guidance for vertical jobs. For vertical jobs `inspect` also w
 does not trip it. Review-pack contact sheets tile tall frames four across instead of two. A vertical job longer than
 `verticalMaxSeconds` gets a warning at `start`, never an error.
 
+Thumbnail format must also follow the saved video orientation across all personalities: vertical requires
+1080×1920 (9:16) plus a 180×320 preview; landscape uses 1280×720 (16:9) plus a 320×180 preview. Apply this
+to maker/reviewer briefs, export validation, selection and archives. See [video-click-psychology.md](video-click-psychology.md).
+Implementation gap: `lib/thumbnails.mjs` currently hard-codes landscape dimensions in generated briefs, PNG
+validation and export. Until those paths become format-aware, vertical thumbnail production is blocked; do not
+describe the documentation requirement as implemented export support.
+
 ## Timing
 
 ASR word times (faster-whisper, or supplied `--words`) are reconciled with the script (`lib/timing.mjs reconcile`);

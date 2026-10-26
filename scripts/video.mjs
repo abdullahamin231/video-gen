@@ -455,6 +455,7 @@ ideas [--focus "mac hardware" --count 6 --refresh true --json]   find new video 
 youtube-auth                         authorize the abdupdates YouTube channel (OAuth client JSON stays in .cache)
 youtube-upload --file <video.mp4> --title "Title" [--description "..."] [--privacy private|unlisted|public] [--tag "ai" ...]
                                      upload with resumable transfer; privacy defaults to unlisted. See docs/youtube-upload.md
+reference-study --url <YouTube video>|--video <repository file> --name <slug> [--every 15 --tag overview --start 0 --length 12]  reference-only downloads, frames and contact sheets
 frame-stats --video <a.mp4>[,<b.mp4>] [--every 2]   measure how much of the frame a film uses (ink, spread, near-blank), to compare films
 ideas --show new|saved|rejected|used|all [--json]   list ideas found so far
 ideas --set <id> --status new|saved|rejected|used [--reason ".."]   mark an idea
@@ -493,6 +494,10 @@ try {
   else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
   else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
   else if (command === 'ideas') await ideasCommand(opts);
+  else if (command === 'reference-study') {
+    const {referenceStudy} = await import('./reference-study.mjs');
+    await referenceStudy(ROOT, opts);
+  }
   else if (command === 'frame-stats') {
     const {frameStats} = await import('../lib/pixels.mjs');
     const files = String(opts.video || '').split(',').map(v => v.trim()).filter(Boolean);
