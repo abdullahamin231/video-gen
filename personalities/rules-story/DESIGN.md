@@ -48,6 +48,12 @@ Starting layout targets, inferred from the sampled portrait frames: episode labe
 
 Before a complete episode, use the normal prototype checkpoint to lock the soft-glow pictograms, a fully captioned rule introduction, its violation/consequence and the next rule transition. Later scenes must match the accepted treatment. A twist must visibly reinterpret an established subject. Preserve original approved narration and use the normal revision/checkpoint workflow for changes.
 
+## Title and thumbnail packaging
+
+The public channel repeatedly uses a specific everyday subject plus an impossible event, followed by a short uppercase instruction. A useful title shape is `If Your [everyday subject] Ever [anomaly]… [instruction]`; treat it as an observed channel convention, not mandatory copy or permission to reproduce an episode. The instruction must be supported by the approved script and preserve its wording and polarity. Keep the twist unresolved.
+
+Build the thumbnail around one large original pictogram that makes the subject and anomaly instantly recognisable. Use bold uppercase command text with clear contrast and, where it helps, one red emphasis word. Keep the image simple at small size: near-black negative space, large white/gray subject, restrained story-colored accents, and only supporting details that clarify the danger. The headline can repeat or sharpen the title's instruction, but the package should not waste its limited space explaining the plot. Judge title and image as a pair: they should establish the same anomaly and give viewers a specific reason to click without contradicting or overpromising the film. Export and inspect the thumbnail at full resolution and 320×180. These are reusable design conventions inferred from the public channel's title and thumbnail patterns; exact source fonts and layout measurements remain unverified. All production lettering and artwork must be original.
+
 ## Reproducible asset drawing and prototype acceptance
 
 White-on-black styling and captions alone do not satisfy this treatment. Build recognisable geometry and a deliberate composition before adding texture. A generic schematic/icon deck with glow is not an accepted substitute for the reference's graphic language.
