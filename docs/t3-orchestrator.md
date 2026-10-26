@@ -90,6 +90,18 @@ At each checkpoint `next` tells you what to open and what to record. The pattern
 2. In two or three lines, tell the user what is ready, give them **https://ip-208-84-101-178.tailc5adba.ts.net:8443/**
    to review it, and say what you need from them: approve, or say what to change
    (for the film: at which moment, e.g. "12.5: make the chart bigger").
+   When the user or supervisor requests Discord notifications for this run, send one concise ping with the project,
+   decision needed, and review/supervisor link:
+
+   ```bash
+   node scripts/discord-notify.mjs --request-id <stable-request-id> --message "<project, decision needed, review/supervisor link>"
+   ```
+
+   Use a stable ID for this checkpoint so the shared `.cache/discord-approval-notified.json` ledger suppresses duplicate
+   sends. The helper reads `DISCORD_WEBHOOK_URL` from `.env` without displaying it and reports delivery status. A
+   delegated agent assigned to notify may run the same helper; the main orchestrator can also send on its behalf.
+   Never expose the URL or treat a ping as approval. Report missing configuration or delivery failures without credentials.
+
 3. **End your turn and wait.** Never decide for them, never approve on their behalf, never treat silence as approval.
 4. When they reply, record it word for word with the command `next` printed, always with
    `--quote "<their whole message>"`. Each film note is `"<seconds>: <their words>"`; a note without a time covers the
@@ -119,8 +131,9 @@ At the thumbnail checkpoint, present the selected variant's title, headline and 
 chooses a proposed change; thumbnail selection alone does not approve a changed title. Obtain their decision on the
 short description at that checkpoint and use the approved copy for upload. Do not invent copy at upload time.
 Every thumbnail variant and the selected/archived image must match the video's orientation: vertical videos require
-1080×1920 (9:16) thumbnails with 180×320 previews; landscape videos use 1280×720 (16:9) with 320×180 previews.
-Require a portrait composition and phone-size review for vertical jobs. The thumbnail exporter, briefs and acceptance checks enforce the output orientation; compose portrait artwork for vertical jobs.
+1080×1920 (9:16) thumbnails with 180×320 previews; landscape videos use 1920×1080 (16:9) with 320×180 previews.
+Require a portrait composition and phone-size review for vertical jobs. The exporter and validator enforce the exact
+saved video dimensions for all personalities, including square and custom frames.
 If the upload command reports that authorization expired, follow
 [docs/youtube-upload.md](youtube-upload.md) to reauthorize; for server auth from a laptop, it explains the temporary
 Tailscale SSH tunnel. Include the YouTube link alongside the local MP4 and thumbnail paths. If upload fails, report
@@ -171,6 +184,3 @@ To stop a video: cancel its open tasks (`task_cancel`), run `delegated`. To dele
 - Every asset stays inside the repository, never in `/tmp`.
 - Never show the preview panel or the player in chat. Point the user to https://ip-208-84-101-178.tailc5adba.ts.net:8443/ for every review, and do not call `preview_open` for the film.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.
-
-
-For financial/political news, use the real-media adapter and mandatory subtitle/encoded acceptance contract in [news.md](news.md). Preserve frozen profiles and normal approvals. Missing source rights are actionable source prerequisites, not an unimplemented-news blocker.

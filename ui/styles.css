@@ -226,8 +226,8 @@
 .thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:12px 0}
 .thumb-card{display:flex;flex-direction:column;gap:7px;border:1px solid var(--line);border-radius:8px;padding:9px;background:#1b1b1b}
 .thumb-card.chosen{border-color:var(--accent)}
-.thumb-image{display:block;padding:0;border:0;background:#111;border-radius:5px;overflow:hidden;aspect-ratio:16/9}
-.thumb-image img{display:block;width:100%;height:100%;object-fit:cover}
+.thumb-image{display:block;padding:0;border:0;background:#111;border-radius:5px;overflow:hidden}
+.thumb-image img{display:block;width:100%;height:auto}
 .thumb-image.pending{display:grid;place-items:center;color:#555}
 .thumb-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px}
 .thumb-status{font:9px Mono;text-transform:uppercase;color:var(--muted)}.thumb-status.passed-review{color:var(--ok)}.thumb-status.blocked-by-review,.thumb-status.dropped{color:var(--red)}

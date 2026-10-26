@@ -1,8 +1,7 @@
 {
   "id": "app-review",
-  "version": 1,
+  "version": 2,
   "name": "Hands-on app review",
   "workflow": "app-capture",
-  "renderReady": false,
-  "blocker": "The verified capture/action-log and source-to-film cursor mapping adapter is not implemented yet."
+  "renderReady": true
 }

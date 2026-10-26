@@ -31,14 +31,26 @@ The user describes the video in ordinary language; never make them memorise or t
 
 Each folder owns `EDITORIAL.md`, `DESIGN.md`, `TOOLS.md` and `REVIEW.md`; read only the selected package. Shared runbooks own transport, delegation and checkpoints, not a universal design style. Do not append the explainer's drawing/motion rules to other personalities. Profiles are frozen per project and cannot be switched by `project-set`; start a new project for an explicit change of genre. The provider/model profiles in `chat.config.json` are unrelated to these editorial personalities.
 
-Financial and political news use the real-media `news-edit` adapter (see [docs/news.md](docs/news.md)): cleared photos/article views and clips, original commentary, retained source speech, mandatory subtitles and encoded delivery checks. Missing media/rights cause precise source blockers. Computer-use/app capture remains unimplemented (`renderReady: false`). Never record commercial references without documented authorization/rights or substitute an animated explainer.
+Financial and political news use the real-media `news-edit` adapter (see [docs/news.md](docs/news.md)): cleared photos/article views and clips, original commentary, retained source speech, mandatory subtitles and encoded delivery checks. Missing media/rights cause precise source blockers. Never record commercial references without documented authorization/rights or substitute an animated explainer.
+
+App-review is ready for browser applications: `npm run video -- app-capture` records a scripted session in headless Chrome without compositing the pointer, and `capture-scene` derives the pointer, click rings and camera moves from its action log ([docs/app-capture.md](docs/app-capture.md)). Native desktop windows and OS dialogs stay outside that adapter; report the boundary instead of faking the surface.
 
 ## Rules for everyone
 
-- Thumbnails inherit the video's orientation across every personality: vertical videos require 9:16 portrait thumbnails (1080×1920), landscape videos use 16:9 thumbnails (1280×720). Apply this to every variant, preview, chosen thumbnail and archive. Never stretch or letterbox a landscape design into portrait; compose for the target frame. See docs/video-click-psychology.md.
+- Thumbnails must match the video's exact saved width and height across every personality: vertical videos require 9:16 portrait thumbnails (1080×1920), landscape videos use 16:9 thumbnails (1920×1080). Apply this to every variant, preview, chosen thumbnail and archive. Never stretch or letterbox a landscape design into portrait; compose for the target frame. See docs/video-click-psychology.md.
 - Use only `npm run video -- ...`; never run `npx hyperframes` (except the setup steps in README.md), `hyperframes upgrade`, or edit `node_modules`.
 - Generate TTS with `npm run video -- tts` (see docs/tts.md), never direct `npx hyperframes tts`. All caches must stay inside the repository `.cache/`.
 - Generate each Ming narration in one TTS invocation. Production and benchmarks must use `scripts/ming_continuity.py` to reuse one acoustic reference across all fragments and performance segments; never restart unconditioned IP generation per segment. See [voice continuity](docs/tts.md#voice-continuity-and-the-former-voice-change-bug).
 - Keep every asset inside the repository, never in `/tmp`. Never edit `video.config.json` unless the user asks.
 - Keep a supplied recording unchanged; never replace it with TTS.
 - After local delivery and thumbnail selection, the orchestrator uploads each completed video to the abdupdates YouTube channel as unlisted, unless the user explicitly opts out. Only the orchestrator uploads; see [docs/youtube-upload.md](docs/youtube-upload.md).
+
+## Discord approval notifications
+
+When a user or supervisor requests Discord notifications for approval/question checkpoints, the orchestrator or any delegated agent assigned to send one must use [`scripts/discord-notify.mjs`](scripts/discord-notify.mjs):
+
+```bash
+node scripts/discord-notify.mjs --request-id <stable-request-id> --message "<project, decision needed, review/supervisor link>"
+```
+
+Use one stable request ID per pending checkpoint; the helper records successful deliveries in `.cache/discord-approval-notified.json` and skips duplicate IDs. It loads `DISCORD_WEBHOOK_URL` from `.env` without printing it and reports the HTTP delivery result. Never expose the webhook URL or count a notification as approval. Keep decisions in the normal T3/review workflow. If configuration is missing or delivery fails, report that without credentials.

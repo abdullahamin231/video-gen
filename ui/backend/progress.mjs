@@ -114,7 +114,7 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
   } else thumbnail = [
     stepFrom('thumbnail-brief', 'Thumbnail brief', has(`${thumb}/BRIEF.md`) ? 'done' : filmDone ? 'current' : 'pending', has(`${thumb}/BRIEF.md`) ? `${thumb}/BRIEF.md` : '', { file: `${thumb}/BRIEF.md` }),
     stepFrom('thumbnail-art', 'Artwork and editable source', makers.length ? 'current' : png && source ? 'done' : has(`${thumb}/BRIEF.md`) ? 'current' : 'pending',
-      [png && 'Orientation-matched PNG', source && 'editable source', preview && 'feed preview'].filter(Boolean).join(' · '), { agents: ids(agents.filter(a => a.role === 'thumbnail-maker')), file: png ? `${thumb}/thumbnail.png` : '' }),
+      [png && 'PNG at video dimensions', source && 'editable source', preview && 'feed preview'].filter(Boolean).join(' · '), { agents: ids(agents.filter(a => a.role === 'thumbnail-maker')), file: png ? `${thumb}/thumbnail.png` : '' }),
     stepFrom('thumbnail-review', 'Independent thumbnail review', thumbReviewers.length ? 'current' : review?.status === 'pass' ? 'done' : review?.status ? 'repair' : png ? 'current' : 'pending',
       thumbReviewers.length ? 'Fresh reviewer at work' : review?.status ? `${review.status}${review.findings ? ` · ${review.findings} finding(s)` : ''}` : '', { agents: ids(agents.filter(a => a.role === 'thumbnail-reviewer')), file: review ? `${thumb}/REVIEW.json` : '' }),
     stepFrom('thumbnail-archive', 'Archived to library/thumbnails', archivedSet ? 'done' : review?.status === 'pass' ? 'current' : 'pending', archivedSet ? `library/thumbnails/${job.slug}/` : ''),

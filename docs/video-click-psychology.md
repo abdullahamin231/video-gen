@@ -82,9 +82,9 @@ Each thumbnail maker writes one coherent package into its variant's `BRIEF.md` w
 and `Description:` lines, plus rationale and payoff evidence. Preserve an explicitly approved title; propose changes
 separately. Reply with all three pieces of copy so they can be reviewed together.
 
-Thumbnail orientation follows the video for every personality and every variant. For a vertical video use a
+Thumbnail dimensions match the video's exact saved width and height for every personality and every variant. For a vertical video use a
 9:16 portrait canvas, 1080×1920, with a 180×320 feed preview. For a landscape video use a 16:9 canvas,
-1280×720, with a 320×180 feed preview. Read the saved project/job format rather than assuming landscape.
+1920×1080, with a 320×180 feed preview. Read width and height from the saved job; use the saved format for legacy jobs without dimensions. Square videos use 1080×1080 with 320×320 previews; custom sizes retain their aspect ratio in a preview whose longest edge is 320 pixels.
 State orientation, output dimensions and preview dimensions in the visual plan's thumbnail section and every
 maker brief. Compose the subject and headline for that frame; do not stretch, letterbox or simply crop a finished
 landscape layout into portrait. Keep key text and subjects inside the video's applicable safe area and check

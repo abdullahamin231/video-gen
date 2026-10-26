@@ -7,7 +7,7 @@ import {transcribeNews,newsPlan,ingestNews,shiftedWords,captionCues,checkRights,
 import {compareNarration} from '../lib/audio-verification.mjs';
 import {buildFilm,nextStep,filmAudit,writeProductionReport,renderFilm} from '../lib/film.mjs';
 process.env.VG_LIBRARY=path.resolve('.cache/tests/news-library');
-const {thumbnailGeometry,thumbnailStep,exportThumbnail,thumbnailStatus,recordVerdict,chooseThumbnail}=await import('../lib/thumbnails.mjs');
+const {thumbnailDimensions,thumbnailStep,exportThumbnail,thumbnailStatus,recordVerdict,chooseThumbnail}=await import('../lib/thumbnails.mjs');
 import {readPersonality,assertRenderReady} from '../lib/personalities.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
 const save=(f,v)=>writeFile(f,JSON.stringify(v,null,2)+'\n');
@@ -113,25 +113,25 @@ for(const [profile,vertical] of [['news-financial',false],['news-political',true
 }
 
 for(const vertical of [false,true]) test(`thumbnail export and briefs preserve ${vertical?'portrait':'landscape'} format`,async t=>{
-  const job=await setup(t,'news-financial',vertical),g=thumbnailGeometry({format:vertical?'vertical':'landscape'});
+  const job=await setup(t,'news-financial',vertical),g=await thumbnailDimensions(job);
   await thumbnailStep(job);
   const brief=await readFile(path.join(job,'briefs/thumbnail-v1.md'),'utf8');
-  assert.ok(brief.includes(`${g.width}×${g.height}`));assert.ok(brief.includes(g.preview));
+  assert.ok(brief.includes(`${g.width}×${g.height}`));assert.ok(brief.includes(g.previewFile));
   const dir=path.join(job,'thumbnail/variants/v1');await mkdir(dir,{recursive:true});
   await writeFile(path.join(dir,'BRIEF.md'),'Title: Test\nHeadline: Test\n');
   await writeFile(path.join(dir,'thumbnail.svg'),`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.width} ${g.height}"><rect width="100%" height="100%" fill="#123456"/></svg>`);
   const exported=await exportThumbnail(job,'v1');
-  assert.deepEqual(exported.size,{width:g.width,height:g.height});assert.ok(exported.preview.endsWith(g.preview));
+  assert.deepEqual(exported.size,{width:g.width,height:g.height});assert.ok(exported.preview.endsWith(g.previewFile));
   assert.equal((await thumbnailStatus(job)).variants[0].made,true);
   await recordVerdict(job,{variant:'v1',status:'pass',findings:[],reviewer:'fixture-contract',inspected:['thumbnail/variants/v1/thumbnail.png']});
   await chooseThumbnail(job,{variant:'v1'});
   const archived=path.join(process.env.VG_LIBRARY,'thumbnails',path.basename(job));
   t.after(()=>rm(archived,{recursive:true,force:true}));
-  assert.deepEqual(await readFile(path.join(archived,g.preview)),await readFile(path.join(dir,g.preview)));
+  assert.deepEqual(await readFile(path.join(archived,g.previewFile)),await readFile(path.join(dir,g.previewFile)));
   assert.deepEqual(await readFile(path.join(job,'thumbnail/thumbnail.png')),await readFile(path.join(dir,'thumbnail.png')));
   if(vertical) {
     await writeFile(path.join(dir,'thumbnail.svg'),'<svg viewBox="0 0 1280 720"></svg>');
-    await assert.rejects(exportThumbnail(job,'v1'),/do not stretch or letterbox/);
+    await assert.rejects(exportThumbnail(job,'v1'),/SVG aspect ratio must match/);
   }
 });
 

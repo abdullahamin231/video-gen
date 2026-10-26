@@ -10,4 +10,13 @@ The project freezes these instructions into production-profile.json. Every deleg
 
 ## Capability boundary
 
-This personality has active routing and a complete instruction package, but its media adapter is not implemented. Read TOOLS.md for the exact prerequisite. The pipeline may gather sources and plan; it must stop before generating narration or preparing/rendering an incompatible film. Do not bypass a blocked step. This repository change sets up personalities; it does not authorise recording any commercial material or claim those adapters now exist.
+Browser applications are fully supported: `app-capture` records a scripted session in headless Chrome with the pointer
+left out of the footage, and `capture-scene` compiles the giant pointer, click rings and camera push-ins from its action
+log. Read TOOLS.md for the evidence contract and [../../docs/app-capture.md](../../docs/app-capture.md) for the formats.
+
+Capture the session *before* writing the verdict and the narration. Record what the application actually did, including
+the steps that failed; never script a success and fabricate the states to match it, and never record a commercial
+reference video.
+
+Native desktop windows, OS dialogs and permission sheets are outside the adapter. If a claim needs one of those
+surfaces, say so and film the part that can be shown honestly instead of inventing it.
