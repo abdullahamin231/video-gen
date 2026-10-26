@@ -131,9 +131,9 @@ At the thumbnail checkpoint, present the selected variant's title, headline and 
 chooses a proposed change; thumbnail selection alone does not approve a changed title. Obtain their decision on the
 short description at that checkpoint and use the approved copy for upload. Do not invent copy at upload time.
 Every thumbnail variant and the selected/archived image must match the video's orientation: vertical videos require
-1080×1920 (9:16) thumbnails with 180×320 previews; landscape videos use 1280×720 (16:9) with 320×180 previews.
-Require a portrait composition and phone-size review for vertical jobs. The current thumbnail exporter/briefs still
-hard-code landscape; report this as a pipeline blocker for vertical thumbnails rather than approving the wrong format.
+1080×1920 (9:16) thumbnails with 180×320 previews; landscape videos use 1920×1080 (16:9) with 320×180 previews.
+Require a portrait composition and phone-size review for vertical jobs. The exporter and validator enforce the exact
+saved video dimensions for all personalities, including square and custom frames.
 If the upload command reports that authorization expired, follow
 [docs/youtube-upload.md](youtube-upload.md) to reauthorize; for server auth from a laptop, it explains the temporary
 Tailscale SSH tunnel. Include the YouTube link alongside the local MP4 and thumbnail paths. If upload fails, report

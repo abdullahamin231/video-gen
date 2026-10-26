@@ -11,7 +11,7 @@ import { UsageService, applyUsage, totalUsage } from './usage.mjs';
 import { computeProgress, computeHealth, scriptDisposition } from './progress.mjs';
 import { routeModel, CLAUDE_AGENT_TYPES, DELEGATE_ROLES } from '../shared/routing.mjs';
 import { recordHumanReview, setHumanStages } from '../../lib/human.mjs';
-import { thumbnailStatus, chooseThumbnail, addThumbnailFeedback } from '../../lib/thumbnails.mjs';
+import { thumbnailDimensions, thumbnailStatus, chooseThumbnail, addThumbnailFeedback } from '../../lib/thumbnails.mjs';
 import { QUOTA_NOTICE, modelFallbackNotice } from '../../lib/tts.mjs';
 
 const LIVE = new Set(['starting', 'running', 'waiting']);
@@ -455,11 +455,16 @@ export class Runner {
     const video = await jobFile(this.root, job, `${job.jobPath}/renders/video.mp4`).catch(() => fail('Missing renders/video.mp4'));
     const png = await jobFile(this.root, job, `${thumb}/thumbnail.png`).catch(() => fail('Missing thumbnail/thumbnail.png'));
     const size = pngSize(await readFile(png.path));
-    if (size?.width !== 1280 || size?.height !== 720) fail('Thumbnail must be a real 1280×720 PNG');
+    const dimensions = await thumbnailDimensions(path.join(this.root, job.jobPath));
+    if (size?.width !== dimensions.width || size?.height !== dimensions.height) fail(`Thumbnail must be a real ${dimensions.width}×${dimensions.height} PNG matching the video`);
     const files = await folderFiles(this.root, thumb);
     let preview = '';
     // A small feed-size preview is optional; when one exists it is shown with the outputs.
-    for (const file of files.filter(item => item.path.endsWith('.png') && item.path !== `${thumb}/thumbnail.png`)) { const dims = pngSize(await readFile(path.join(this.root, file.path))); if (dims && dims.width < 1280) { preview = file.path; break; } }
+    const feed = files.find(item => item.path === `${thumb}/${dimensions.previewFile}`);
+    if (feed) {
+      const dims = pngSize(await readFile(path.join(this.root, feed.path)));
+      if (dims?.width === dimensions.previewWidth && dims?.height === dimensions.previewHeight) preview = feed.path;
+    }
     const review = await readJson(path.join(this.root, `${thumb}/REVIEW.json`)).catch(() => null);
     const reviewer = job.agents.find(agent => agent.id === review?.reviewerAgentId && agent.role === 'thumbnail-reviewer' && agent.status === 'finished');
     if (review?.status !== 'pass' || !reviewer || !Array.isArray(review.inspectedFiles) || !review.inspectedFiles.length) fail('A fresh, finished thumbnail reviewer must independently pass the actual thumbnail in thumbnail/REVIEW.json');

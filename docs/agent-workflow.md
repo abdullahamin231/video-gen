@@ -53,11 +53,10 @@ does not trip it. Review-pack contact sheets tile tall frames four across instea
 `verticalMaxSeconds` gets a warning at `start`, never an error.
 
 Thumbnail format must also follow the saved video orientation across all personalities: vertical requires
-1080×1920 (9:16) plus a 180×320 preview; landscape uses 1280×720 (16:9) plus a 320×180 preview. Apply this
+1080×1920 (9:16) plus a 180×320 preview; landscape uses 1920×1080 (16:9) plus a 320×180 preview. Apply this
 to maker/reviewer briefs, export validation, selection and archives. See [video-click-psychology.md](video-click-psychology.md).
-Implementation gap: `lib/thumbnails.mjs` currently hard-codes landscape dimensions in generated briefs, PNG
-validation and export. Until those paths become format-aware, vertical thumbnail production is blocked; do not
-describe the documentation requirement as implemented export support.
+`lib/thumbnails.mjs` uses the exact saved video width and height for generated briefs, PNG validation and export.
+Square and custom frames also retain their dimensions; previews scale the longest edge to 320 pixels.
 
 ## Timing
 

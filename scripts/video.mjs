@@ -422,7 +422,7 @@ human-review --want prototype,final|none   choose which stages wait for the pers
 play [--port 3004]                   play the built film in the browser, with a scene strip (read-only; no render)
 thumbnails [--json]                  after delivery: the next thumbnail step (N variants, review, pick, archive)
 thumbnail-settings [--count 1-6] [--pick true|false]   variants to make, and whether the person picks (start: --thumbnails, --pick-thumbnail)
-thumbnail-export --variant v1        render a variant's SVG to thumbnail.png (1280×720) and preview-320x180.png
+thumbnail-export --variant v1        render a variant's SVG at video dimensions plus an aspect-matched feed preview
 thumbnail-verdict --variant v1 --status pass|blocked [--finding ".." ...] --inspected a.png,b.png  |  --rank v2,v1   (reviewer)
 thumbnail-choose --variant v1 [--by you]   make a passing variant the thumbnail and archive it
 thumbnail-feedback --variant v1 --note "<their words>"   ask for that variant again with the person's feedback
