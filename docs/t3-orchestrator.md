@@ -182,12 +182,6 @@ To stop a video: cancel its open tasks (`task_cancel`), run `delegated`. To dele
   defaults. Put options in `target.options`. Check returned provider/model/options match the selection.
   An unknown provider with no profile inherits the current model. Do not change task text or clientRequestId.
   The shell pipeline cannot inspect the live T3 catalog; resolving the printed policy is the orchestrator's job.
-- Before changing a role's model, measure it: `npm run video -- model-report --project <slug>` (or without
-  `--project` for all UI threads) prints observed runs, input/output/cached tokens, reported cost, failed tools and
-  status by role and provider/model. It reads the existing `.video/ui` records and writes nothing. If a project has
-  no recorded thread, use the global report or add the thread at creation. Token count is cost and reliability
-  evidence, not a quality score; change `chat.config.json` profiles or `project-set --model role=provider:model`
-  only after comparing the same role across models, and check the returned model on the next delegation.
 - Every asset stays inside the repository, never in `/tmp`.
 - Never show the preview panel or the player in chat. Point the user to https://ip-208-84-101-178.tailc5adba.ts.net:8443/ for every review, and do not call `preview_open` for the film.
 - If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.

@@ -27,7 +27,7 @@ import {readPersonality} from '../lib/personalities.mjs';
 import {readdir} from 'node:fs/promises';
 import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
 import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation, carryCaptures,
-  assertNoDelegation, projectOfJob, requireQuote, logDecision, loadProject} from '../lib/project.mjs';
+  assertNoDelegation, projectOfJob, requireQuote, logDecision} from '../lib/project.mjs';
 import {setHumanStages} from '../lib/human.mjs';
 import {renderStageBar} from '../lib/stagebar.mjs';
 import {watchInstructions} from '../lib/review-location.mjs';
@@ -51,7 +51,7 @@ const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review
 // Chat projects (lib/project.mjs): commands that work on a project rather than a job.
 const PROJECT_COMMANDS = new Set(['project-new', 'projects', 'project-set', 'project-delete', 'script-review', 'watch', 'watch-serve', 'delegated', 'stage-bar']);
 // Commands that never advance the pipeline, so they stay usable while delegated work is open.
-const DURING_DELEGATION = new Set(['status', 'projects', 'watch', 'watch-serve', 'delegated', 'stage-bar', 'model-report']);
+const DURING_DELEGATION = new Set(['status', 'projects', 'watch', 'watch-serve', 'delegated', 'stage-bar']);
 const advances = (command, opts) => (ORCHESTRATOR_ONLY.has(command) && !DURING_DELEGATION.has(command)) || (command === 'build' && !opts.scene);
 const nextHint = job => ROLE_AGENT ? '\nDone with this command. Finish your brief and reply; the orchestrator advances the pipeline.' : `\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`;
 
@@ -500,7 +500,6 @@ project-new --name <slug> [--profile explainer|rules-story|news-financial|news-p
             --review script,final,thumbnail|none --review-depth fast|standard|deep --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
 next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews on Tailscale)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
-model-report [--project <slug>] [--json]  measured agent runs, tokens, cost and failures by role/model (read-only)
 stage-bar --project <slug>          the stage bar as one HTML page, for T3 html_render (read-only)
 delegated --project <slug>          the delegated tasks next started have finished (or were lost); next may go on
 script-review --project <slug> --decision approve|revise [--note "<their words>" ...] --quote "<their message>"
@@ -547,12 +546,6 @@ try {
     await projectCommand(command, opts);
   }
   else if (command === 'help') console.log(HELP + '\ntts <file> [--provider kokoro|ming|gemini] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate narration; Gemini quota falls back to Kokoro (docs/tts.md)');
-  else if (command === 'model-report') {
-    const {modelReport, formatModelReport} = await import('../lib/model-report.mjs');
-    const project = opts.project ? await loadProject(ROOT, opts.project) : null;
-    const report = await modelReport(ROOT, {project});
-    console.log(opts.json ? JSON.stringify(report, null, 2) : formatModelReport(report, {project}));
-  }
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
   else if (command === 'start') { await assertNoDelegation(ROOT, opts.name, command); await start(opts); }
