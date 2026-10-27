@@ -5,6 +5,15 @@ Use this guide to recover an existing video job. Run commands from the repositor
 its angle brackets. Keep using the repository wrapper; do not invoke HyperFrames directly, upgrade it during
 recovery, or edit `node_modules`.
 
+## Build failures are classified before repair
+
+A failed build is not automatically a film defect. Missing tools or modules, a browser that cannot launch, a full
+disk, a permission error or a network failure produce `STATE: infrastructure blocked`. That state names the actual
+environment errors and asks you to fix them, then rerun `build`; it does **not** write a director or builder repair
+brief. Missing assets, invalid `film.json`, unspoken cue words and broken motion remain film repairs and go to the
+scene owner. If both kinds appear together, fix the environment first; the film errors are still listed so nothing is
+hidden.
+
 ## How a render runs by default
 
 - **Two capture workers.** `render` asks HyperFrames for 2 workers and turns off its low-memory mode, which
