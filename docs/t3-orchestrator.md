@@ -62,7 +62,8 @@ Do exactly what it prints, then run it again. Repeat until it prints `STATE: don
 - **`DO: start ... task(s) with the T3 delegate_task tool`**: call `delegate_task` once per JSON line, passing that
   object as the arguments (title, role, clientRequestId, mode, target, task). When a MODEL SELECTION policy is printed, resolve target using the live orchestrator_capabilities catalog as described below; preserve the task text and clientRequestId. Start them all, then end your
   turn: each finished task wakes you. When one wakes you and others are still running (`task_status`), end your turn
-  again. When all have finished, run `npm run video -- delegated --project <slug>`, then `next`. Never do their work,
+  again. When all have finished, run `npm run video -- delegated --project <slug>`; it closes the batch and prints the
+  next step, so do not run `next` separately. Never do their work,
   never edit their files, never add your opinions to a task, never reuse a task for a different brief. If a task fails,
   run `delegated` and `next`: unfinished work is issued again.
 - **`STATE: your review of the script / final` or `you pick the thumbnail`**: a checkpoint (section 4).

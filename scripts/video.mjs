@@ -396,7 +396,9 @@ async function projectCommand(command, opts) {
     console.log(renderStageBar(slug, status.stages));
   } else if (command === 'delegated') {
     const {closed} = await closeDelegation(ROOT, slug);
-    console.log(closed ? `Closed: ${closed.tasks.map(t => t.title).join(', ')}.\nNext: npm run video -- next --project ${slug}` : `No delegated work was open.\nNext: npm run video -- next --project ${slug}`);
+    // One command closes the batch and advances: the orchestrator should not spend a second turn on `next`.
+    const step = await projectStep(ROOT, slug);
+    console.log(`${closed ? `Closed: ${closed.tasks.map(t => t.title).join(', ')}.` : 'No delegated work was open.'}\n${step.text}`);
   } else if (command === 'script-review') {
     await assertNoDelegation(ROOT, slug, command);
     const quote = requireQuote(opts);
