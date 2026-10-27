@@ -6,7 +6,7 @@ import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {extractNarration, normalizeWords, reconcile, jobNameFor} from '../lib/timing.mjs';
 import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, saveToLibrary, saveAll} from '../lib/library.mjs';
-import {fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile, registerProducer} from '../lib/review.mjs';
+import {fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile, registerProducer, parseReviewDepth} from '../lib/review.mjs';
 import {createReviewPack, generateCaptureInspection, assertIndependentCaptureReviewer} from '../lib/review-pack.mjs';
 import {parseStages, parseNote, recordHumanReview} from '../lib/human.mjs';
 import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail, MAX_THUMBNAILS} from '../lib/thumbnails.mjs';
@@ -149,6 +149,7 @@ async function registerCaptureProducer(dir) {
 async function prepare(opts) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(opts.name || '')) throw new Error('--name must be a lowercase job slug.');
   if (!opts.audio || !opts.script) throw new Error('prepare requires --audio and --script.');
+  const reviewDepth = parseReviewDepth(opts['review-depth']);
   const job = path.join(ROOT, 'jobs', opts.name);
   if (await exists(job)) throw new Error(`Job exists: ${job}. Use a new --name; existing work is never overwritten.`);
   const audio = path.resolve(ROOT, opts.audio), script = path.resolve(ROOT, opts.script);
@@ -198,7 +199,7 @@ async function prepare(opts) {
     ...(visuals ? {visuals: {path: VISUALS_FILE, source: path.relative(ROOT, visuals), sha256: await digest(visuals)}} : {}),
     ...(channel ? {channelTheme: {path: CHANNEL_THEME_FILE, source: path.relative(ROOT, channel.file), sha256: await digest(channel.file)}} : {}),
     transcription: {language, model, engine, suppliedWords: !!opts.words},
-    productionProfile, creativeMode: 'agent-discretion', workflow: personality.profile.workflow, status: 'awaiting-transcription',
+    productionProfile, reviewDepth, creativeMode: 'agent-discretion', workflow: personality.profile.workflow, status: 'awaiting-transcription',
     review: {producerAgentIds: [...new Set(producerHistory.map(r=>r.agentId))], producerAgentRecords: producerHistory, producerIdentityStatus: producerHistory.length ? 'recorded' : 'unrecorded',
       ...(producerHistory.length ? {} : {producerIdentityIssue: 'No runner-provided producer identity has been recorded yet.'}),
       requiredRoles: ['visual-mechanism', 'narration-fidelity', 'continuity-legibility']},
@@ -441,7 +442,7 @@ const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
 
-start --audio <file> --script <file> [--profile <id>] [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review final]   create a job (a VISUALS.md beside the script is picked up automatically)
+start --audio <file> --script <file> [--profile <id>] [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review final --review-depth fast|standard|deep]   create a job (a VISUALS.md beside the script is picked up automatically)
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
                                      the job is named from the script file, else its folder or title (e.g. jobs/scripts/<slug>/SCRIPT.md → <slug>); --name overrides
 next [--job jobs/<slug>]             print the single next step (state machine)
@@ -465,7 +466,7 @@ capture-scene --capture <dir> --scene <id> [--fit 0.9 --cursor-size 54]   cut th
 music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
 kit-update                           refresh the job's frozen kit copy from lib/kit
 
-news-ingest --job <job> --source <id> --file <repository-local cleared file>\nnews-transcribe --job <job> --source <id> [--model small.en --language en]  original-file word times; review draft before use\nnews-check --job <job>               validate news sources, rights, claims, edit and required speech subtitles\nprepare --name <slug> --audio <file> --script <file> [--profile <id>] [--start 0 --length 30 --format landscape|vertical]
+news-ingest --job <job> --source <id> --file <repository-local cleared file>\nnews-transcribe --job <job> --source <id> [--model small.en --language en]  original-file word times; review draft before use\nnews-check --job <job>               validate news sources, rights, claims, edit and required speech subtitles\nprepare --name <slug> --audio <file> --script <file> [--profile <id>] [--start 0 --length 30 --format landscape|vertical] [--review-depth fast|standard|deep]
         [--language en --model small.en --engine faster-whisper|hyperframes]
         [--words measured-words.json --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
@@ -496,14 +497,14 @@ library-use --item <id@version> --job jobs/<slug>  freeze files and record hashe
 Chat projects (T3 Code; docs/t3-orchestrator.md): the whole video from an agreed brief, one step at a time
 profiles | profile-route --prompt "<request>" [--profile <id>]   inspect personalities / infer routing (read-only)
 project-new --name <slug> [--profile explainer|rules-story|news-financial|news-political|app-review] [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|ming|gemini --audio f --script f --music f
-            --review script,final,thumbnail|none --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
+            --review script,final,thumbnail|none --review-depth fast|standard|deep --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
 next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews on Tailscale)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
 stage-bar --project <slug>          the stage bar as one HTML page, for T3 html_render (read-only)
 delegated --project <slug>          the delegated tasks next started have finished (or were lost); next may go on
 script-review --project <slug> --decision approve|revise [--note "<their words>" ...] --quote "<their message>"
 watch --project <slug> [--stop true] read-only Tailscale review page + serving instructions (background server)
-project-set --project <slug> [--review ..] [--thumbnails N] [--tts ..] [--model role=provider:model ...]
+project-set --project <slug> [--review ..] [--review-depth fast|standard|deep] [--thumbnails N] [--tts ..] [--model role=provider:model ...]
 project-delete --project <slug> --confirm <slug>
 (human-review, thumbnail-choose --by you, thumbnail-feedback and review-waive on a project's job also need --quote "<their message>")
 

@@ -53,6 +53,16 @@ test('a project needs an agreed brief and a free name', async t => {
   await assert.rejects(createProject(r, {name: 'demo', brief: 'x'}), /exists/);
 });
 
+test('review depth is chosen per project and can be changed before the job freezes it', async t => {
+  const r = await root(t);
+  await assert.rejects(createProject(r, {name: 'demo', brief: 'b', 'review-depth': 'cinematic'}), /--review-depth is fast, standard, deep/);
+  const created = await createProject(r, {name: 'demo', brief: 'b', 'review-depth': 'fast'});
+  assert.equal(created.reviewDepth, 'fast');
+  assert.equal((await loadProject(r, 'demo')).reviewDepth, 'fast');
+  await updateProject(r, 'demo', {'review-depth': 'deep'});
+  assert.equal((await loadProject(r, 'demo')).reviewDepth, 'deep');
+});
+
 test('the script stage: sources, writer, review rounds, the person approves, narration, start', async t => {
   const r = await root(t);
   await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', duration: '90', tts: 'kokoro'});
@@ -111,7 +121,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   await put(r, 'narration.wav', 'RIFF');
   s = await step(r);
   assert.equal(s.state, 'start');
-  assert.match(s.text, /start --name demo --audio "jobs\/scripts\/demo\/narration\.wav" --script jobs\/scripts\/demo\/SCRIPT\.md --human-review final --pick-thumbnail true/);
+  assert.match(s.text, /start --name demo --audio "jobs\/scripts\/demo\/narration\.wav" --script jobs\/scripts\/demo\/SCRIPT\.md --human-review final --review-depth standard --pick-thumbnail true/);
   const log = (await readFile(S(r, 'human/decisions.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
   assert.deepEqual(log.map(d => [d.decision, d.quote]), [['revise', 'open with the benchmark'], ['approve', 'yes, go']]);
 });
@@ -146,7 +156,7 @@ test('a supplied script and recording skip writing and narration', async t => {
   assert.equal(await readFile(S(r, 'VISUALS.md'), 'utf8'), 'plan');
   const s = await step(r);
   assert.equal(s.state, 'start');
-  assert.match(s.text, /--audio "in\/take\.wav" .*--human-review final --pick-thumbnail false/);
+  assert.match(s.text, /--audio "in\/take\.wav" .*--human-review final --review-depth standard --pick-thumbnail false/);
 });
 
 test('film steps become T3 tasks and external Tailscale reviews', async t => {

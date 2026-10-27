@@ -72,8 +72,8 @@ build. The pack is preflighted before it becomes visible to reviewers: every sce
 must contain image evidence, audio must span the film, and encoded packs must
 have clips covering each scene (and each app-capture interval). A failed preflight
 writes no pack and starts no reviewer; its consolidated error names every gap.
-Include the source fingerprint, duration, contact sheet sampled at least once per second,
-ordered frames stamped with their film time, phone-scale frames, and denser
+Include the source fingerprint, duration, contact sheet sampled at the review depth's frame step
+(standard: once per second), ordered frames stamped with their film time, phone-scale frames, and denser
 samples around changes of state, cue starts, and handoffs. Once the final reviews
 pass, the film is rendered once from exactly those sources (the render's source
 receipt must match the pack), and delivery checks that the rendered narration
@@ -163,8 +163,8 @@ current final reports; prior reports remain history and cannot qualify changed
 output. Reviewers can use prior findings to target attention, but must account
 for the full new artifact, including unintended regressions.
 
-Use a three-round creative review budget per stage. Collect all three role reports before repairs.
-After three complete failed rounds, finish the film with unresolved findings disclosed, as specified in
+Use the review depth's creative-round budget per stage. Collect all three role reports before repairs.
+After that many complete failed rounds, finish the film with unresolved findings disclosed, as specified in
 "Bounded creative review policy" below. Never manufacture a passing verdict. Independent passing qualification
 requires no unresolved blockers; bounded completion records a separate review-limit-reached disposition.
 Both require current valid independent coverage and passing technical verification.
@@ -323,11 +323,27 @@ scenes, assets, cues, narration, camera behavior, or the final render invalidate
 the corresponding current qualification. Re-run review after such changes;
 do not copy old hashes into a new report.
 
+## Review depth
+
+Review depth is chosen before the job starts and frozen with the project and manifest. It changes evidence
+density and the creative repair budget, never independence: every depth still uses the same three fresh
+reviewers and the same qualification checks.
+
+| Depth | Failed rounds | Frame step |
+| --- | --- | --- |
+| `fast` | 2 | 2 s |
+| `standard` (default) | 3 | 1 s |
+| `deep` | 4 | 0.5 s |
+
+Set it with `project-new --review-depth ...`, `start --review-depth ...` or `project-set --review-depth ...`.
+Jobs created before the setting existed resolve to `standard`.
+
 ## Bounded creative review policy
 
-The final review gets at most three complete failed review rounds. Wait for all three role reports
-before producing one combined repair brief; repeated `next` on the same pack does not consume another round.
-After the third failed round, if no readability blockers remain, proceed with a `review-limit-reached` disposition and preserve other creative blocking findings
+The final review gets at most the project's creative-round budget: `fast` two rounds, `standard` three and
+`deep` four. Wait for all three role reports before producing one combined repair brief; repeated `next` on
+the same pack does not consume another round. After the last failed round, if no readability blockers remain,
+proceed with a `review-limit-reached` disposition and preserve other creative blocking findings
 in delivery metadata. Reviewer verdicts stay unchanged; this is completion with disclosed findings, not a pass.
 Invalid/stale evidence, missing reviewers, unavailable inspection, incomplete coverage, build failures and failed
 narration/render verification still require repair. Human review gates remain explicit user decisions.
