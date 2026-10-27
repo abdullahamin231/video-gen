@@ -33,7 +33,7 @@ Each folder owns `EDITORIAL.md`, `DESIGN.md`, `TOOLS.md` and `REVIEW.md`; read o
 
 Financial and political news use the real-media `news-edit` adapter (see [docs/news.md](docs/news.md)): cleared photos/article views and clips, original commentary, retained source speech, mandatory subtitles and encoded delivery checks. Missing media/rights cause precise source blockers. Never record commercial references without documented authorization/rights or substitute an animated explainer.
 
-App-review is ready for browser applications: `npm run video -- app-capture` records a scripted session in headless Chrome without compositing the pointer, and `capture-scene` derives the pointer, click rings and camera moves from its action log ([docs/app-capture.md](docs/app-capture.md)). Native desktop windows and OS dialogs stay outside that adapter; report the boundary instead of faking the surface.
+App-review records browser sessions with reshoot: `reshoot run` writes a run folder whose footage carries a composited cursor, `capture-ingest` turns it into the capture contract, and `capture-scene` derives click rings and camera moves from its action log ([docs/reshoot.md](docs/reshoot.md), [docs/capture.md](docs/capture.md)). Native desktop windows and OS dialogs stay outside that recorder; report the boundary instead of faking the surface.
 
 ## Rules for everyone
 

@@ -1,5 +1,6 @@
-// The app-capture adapter: the headless recorder writes evidence, and the compiler turns that evidence into a scene
-// whose pointer, click rings and camera push-ins are derived from what the task actually did.
+// The capture compiler: an ingested reshoot capture becomes a scene whose click rings and camera push-ins are derived
+// from what the task actually did. reshoot composites the cursor into the footage, so nothing here draws a second
+// pointer, and a capture without that recorder is refused rather than compiled without one.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, access} from 'node:fs/promises';
@@ -9,8 +10,7 @@ import {createHash} from 'node:crypto';
 import {execFile as execFileCallback} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
-import {validatePlan, jpegSize, captureSession} from '../lib/capture.mjs';
-import {validateEdits, clusterClicks, clusterFocus, compileCaptureScene} from '../lib/appcapture.mjs';
+import {validateEdits, clusterClicks, clusterFocus, compileCaptureScene} from '../lib/capture-scene.mjs';
 import {carryCaptures} from '../lib/project.mjs';
 import {buildFilm} from '../lib/film.mjs';
 import {reviewerBrief} from '../lib/briefs.mjs';
@@ -33,7 +33,7 @@ function ffmpeg(args) {
   });
 }
 
-/** A synthetic capture: a real 3 s video, a real action log and pointer path, no Chrome needed. */
+/** A synthetic ingested capture: a real 3 s video and a real action log, no reshoot or Chrome needed. */
 async function fakeCapture(root, {duration = 3.2} = {}) {
   const dir = path.join(root, 'capture', 'F7-filters');
   await mkdir(dir, {recursive: true});
@@ -42,13 +42,13 @@ async function fakeCapture(root, {duration = 3.2} = {}) {
   await writeFile(path.join(dir, 'manifest.json'), JSON.stringify({
     version: 1, task: 'F7-filters', feature: 'create a filter', claim: 'a filter appears in the list', build: '1.4.2',
     url: 'https://app.example.test/filters', viewport: [1600, 1000], scale: 2, frameSize: [1600, 1000],
+    recorder: {app: 'reshoot', version: '0.3.9', pointer: 'composited', pixelRatio: 2},
     startedAt: new Date().toISOString(), duration, frames: 40,
     files: {recording: {path: 'recording.mp4', sha256: 'fixture'}},
     results: [{kind: 'assert', ok: true, target: '#filters', expected: 'Bikes'}],
   }, null, 2));
   const actions = [
     {t: 0.1, type: 'goto', url: 'https://app.example.test/filters', title: 'Filters'},
-    {t: 0.6, type: 'move', x: 240, y: 160},
     {t: 0.8, type: 'click', x: 240, y: 160, target: '#new-filter', why: 'open the dialog', bounds: [140, 140, 200, 44]},
     {t: 1.2, type: 'type', startedAt: 1.05, dur: 0.15, target: '#name', text: 'Bikes', why: null},
     {t: 1.5, type: 'click', x: 420, y: 200, target: '#save', why: 'save it', bounds: [360, 180, 120, 40]},
@@ -61,12 +61,9 @@ async function fakeCapture(root, {duration = 3.2} = {}) {
   await writeFile(path.join(dir, 'actions.jsonl'), actionLog);
   const actionHash = createHash('sha256').update(actionLog).digest('hex');
   const manifestFile = path.join(dir, 'manifest.json');
-  const pointer = [];
-  for (let t = 0.4; t < 3.0; t += 0.05) pointer.push({t: Number(t.toFixed(3)), x: Math.round(200 + t * 260), y: Math.round(120 + t * 170)});
   const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
   manifest.files.actions = {path: 'actions.jsonl', sha256: actionHash};
   await writeFile(manifestFile, JSON.stringify(manifest, null, 2));
-  await writeFile(path.join(dir, 'pointer.json'), JSON.stringify(pointer));
   return dir;
 }
 
@@ -108,27 +105,6 @@ const EDITS = {
   ],
 };
 
-test('jpegSize reads the frame size from a JPEG header and rejects other data', () => {
-  // SOI, minimal APP0, then a baseline SOF0 declaring 640×480.
-  const header = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
-    0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0xe0, 0x02, 0x80, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01]);
-  assert.deepEqual(jpegSize(header), [640, 480]);
-  assert.equal(jpegSize(Buffer.from('not a jpeg at all')), null);
-});
-
-test('a capture plan is checked before anything is recorded', () => {
-  const errors = validatePlan({steps: [{do: 'teleport'}]});
-  assert.ok(errors.some(e => /"task"/.test(e)));
-  assert.ok(errors.some(e => /"url" or a goto step/.test(e)));
-  assert.ok(errors.some(e => /"do" must be one of/.test(e)));
-  const ok = validatePlan({task: 'F1', url: 'https://example.test', steps: [{do: 'wait', for: '#app', why: 'loaded'}]});
-  assert.deepEqual(ok, []);
-  const small = validatePlan({task: 'F1', url: 'https://example.test', viewport: [800, 600], steps: [{do: 'wait', for: '#app'}]});
-  assert.ok(small.some(e => /too small/.test(e)));
-  const traversal = validatePlan({task: '../../etc', url: 'https://example.test', steps: [{do: 'wait', seconds: 1}]});
-  assert.ok(traversal.some(e => /short id/.test(e)), 'the task id becomes a folder and an asset path');
-});
-
 test('edits must name narration words, a source range inside the recording and what the cut shows', () => {
   const errors = validateEdits({scene: 'Not A Slug', edits: [{id: 'x'}]}, 4);
   assert.ok(errors.some(e => /kebab-case scene id/.test(e)));
@@ -155,12 +131,12 @@ test('clicks far apart in time are separate things to look at, and their targets
 });
 
 test('a compiled scene cuts the source, follows the log and validates against the film schema', async t => {
-  const root = await tempRoot('appcapture-');
+  const root = await tempRoot('capture-scene-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const capture = await fakeCapture(root);
   const {job, film, alignment, manifest} = await fixtureJob(root);
 
-  const compiled = await compileCaptureScene(job, capture, EDITS, {width: 1920, height: 1080, cursorSize: 54});
+  const compiled = await compileCaptureScene(job, capture, EDITS, {width: 1920, height: 1080});
   // A 1600 px capture cannot take a tight push-in without magnifying compression; the compiler says so instead of
   // silently shipping a soft zoom.
   assert.equal(compiled.warnings.length, 2);
@@ -171,10 +147,10 @@ test('a compiled scene cuts the source, follows the log and validates against th
   assert.equal(compiled.report[0].interactionCounts.scroll, 1, 'the recorded scroll stays inside its continuous source cut');
 
   for (const edit of EDITS.edits) {
-    const clip = path.join(job, 'assets/app-capture/F7-filters', `${edit.id}.mp4`);
+    const clip = path.join(job, 'assets/app-review/F7-filters', `${edit.id}.mp4`);
     assert.ok(await exists(clip), `${edit.id} was cut into assets/`);
   }
-  assert.ok(await exists(path.join(job, 'assets/app-capture/cursor.svg')), 'the pointer asset is written once');
+  assert.ok(!(await exists(path.join(job, 'assets/app-review/cursor.svg'))), 'reshoot composites the cursor; no second pointer asset is written');
   assert.ok(await exists(path.join(capture, 'recording.mp4')), 'the source recording is kept unchanged');
 
   const scene = JSON.parse(await readFile(path.join(job, 'shots/filters.json'), 'utf8'));
@@ -185,19 +161,17 @@ test('a compiled scene cuts the source, follows the log and validates against th
   const videos = scene.objects.filter(o => o.type === 'video');
   assert.equal(videos.length, 2);
   for (const video of videos) {
-    assert.match(video.src, /^assets\/app-capture\/F7-filters\//);
+    assert.match(video.src, /^assets\/app-review\/F7-filters\//);
     assert.ok(video.clipDuration > 0.4, 'the video carries its real length so it cannot play past the cut');
   }
-  const cursors = scene.objects.filter(o => o.id.startsWith('cursor-'));
-  assert.equal(cursors.length, 2);
-  for (const cursor of cursors) assert.equal(cursor.layer, 'media', 'the pointer draws on top of the footage');
+  assert.equal(scene.objects.filter(o => o.id.startsWith('cursor-')).length, 0, 'the cursor is already in the footage');
   const rings = scene.objects.filter(o => o.type === 'circle');
   assert.equal(rings.length, 3);
   for (const ring of rings) assert.equal(ring.layer, 'media');
 
   const times = scene.actions.map(a => String(a.at ?? ''));
   assert.ok(times.every(at => !/^\d/.test(at)), 'timing stays cue-relative, never absolute seconds');
-  assert.ok(scene.actions.some(a => a.do === 'move' && a.target.startsWith('cursor-')), 'the pointer follows the logged path');
+  assert.ok(!scene.actions.some(a => a.do === 'move'), 'nothing moves a pointer that is already recorded');
   const cameras = scene.actions.filter(a => a.do === 'camera');
   assert.ok(cameras.some(c => c.zoom > 1.1), 'a click cluster pushes the camera in');
   assert.ok(cameras.some(c => c.zoom === 1), 'and the shot comes back out');
@@ -207,8 +181,20 @@ test('a compiled scene cuts the source, follows the log and validates against th
   assert.ok(built.ok, `the compiled scene must pass the shared schema: ${JSON.stringify(built.errors ?? [])}`);
 });
 
+test('a capture without a composited pointer is refused instead of compiled without one', async t => {
+  const root = await tempRoot('capture-scene-legacy-recorder-'); t.after(() => rm(root, {recursive: true, force: true}));
+  const capture = await fakeCapture(root);
+  const manifestFile = path.join(capture, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+  manifest.recorder = {pointer: 'not composited'};
+  await writeFile(manifestFile, JSON.stringify(manifest, null, 2));
+  const {job} = await fixtureJob(root);
+  await assert.rejects(compileCaptureScene(job, capture, EDITS),
+    /was not recorded with a composited pointer.*record the task again with reshoot/i);
+});
+
 test('a screenshot-only capture cannot compile into an app-review scene', async t => {
-  const root = await tempRoot('appcapture-shot-only-'); t.after(() => rm(root, {recursive:true,force:true}));
+  const root = await tempRoot('capture-scene-shot-only-'); t.after(() => rm(root, {recursive:true,force:true}));
   const capture = await fakeCapture(root);
   const shotLog = JSON.stringify({t:1,type:'shot',src:'shots/result.png',state:'result'})+'\n';
   await writeFile(path.join(capture,'actions.jsonl'), shotLog);
@@ -221,7 +207,7 @@ test('a screenshot-only capture cannot compile into an app-review scene', async 
 });
 
 test('meaningful actions with malformed timestamps cannot evade capture completeness', async t => {
-  const root = await tempRoot('appcapture-bad-time-'); t.after(() => rm(root, {recursive:true,force:true}));
+  const root = await tempRoot('capture-scene-bad-time-'); t.after(() => rm(root, {recursive:true,force:true}));
   const capture = await fakeCapture(root);
   const actionsFile = path.join(capture, 'actions.jsonl'), manifestFile = path.join(capture, 'manifest.json');
   const actions = (await readFile(actionsFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
@@ -239,7 +225,7 @@ test('the real renderer composites and holds app capture pixels on a colored bac
   let chrome = null;
   try { chrome = await chromePath(); } catch {}
   if (!chrome) return t.skip('no Chrome on this machine');
-  const root = path.join(ROOT, '.cache', `appcapture-render-${process.pid}-${Date.now()}`);
+  const root = path.join(ROOT, '.cache', `capture-scene-render-${process.pid}-${Date.now()}`);
   await mkdir(root, {recursive: true});
   t.after(() => rm(root, {recursive: true, force: true}));
   const capture = await fakeCapture(root, {duration: 3.2});
@@ -305,7 +291,7 @@ test('the real renderer composites and holds app capture pixels on a colored bac
 });
 
 test('capture-scene refuses edits that do not match the recording', async t => {
-  const root = await tempRoot('appcapture-bad-');
+  const root = await tempRoot('capture-scene-bad-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const capture = await fakeCapture(root);
   const {job} = await fixtureJob(root);
@@ -315,7 +301,7 @@ test('capture-scene refuses edits that do not match the recording', async t => {
 });
 
 test('capture-scene blocks screenshot-only edits and cuts through typing or waits', async t => {
-  const root = await tempRoot('appcapture-sequence-');
+  const root = await tempRoot('capture-scene-sequence-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const capture = await fakeCapture(root);
   const {job} = await fixtureJob(root);
@@ -347,7 +333,7 @@ test('capture-scene blocks screenshot-only edits and cuts through typing or wait
 });
 
 test('omitted task actions require action-log-bound omission records and preserve full wait semantics', async t => {
-  const root = await tempRoot('appcapture-omission-'), otherRoot = await tempRoot('appcapture-omission-other-');
+  const root = await tempRoot('capture-scene-omission-'), otherRoot = await tempRoot('capture-scene-omission-other-');
   t.after(() => Promise.all([rm(root, {recursive: true, force: true}), rm(otherRoot, {recursive: true, force: true})]));
   const capture = await fakeCapture(root), {job} = await fixtureJob(root);
   const edits = {scene: 'filters', edits: [{id: 'open', phrase: 'open the dialog', source: [0.6, 1.05], feature: 'F7'}]};
@@ -397,7 +383,7 @@ test('omitted task actions require action-log-bound omission records and preserv
 });
 
 test('omission ledger flock recovers process death, serializes contenders, and preserves a live owner', async t => {
-  const root = await tempRoot('appcapture-omission-lock-'); t.after(() => rm(root, {recursive:true,force:true}));
+  const root = await tempRoot('capture-scene-omission-lock-'); t.after(() => rm(root, {recursive:true,force:true}));
   const capture = await fakeCapture(root), {job} = await fixtureJob(root);
   const edit = (scene, id, source) => ({scene, edits:[{id,phrase:'show the real task',source:[0.7,3.1],feature:'F7'}]});
   await Promise.all([
@@ -431,7 +417,7 @@ test('omission ledger flock recovers process death, serializes contenders, and p
 });
 
 test('killed ledger transaction owner cannot write after lock release while a compiler contends', async t => {
-  const root=await tempRoot('appcapture-omission-owner-death-'); t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await tempRoot('capture-scene-omission-owner-death-'); t.after(()=>rm(root,{recursive:true,force:true}));
   const capture=await fakeCapture(root), {job}=await fixtureJob(root);
   const edit=(scene,id)=>({scene,edits:[{id,phrase:'show the real task',source:[0.7,3.1],feature:'F7'}]});
   await compileCaptureScene(job,capture,edit('durable','durable'));
@@ -455,7 +441,7 @@ test('killed ledger transaction owner cannot write after lock release while a co
 });
 
 test('scene-less legacy omission records fail closed with migration guidance', async t => {
-  const root=await tempRoot('appcapture-legacy-omissions-'); t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await tempRoot('capture-scene-legacy-omissions-'); t.after(()=>rm(root,{recursive:true,force:true}));
   const capture=await fakeCapture(root), {job}=await fixtureJob(root);
   const log=await readFile(path.join(capture,'actions.jsonl'));
   await writeFile(path.join(capture,'omissions.json'),JSON.stringify({version:1,records:[{actionIndex:4,reason:'legacy'}]}));
@@ -466,7 +452,7 @@ test('scene-less legacy omission records fail closed with migration guidance', a
 });
 
 test('capture-scene rejects a modified action log even when omission evidence is rehashed', async t => {
-  const root = await tempRoot('appcapture-tampered-actions-'); t.after(() => rm(root, {recursive: true, force: true}));
+  const root = await tempRoot('capture-scene-tampered-actions-'); t.after(() => rm(root, {recursive: true, force: true}));
   const capture = await fakeCapture(root), {job} = await fixtureJob(root);
   const actionsFile = path.join(capture, 'actions.jsonl');
   const original = await readFile(actionsFile, 'utf8');
@@ -486,17 +472,17 @@ test('capture-scene rejects a modified action log even when omission evidence is
 });
 
 test('legacy captures without an action hash fail closed with recapture guidance', async t => {
-  const root = await tempRoot('appcapture-legacy-no-action-hash-'); t.after(() => rm(root, {recursive: true, force: true}));
+  const root = await tempRoot('capture-scene-legacy-no-action-hash-'); t.after(() => rm(root, {recursive: true, force: true}));
   const capture = await fakeCapture(root), {job} = await fixtureJob(root);
   const manifestFile = path.join(capture, 'manifest.json');
   const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
   delete manifest.files.actions;
   await writeFile(manifestFile, JSON.stringify(manifest, null, 2));
-  await assert.rejects(compileCaptureScene(job, capture, EDITS), /missing a valid files\.actions\.sha256.*legacy capture cannot be authenticated.*recapture/i);
+  await assert.rejects(compileCaptureScene(job, capture, EDITS), /missing a valid files\.actions\.sha256.*legacy capture cannot be authenticated.*record the task again with reshoot/i);
 });
 
 test('captures travel from the script folder into the film job', async t => {
-  const root = await tempRoot('appcapture-carry-');
+  const root = await tempRoot('capture-scene-carry-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const script = path.join(root, 'jobs/scripts/demo/SCRIPT.md');
   await mkdir(path.join(path.dirname(script), 'capture/F1'), {recursive: true});
@@ -506,145 +492,4 @@ test('captures travel from the script folder into the film job', async t => {
   assert.equal(await readFile(path.join(job, 'capture/F1/manifest.json'), 'utf8'), '{"task":"F1"}');
   // A project without captures (every other personality) copies nothing and does not fail.
   assert.equal(await carryCaptures(path.join(root, 'elsewhere/SCRIPT.md'), job), false);
-});
-
-test('a headless capture records the session, the action log and the evidence', async t => {
-  let chrome = null;
-  try { chrome = await chromePath(); } catch {}
-  if (!chrome) return t.skip('no Chrome on this machine');
-  const root = await tempRoot('appcapture-run-');
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const dir = path.join(root, 'capture', 'F3');
-  const page = path.join(ROOT, 'tests/fixtures/app-capture/app.html');
-  const plan = {
-    task: 'F3-new-filter', feature: 'create a filter', build: 'fixture-1.0', url: `file://${page}`,
-    viewport: [1440, 900], scale: 1,
-    steps: [
-      {do: 'wait', for: '#never-present', timeout: 120, why: 'record the failed loading wait'},
-      {do: 'wait', for: '#new-filter', why: 'the Filters screen has loaded'},
-      {do: 'scroll', dy: 360, settle: 120, why: 'move through the filters list'},
-      {do: 'shot', name: '01-start', state: 'two filters, before'},
-      {do: 'click', target: '#new-filter', why: 'open the dialog'},
-      {do: 'type', target: '#filter-name', text: 'Bikes'},
-      {do: 'click', target: '#save-filter', why: 'save it'},
-      {do: 'wait', seconds: 0.4, why: 'the row settles'},
-      {do: 'assert', target: '#filters', text: 'Bikes', why: 'the filter is listed'},
-      {do: 'assert', target: '#filters', text: 'Not a filter', why: 'a wrong claim is kept as evidence'},
-    ],
-  };
-  const result = await captureSession(dir, plan);
-  assert.match(result.manifest.recorder.pointer, /not composited/);
-  assert.ok(result.manifest.duration >= 1);
-  const failedWait=result.actions.find(a=>a.type==='wait'&&a.for==='#never-present');
-  assert.equal(failedWait.ok,false); assert.ok(failedWait.dur>=0.1); assert.match(failedWait.error,/timeout/i);
-  assert.deepEqual(result.manifest.frameSize, [1440, 900]);
-  assert.ok(await exists(path.join(dir, 'recording.mp4')));
-  assert.ok(await exists(path.join(dir, 'shots/01-start.png')));
-
-  const clicks = result.actions.filter(a => a.type === 'click');
-  assert.equal(clicks.length, 3, 'two button clicks plus the click that focuses the name field');
-  for (const click of clicks) {
-    assert.ok(click.bounds?.[2] > 0 && click.bounds?.[3] > 0, 'every click records the target bounds');
-    assert.ok(click.t >= 0 && click.t <= result.manifest.duration + 0.1);
-  }
-  assert.ok(result.pointer.length > 5, 'the pointer path was sampled');
-  assert.ok(result.pointer.every(sample => Number.isFinite(sample.x) && Number.isFinite(sample.y)));
-  const scroll = result.actions.find(a => a.type === 'scroll');
-  assert.ok(scroll.dur >= 0.1 && Number.isFinite(scroll.fromY) && Number.isFinite(scroll.scrollY),
-    'scroll is recorded as a paced gesture with observed before and after positions');
-  const typed = result.actions.find(a => a.type === 'type');
-  assert.ok(typed.dur >= 0.1 && typed.startedAt < typed.t, 'the log preserves the complete human-paced typing interval');
-
-  const asserts = result.manifest.results.filter(r => r.kind === 'assert');
-  assert.deepEqual(asserts.map(a => a.ok), [true, false], 'a failed expectation is recorded, not thrown away');
-  const raw = await readFile(path.join(dir, 'actions.jsonl'), 'utf8');
-  assert.match(raw, /"type":"assert".*"ok":false/);
-  assert.equal(result.manifest.files.recording.sha256.length, 64);
-});
-
-test('a session that cannot run a step keeps its footage, its log and the hand-written files', async t => {
-  let chrome = null;
-  try { chrome = await chromePath(); } catch {}
-  if (!chrome) return t.skip('no Chrome on this machine');
-  const root = await tempRoot('appcapture-stop-');
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const dir = path.join(root, 'capture', 'F4');
-  await mkdir(dir, {recursive: true});
-  const page = path.join(ROOT, 'tests/fixtures/app-capture/app.html');
-  const plan = {
-    task: 'F4', feature: 'a control that is not there', url: `file://${page}`, viewport: [1440, 900], scale: 1,
-    steps: [
-      {do: 'wait', for: '#new-filter', why: 'the screen loaded'},
-      {do: 'shot', name: '01-start', state: 'before'},
-      {do: 'click', target: '#missing-control', why: 'a control this build does not have'},
-      {do: 'click', target: '#save-filter', why: 'this step must not run'},
-    ],
-  };
-  await writeFile(path.join(dir, 'plan.json'), JSON.stringify(plan, null, 2));
-  await writeFile(path.join(dir, 'edits.json'), '{"scene":"filters","edits":[]}\n');
-
-  const result = await captureSession(dir, plan);
-  assert.match(result.manifest.aborted, /No element matches #missing-control/);
-  assert.ok(result.actions.some(a => a.type === 'error'), 'the failure is in the action log');
-  assert.ok(!result.actions.some(a => a.type === 'click' && a.target === '#save-filter'), 'the plan stops at the failure');
-  assert.ok(await exists(path.join(dir, 'recording.mp4')), 'the footage up to the failure is kept');
-  assert.ok(await exists(path.join(dir, 'shots/01-start.png')));
-  assert.match(await readFile(path.join(dir, 'manifest.json'), 'utf8'), /"aborted"/);
-  assert.equal(await readFile(path.join(dir, 'edits.json'), 'utf8'), '{"scene":"filters","edits":[]}\n');
-  assert.ok(await exists(path.join(dir, 'plan.json')), 're-recording never deletes the plan or the edits');
-});
-
-test('concurrent capture attempts for one project fail without clearing its active artifacts', async t => {
-  const root = await tempRoot('appcapture-lock-');
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const dir = path.join(root, 'capture', 'F12');
-  await mkdir(dir, {recursive: true});
-  await writeFile(path.join(dir, 'recording.mp4'), 'active capture');
-  await writeFile(path.join(dir, '.capture.lock'), JSON.stringify({pid: process.pid}));
-  await assert.rejects(captureSession(dir, {
-    task: 'F12', url: 'https://example.test', steps: [{do: 'wait', seconds: 1}],
-  }), /already running.*generated files were left untouched/);
-  assert.equal(await readFile(path.join(dir, 'recording.mp4'), 'utf8'), 'active capture');
-});
-
-test('a stale lock from an exited capture process is recovered safely', async t => {
-  const root = await tempRoot('appcapture-stale-lock-');
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const dir = path.join(root, 'capture', 'F13');
-  await mkdir(dir, {recursive: true});
-  const dead = spawn('true');
-  await new Promise((resolve, reject) => { dead.once('error', reject); dead.once('close', resolve); });
-  await writeFile(path.join(dir, '.capture.lock'), JSON.stringify({pid: dead.pid}));
-  await assert.rejects(captureSession(dir, {task: 'bad id', url: 'https://example.test', steps: [{do: 'wait', seconds: 1}]}), /capture plan is invalid/);
-  assert.equal(await exists(path.join(dir, '.capture.lock')), false, 'recovered lock is cleaned after validation fails');
-});
-
-test('an old malformed lock is recovered while a fresh empty lock is preserved', async t => {
-  const root=await tempRoot('appcapture-malformed-lock-'); t.after(()=>rm(root,{recursive:true,force:true}));
-  const dir=path.join(root,'capture','F14'); await mkdir(dir,{recursive:true});
-  const lock=path.join(dir,'.capture.lock'); await writeFile(lock,'');
-  const old=new Date(Date.now()-180000); await (await import('node:fs/promises')).utimes(lock,old,old);
-  await assert.rejects(captureSession(dir,{task:'bad id',url:'https://example.test',steps:[{do:'wait',seconds:1}]}),/capture plan is invalid/);
-  await writeFile(lock,'');
-  await assert.rejects(captureSession(dir,{task:'F14',url:'https://example.test',steps:[{do:'wait',seconds:1}]}),/already running/);
-  assert.equal(await readFile(lock,'utf8'),'');
-});
-
-test('typed secrets are masked in the action log', async t => {
-  let chrome = null;
-  try { chrome = await chromePath(); } catch {}
-  if (!chrome) return t.skip('no Chrome on this machine');
-  const root = await tempRoot('appcapture-secret-');
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const dir = path.join(root, 'capture', 'F9');
-  await writeFile(path.join(root, 'secret.html'), '<label>Password <input id="pw" type="password"></label>');
-  const result = await captureSession(dir, {
-    task: 'F9', url: `file://${path.join(root, 'secret.html')}`, viewport: [1200, 800], scale: 1,
-    steps: [{do: 'type', target: '#pw', text: 'hunter2', why: 'sign in'}],
-  });
-  const typed = result.actions.find(a => a.type === 'type');
-  assert.equal(typed.text, '*******');
-  assert.equal(typed.masked, true);
-  assert.ok(!(await readFile(path.join(dir, 'actions.jsonl'), 'utf8')).includes('hunter2'));
-  assert.ok(result.manifest.results.some(r => r.kind === 'privacy'));
 });

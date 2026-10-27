@@ -12,15 +12,37 @@ import {REVIEW_ROLES, loadReviewPack, submitReview, sourceFingerprint} from '../
 import {loadPersonality, freezePersonality} from '../lib/personalities.mjs';
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const exec=promisify(execFile);
+const put=(dir,file,value)=>writeFile(path.join(dir,file),JSON.stringify(value,null,2));
 
-test('CLI app-capture and capture-scene register runner producer identity before their handlers run',async t=>{
+/** A reshoot project laid out the way reshoot writes one, with a real clean take. */
+async function fakeReshootRun(root){
+  const project=path.join(root,'reshoot'), run=path.join(project,'takes','runs','run1'), takes=path.join(run,'takes');
+  await mkdir(path.join(takes,'demo.evidence'),{recursive:true});
+  await writeFile(path.join(project,'reshoot.toml'),'[take]\nweb = "storyboard.toml"\n');
+  await writeFile(path.join(project,'storyboard.toml'),'[[beat]]\nurl = "https://app.example.test/filters"\n');
+  // A still, light UI: the capture-visibility gate compares rendered regions with the recorded frames, and a moving
+  // test pattern would mismatch on timing alone.
+  await exec('ffmpeg',['-nostdin','-v','error','-y','-f','lavfi','-i','color=c=0xeef1f4:s=2560x1440:r=30:d=3.2',
+    '-vf','drawbox=x=300:y=300:w=900:h=120:color=0x2f6bff:t=fill,drawbox=x=300:y=520:w=1400:h=60:color=0xc9d1dc:t=fill,drawbox=x=300:y=700:w=600:h=60:color=0x101114:t=fill',
+    '-c:v','libx264','-preset','veryfast','-crf','24','-pix_fmt','yuv420p',path.join(takes,'demo.clean.mp4')],{cwd:ROOT});
+  await writeFile(path.join(takes,'demo.evidence','open.png'),'open frame');
+  await put(run,'run.json',{ok:true,id:'run1',errors:[],inputs:{reshoot:'0.3.9'}});
+  await put(run,'takes/demo.take.json',{schema_version:1,status:'completed',mode:'final',story_id:'fixture',story_sha256:'a'.repeat(64),
+    capture:{css_width:1280,css_height:720,pixel_ratio:2,frames:96},
+    beats:[{id:'open',start:0.01,end:3.0,screenshot:'demo.evidence/open.png',
+      expectations:[{type:'text',status:'passed',actual:'Filters',at:2.9}]}]});
+  await put(run,'takes/demo.beats.json',{open:0.01});
+  await put(run,'takes/demo.events.json',[{t:0.3,kind:'act',phase:'start',rect:[470,329.19,340,49.75]},
+    {t:0.5,kind:'act',phase:'end',rect:[470,329.19,340,49.75]}]);
+  return run;
+}
+
+test('CLI capture-ingest and capture-scene register runner producer identity before their handlers run',async t=>{
   const base=path.join(ROOT,'.cache'); await mkdir(base,{recursive:true});
   const job=await mkdtemp(path.join(base,'producer-cli-')); t.after(()=>rm(job,{recursive:true,force:true}));
   await writeFile(path.join(job,'job.json'),JSON.stringify({review:{producerAgentIds:[],producerAgentRecords:[]}}));
-  await assert.rejects(exec(process.execPath,['scripts/video.mjs','app-capture','--job',job,'--plan','missing.json'],{cwd:ROOT,env:{...process.env,VIDEO_AGENT_ROLE:'app-review-builder',VIDEO_AGENT_ID:'runner-app-capture'}}));
-  assert.equal(JSON.parse(await readFile(path.join(job,'job.json'),'utf8')).review.producerAgentIds.length,0,
-    'script-stage capture must not create or mutate a film job manifest');
   for(const [command,args,role,id] of [
+    ['capture-ingest',['--run','.cache/does-not-exist','--task','screen'],'app-review-builder','runner-capture-ingest'],
     ['capture-scene',['--capture','capture/missing','--scene','demo'],'app-review-builder','runner-capture-scene'],
   ]){
     await assert.rejects(exec(process.execPath,['scripts/video.mjs',command,'--job',job,...args],{cwd:ROOT,env:{...process.env,VIDEO_AGENT_ROLE:role,VIDEO_AGENT_ID:id}}));
@@ -46,11 +68,9 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   const productionProfile=await freezePersonality(scriptDir,profile);
   await writeFile(path.join(scriptDir,'project.json'),JSON.stringify({slug:'fixture',productionProfile}));
   // The two IDs below enter through the same runner environment consumed by the CLI.
-  const plan=path.join(project,'plan.json');
-  await writeFile(plan,JSON.stringify({task:'screen',url:`file://${path.join(ROOT,'tests/fixtures/app-capture/app.html')}`,
-    viewport:[1440,900],steps:[{do:'click',target:'#new-filter',why:'open the filter dialog'}]}));
   const run=async(args,env={})=>exec(process.execPath,['scripts/video.mjs',...args],{cwd:ROOT,env:{...process.env,...env}}).catch(error=>{error.message+=`\nstdout:\n${error.stdout||''}\nstderr:\n${error.stderr||''}`;throw error;});
-  await run(['app-capture','--job',scriptDir,'--plan',plan],{VIDEO_AGENT_ROLE:'app-review-builder',VIDEO_AGENT_ID:'runner-app-capture'});
+  const reshootRun=await fakeReshootRun(project);
+  await run(['capture-ingest','--job',scriptDir,'--run',reshootRun,'--task','screen'],{VIDEO_AGENT_ROLE:'app-review-builder',VIDEO_AGENT_ID:'runner-capture-ingest'});
   const capture=path.join(scriptDir,'capture/screen');
   const cm=JSON.parse(await readFile(path.join(capture,'manifest.json'),'utf8'));
   await writeFile(path.join(capture,'edits.json'),JSON.stringify({scene:'demo',edits:[{id:'capture-demo',phrase:'The setting is visible.',source:[0,Math.min(3.5,cm.duration)],feature:'demo',result:'visible'}]}));
@@ -64,9 +84,9 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   await run(['capture-scene','--job',job,'--capture','capture/screen','--scene','demo'],{VIDEO_AGENT_ROLE:'app-review-builder',VIDEO_AGENT_ID:'runner-job-capture-scene'});
   const withScene=JSON.parse(await readFile(path.join(job,'job.json'),'utf8'));
   assert.deepEqual(withScene.review.producerAgentRecords.map(r=>[r.agentId,r.role]),[
-    ['runner-app-capture','app-review-builder'],['runner-capture-scene','app-review-builder'],['runner-job-capture-scene','app-review-builder']]);
-  assert.deepEqual(withScene.review.producerAgentIds,['runner-app-capture','runner-capture-scene','runner-job-capture-scene']);
-  await assert.rejects(assertIndependentCaptureReviewer(job,{agentId:'runner-app-capture',independent:true}),/cannot submit an independent/);
+    ['runner-capture-ingest','app-review-builder'],['runner-capture-scene','app-review-builder'],['runner-job-capture-scene','app-review-builder']]);
+  assert.deepEqual(withScene.review.producerAgentIds,['runner-capture-ingest','runner-capture-scene','runner-job-capture-scene']);
+  await assert.rejects(assertIndependentCaptureReviewer(job,{agentId:'runner-capture-ingest',independent:true}),/cannot submit an independent/);
   await assert.rejects(assertIndependentCaptureReviewer(job,{agentId:'runner-capture-scene',independent:true}),/cannot submit an independent/);
   await assertIndependentCaptureReviewer(job,{agentId:'runner-independent-reviewer',independent:true},{agentId:'runner-independent-reviewer',role:'reviewer'});
   const gate=await run(['next','--job',job]);
@@ -74,12 +94,11 @@ test('script-stage app capture provenance survives prepare and enforces the capt
     'the CLI must reach the app-review visual-plan state before scene building');
   assert.equal(manifest.status,'prepared');
 
-  // Continue through the real encoded-render capture-visibility gate. Keep every
-  // fixture input and output in this isolated test tree; the test library is
-  // isolated too, so save-all cannot mutate the shared library.
+  // Continue through the real encoded-render evidence gates. Keep every fixture input and output in this isolated
+  // test tree; the test library is isolated too, so save-all cannot mutate the shared library.
   const fixtureEnv={VG_LIBRARY:path.join(project,'library')};
   const reviewDir=path.join(job,'review'); await mkdir(reviewDir,{recursive:true});
-  const visuals=['# Visual plan: fixture','','## Concept','Show the fixture application actual filter flow.','','## Theme','Clean browser-app review.','','```json','{"name":"Fixture","description":"Actual captured app UI","bg":"#f6f7f9","colors":{"white":"#ffffff"}}','```','','## Scenes','','### demo — captured filter dialog','- Starts at: "The setting is visible."','- Idea: Show the real browser capture.','- Layout: Recorded interface fills the frame.','- Hero: The actual filter dialog.','- Events:','  1. "visible" → the recorded browser interaction plays with its logged pointer.','- Payoff: The captured interface remains visible.','','## Thumbnail','- Headline: FILTERS',''].join('\n');
+  const visuals=['# Visual plan: fixture','','## Concept','Show the fixture application actual filter flow.','','## Theme','Clean browser-app review.','','```json','{"name":"Fixture","description":"Actual captured app UI","bg":"#f6f7f9","colors":{"white":"#ffffff"}}','```','','## Scenes','','### demo — captured filter dialog','- Starts at: "The setting is visible."','- Idea: Show the real browser capture.','- Layout: Recorded interface fills the frame.','- Hero: The actual filter dialog.','- Events:','  1. "visible" → the recorded browser interaction plays with its recorded cursor.','- Payoff: The captured interface remains visible.','','## Thumbnail','- Headline: FILTERS',''].join('\n');
   await mkdir(path.join(job,'inputs'),{recursive:true});
   await writeFile(path.join(job,'inputs/visuals.md'),visuals);
   const planGate=await run(['next','--job',job],fixtureEnv);
@@ -93,49 +112,17 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   await run(['render','--job',job,'--reuse-build','true'],fixtureEnv);
   await run(['verify','--job',job],fixtureEnv);
   let next=await run(['next','--job',job],fixtureEnv);
-  assert.match(next.stdout,/STATE: generate canonical paired source\/render frames/);
-  await run(['capture-visibility','--job',job,'--generate'],fixtureEnv);
-  next=await run(['next','--job',job],fixtureEnv);
-  assert.match(next.stdout,/STATE: independent visual inspection of unverified app-capture/);
-  const dispositions=JSON.parse(await readFile(path.join(reviewDir,'capture-visibility-dispositions.json'),'utf8'));
-  assert.ok(dispositions.dispositions.length>0);
-  const current=dispositions.dispositions[0], captureId=current.captureId, sceneId=current.sceneId;
-  const decodedActivity=async item=>{
-    const bytes=(await exec('ffmpeg',['-v','error','-i',path.join(job,item.path),'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{encoding:'buffer',maxBuffer:16*1024*1024})).stdout;
-    let active=0; for(let i=0;i+2<bytes.length;i+=3) if(bytes[i]+bytes[i+1]+bytes[i+2]>90) active++;
-    return {pixels:bytes.length/3,activeRatio:active/(bytes.length/3)};
-  };
-  const paired=current.evidence.reduce((pairs,item)=>{(pairs[item.kind]||=[]).push(item);return pairs;},{});
-  assert.equal(paired['source-frame'].length,3); assert.equal(paired['render-frame'].length,3);
-  const activity=[];
-  for(let i=0;i<3;i++) activity.push({source:await decodedActivity(paired['source-frame'][i]),render:await decodedActivity(paired['render-frame'][i])});
-  const report=path.join(job,'review/independent-verdict.json');
-  await writeFile(report,JSON.stringify({sourceHash:dispositions.sourceHash,videoSha256:dispositions.videoSha256,
-    reviewer:{agentId:'runner-independent-reviewer',independent:true},
-    dispositions:[{captureId,sceneId,decision:'acceptable',observation:`Integration fixture: compared all three generated source/render frame pairs. Active-pixel ratios were ${activity.map(pair=>`${pair.source.activeRatio.toFixed(2)}/${pair.render.activeRatio.toFixed(2)}`).join(', ')}; the app interface is present in each rendered sample.`}]}));
-  // The submission transport is runner-bound, while the evidence and subsequent
-  // gate remain the actual pipeline's generated and decoded media.
-  await run(['capture-visibility','--job',job,'--record',report],{...fixtureEnv,VIDEO_AGENT_ROLE:'reviewer',VIDEO_AGENT_ID:'runner-independent-reviewer'});
-  const recorded=JSON.parse(await readFile(path.join(reviewDir,'capture-visibility-dispositions.json'),'utf8'));
-  assert.deepEqual(recorded.dispositions[0].authenticatedReviewer,{agentId:'runner-independent-reviewer',role:'reviewer'});
-  assert.equal(recorded.dispositions[0].status,'visually-inspected');
-  // Bad, missing and stale verdicts cannot unlock the final pack.
-  const saved=JSON.stringify(recorded);
-  await writeFile(path.join(reviewDir,'capture-visibility-dispositions.json'),JSON.stringify({...recorded,dispositions:[{...recorded.dispositions[0],decision:'reject'}]}));
-  next=await run(['next','--job',job],fixtureEnv);
-  assert.match(next.stdout,/STATE: repair \(1 problem\(s\) from independent capture-visibility inspection/,
-    'a rejected inspection must route the state machine to repair');
-  await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv));
-  await rm(path.join(reviewDir,'capture-visibility-dispositions.json'));
-  await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv));
-  await writeFile(path.join(reviewDir,'capture-visibility-dispositions.json'),JSON.stringify({...recorded,sourceHash:'stale'}));
-  await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv));
-  await writeFile(path.join(reviewDir,'capture-visibility-dispositions.json'),saved);
+  // The cursor is composited into the footage, so no second pointer overlaps the capture. The rendered region matches
+  // its source, the interval needs no unverified-inspection round, and the flow goes straight to freezing evidence.
+  const pixels=JSON.parse(await readFile(path.join(reviewDir,'pixels.json'),'utf8'));
+  assert.equal(pixels.captureVisibility.captures.length,1);
+  assert.equal(pixels.captureVisibility.captures[0].status,'verified',pixels.captureVisibility.captures[0].reason);
+  assert.match(next.stdout,/STATE: freeze final review evidence from the encoded render/);
   const omissionsFile=path.join(job,'capture/screen/omissions.json');
   const omissions=await readFile(omissionsFile,'utf8');
   const refreshReviewSourceHash=async()=>{
     const sourceHash=await sourceFingerprint(job);
-    for(const rel of ['review/pixels.json','review/render-source.json','review/capture-visibility-dispositions.json']){
+    for(const rel of ['review/pixels.json','review/render-source.json']){
       const file=path.join(job,rel),doc=JSON.parse(await readFile(file,'utf8'));doc.sourceHash=sourceHash;await writeFile(file,JSON.stringify(doc));
     }
   };

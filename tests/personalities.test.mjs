@@ -115,7 +115,8 @@ test('news uses its own source rubric and app review records the session before 
   const S = path.join(root, 'jobs/scripts/app');
   let step = await projectStep(root, 'app');
   assert.equal(step.state, 'record the session');
-  assert.match(step.text, /app-capture --job jobs\/scripts\/app/);
+  assert.match(step.text, /capture-ingest --job jobs\/scripts\/app/);
+  assert.match(step.text, /reshoot run/);
   assert.match(step.text, /native window/);
   assert.equal((await projectStatus(root, 'app')).phase, 'recording the session');
 

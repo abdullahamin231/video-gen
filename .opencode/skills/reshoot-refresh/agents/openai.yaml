@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update a demo"
+  short_description: "Update a demo and compare the results"
+  default_prompt: "Use $reshoot-refresh to update an existing reshoot demo, check its expected results, and compare it with the previous run."

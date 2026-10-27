@@ -10,9 +10,11 @@ The project freezes these instructions into production-profile.json. Every deleg
 
 ## Capability boundary
 
-Browser applications are fully supported: `app-capture` records a scripted session in headless Chrome with the pointer
-left out of the footage, and `capture-scene` compiles the giant pointer, click rings and camera push-ins from its action
-log. Read TOOLS.md for the evidence contract and [../../docs/app-capture.md](../../docs/app-capture.md) for the formats.
+Browser applications are fully supported: reshoot records the storyboard in headless Chrome (per-beat result checks, an
+`accepted/` baseline, 2× frames) with the cursor composited into the footage, `capture-ingest` turns the run into the
+capture contract, and `capture-scene` compiles click rings and camera push-ins from its action log. No second pointer is
+drawn over the recorded cursor. Read TOOLS.md for the evidence contract and
+[../../docs/reshoot.md](../../docs/reshoot.md) for the project, storyboard and ingest formats.
 
 Capture the session *before* writing the verdict and the narration. Record what the application actually did, including
 the steps that failed; never script a success and fabricate the states to match it, and never record a commercial

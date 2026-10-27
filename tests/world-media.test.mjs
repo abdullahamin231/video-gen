@@ -111,12 +111,12 @@ test('rendered capture comparison detects a hidden layer on a bright backdrop', 
   const cache = path.join(ROOT, '.cache'); await mkdir(cache, {recursive: true});
   const job = await mkdtemp(path.join(cache, 'capture-visibility-hidden-'));
   t.after(() => rm(job, {recursive: true, force: true}));
-  await mkdir(path.join(job, 'assets/app-capture/task'), {recursive: true});
-  const source = path.join(job, 'assets/app-capture/task/capture.mp4'), output = path.join(job, 'render.mp4');
+  await mkdir(path.join(job, 'assets/app-review/task'), {recursive: true});
+  const source = path.join(job, 'assets/app-review/task/capture.mp4'), output = path.join(job, 'render.mp4');
   await exec('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=blue:s=320x180:r=30:d=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', source]);
   await exec('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=white:s=320x180:r=30:d=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', output]);
   const world = {width: 320, height: 180, scenes: [{id: 'screen', start: 0, end: 2}], objects: [
-    {id: 'capture', type: 'video', src: 'assets/app-capture/task/capture.mp4', at: [160, 90], size: [320, 180], clipDuration: 2, mediaStart: 0, mediaDuration: 2, scene: 'screen'},
+    {id: 'capture', type: 'video', src: 'assets/app-review/task/capture.mp4', at: [160, 90], size: [320, 180], clipDuration: 2, mediaStart: 0, mediaDuration: 2, scene: 'screen'},
   ], actions: []};
   const report = await verifyCaptureVisibility(job, output, world);
   assert.equal(report.coverage.failed, 1); assert.equal(report.captures[0].status, 'failed');
@@ -126,11 +126,11 @@ test('rendered capture comparison accepts an actually recorded solid-black sourc
   const cache = path.join(ROOT, '.cache'); await mkdir(cache, {recursive: true});
   const job = await mkdtemp(path.join(cache, 'capture-visibility-black-'));
   t.after(() => rm(job, {recursive: true, force: true}));
-  await mkdir(path.join(job, 'assets/app-capture/task'), {recursive: true});
-  const source = path.join(job, 'assets/app-capture/task/capture.mp4'), output = path.join(job, 'render.mp4');
+  await mkdir(path.join(job, 'assets/app-review/task'), {recursive: true});
+  const source = path.join(job, 'assets/app-review/task/capture.mp4'), output = path.join(job, 'render.mp4');
   for (const file of [source, output]) await exec('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=black:s=320x180:r=30:d=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', file]);
   const world = {width: 320, height: 180, scenes: [{id: 'screen', start: 0, end: 2}], objects: [
-    {id: 'capture', type: 'video', src: 'assets/app-capture/task/capture.mp4', at: [160, 90], size: [320, 180], clipDuration: 2, mediaStart: 0, mediaDuration: 2, scene: 'screen'},
+    {id: 'capture', type: 'video', src: 'assets/app-review/task/capture.mp4', at: [160, 90], size: [320, 180], clipDuration: 2, mediaStart: 0, mediaDuration: 2, scene: 'screen'},
   ], actions: []};
   const report = await verifyCaptureVisibility(job, output, world);
   assert.equal(report.coverage.verified, 1); assert.equal(report.captures[0].status, 'verified');

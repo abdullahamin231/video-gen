@@ -141,10 +141,10 @@ test('unverified app-review captures require current exact-interval PNG inspecti
   await writeFile(path.join(job, 'review/render-source.json'), JSON.stringify({version: 1, sourceHash, videoSha256}));
   const capture = {id: 'screen-opening', scene: 'opening', interval: {start: 0, end: 1.5}, status: 'unverified', reason: 'animated geometry'};
   const pixels = {ok: true, errors: [], sourceHash, videoSha256, captureVisibility: {coverage: {verified: 0, failed: 0, unverified: 1}, captures: [capture]}};
-  await mkdir(path.join(job,'assets/app-capture'),{recursive:true});
-  const source=path.join(job,'assets/app-capture/source.mp4');
+  await mkdir(path.join(job,'assets/app-review'),{recursive:true});
+  const source=path.join(job,'assets/app-review/source.mp4');
   await exec('ffmpeg',['-v','error','-f','lavfi','-i','smptebars=s=320x180:r=30:d=3','-c:v','libx264','-pix_fmt','yuv420p',source]);
-  const world={width:320,height:180,scenes:[{id:'opening',start:0,end:1.5}],objects:[{id:capture.id,type:'video',scene:'opening',src:'assets/app-capture/source.mp4',at:[160,90],size:[320,180],sourceStart:0,mediaStart:0,mediaDuration:1.5,transform:{x:1}}]};
+  const world={width:320,height:180,scenes:[{id:'opening',start:0,end:1.5}],objects:[{id:capture.id,type:'video',scene:'opening',src:'assets/app-review/source.mp4',at:[160,90],size:[320,180],sourceStart:0,mediaStart:0,mediaDuration:1.5,transform:{x:1}}]};
   await writeFile(path.join(job,'assets/world.json'),JSON.stringify(world));
   pixels.captureVisibility=await verifyCaptureVisibility(job,path.join(job,'renders/video.mp4'),world);
   sourceHash=pixels.sourceHash=await sourceFingerprint(job); await writeFile(path.join(job,'review/pixels.json'),JSON.stringify(pixels));
@@ -221,8 +221,8 @@ test('unverified app-review captures require current exact-interval PNG inspecti
 });
 
 test('capture inspection generation creates interval scoped paired media frames', {skip: !available}, async t=>{
-  const job=await fixture(t); await mkdir(path.join(job,'assets/app-capture'),{recursive:true});
-  const source='assets/app-capture/recording.mp4';
+  const job=await fixture(t); await mkdir(path.join(job,'assets/app-review'),{recursive:true});
+  const source='assets/app-review/recording.mp4';
   await exec('ffmpeg',['-v','error','-f','lavfi','-i','smptebars=s=320x180:r=30:d=3','-c:v','libx264','-pix_fmt','yuv420p',path.join(job,source)]);
   const videoSha256=sha(await readFile(path.join(job,'renders/video.mp4')));
   await writeFile(path.join(job,'assets/world.json'),JSON.stringify({scenes:[{id:'opening',start:0,end:1.5}],objects:[{id:'screen',type:'video',scene:'opening',src:source,sourceStart:0}]}));

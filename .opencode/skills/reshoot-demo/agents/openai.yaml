@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create a demo"
+  short_description: "Create a repeatable demo with checked results"
+  default_prompt: "Use $reshoot-demo to create a repeatable software demo from one useful task and a checked result."

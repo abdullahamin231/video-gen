@@ -148,7 +148,7 @@ name from the theme), `width` (stroke px; default `theme.stroke`), `fill` (true 
 Footage lives in its own layer above the world, so an ordinary object placed over a recording would be hidden beneath
 it; media-layer overlays inherit the camera transform and behave like world objects for `at`, `move`, `scale`, `fadeIn`
 and `opacity`. Use them for a pointer, click rings and callouts over a recording. They take no `label`, `shadow`,
-`of` or composite verbs. The app-capture compiler emits them; hand-authored scenes rarely need to.
+`of` or composite verbs. The capture compiler emits them; hand-authored scenes rarely need to.
 
 | type | required | notes |
 |---|---|---|
@@ -177,7 +177,7 @@ and `opacity`. Use them for a pointer, click rings and callouts over a recording
 | `image` | `at`, `src`, `size` | an SVG file under `assets/`: a drawing of a real thing (you draw it: true silhouette, identifying details, the theme's colours and line weight) or a logo. No photos. Search `library-search` first; save drawings with `npm run video -- save`; bring SVG logos in with `npm run video -- asset --src <svg url\|file> --name <name>.svg --note "<what it shows>"`. `frame: true` (or `{"padding", "fill", "color", "corner", "width"}`) presents it on a card in the theme's style |
 | `svg` | `markup` | raw SVG; elements with `id` become parts |
 | `manim` | `at`, `size`, `file`, `class` | a ManimCE clip (see below); starts at its `play` action |
-| `video` | `at`, `src`, `size`, `clipDuration` | local video file under `assets/`; `clipDuration` is its real length, so it cannot play past the cut. Objects with `layer: "media"` are the overlays that sit on top of it (see above). Compile these with `app-capture` + `capture-scene` ([app-capture.md](app-capture.md)) |
+| `video` | `at`, `src`, `size`, `clipDuration` | local video file under `assets/`; `clipDuration` is its real length, so it cannot play past the cut. Objects with `layer: "media"` are the overlays that sit on top of it (see above). Compile these with reshoot + `capture-ingest` + `capture-scene` ([capture.md](capture.md)) |
 | custom | — | `type` = a component in `components/<type>.js` |
 
 ### Composite objects
