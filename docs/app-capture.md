@@ -110,7 +110,8 @@ run does not throw away the cuts you wrote.
 - `source` is `[in, out]` in the recording. Cuts must not overlap: an overlapping range puts the same click in two
   shots, and the compiler warns.
 - `feature` and/or `result` say what the cut proves; at least one is required.
-- Preserve each real click, typed entry, keypress and scroll that establishes the narrated claim inside the chosen source ranges. `shot` PNGs are supporting evidence, not substitutes for those interactions. The compiler rejects a cut that splits a recorded typing or wait interval and warns about logged interactions omitted from all cuts.
+- Preserve each real click, typed entry, keypress and scroll that establishes the narrated claim inside the chosen source ranges. `shot` PNGs are supporting evidence, not substitutes for those interactions. The compiler rejects a cut that splits recorded typing or a wait interval. A meaningful logged action omitted from all cuts needs an `omissions` entry with its `actionIndex`, a specific reason, and an `evidence` record `{kind:"action-log",path:"actions.jsonl",sha256:"<current hash>",actionIndex}`. The compiler writes a frozen `capture/<task>/omissions.json` record containing the action and matching action-log hash; stale or unsupported references fail compilation.
+- Omission evidence is scoped to the requested scene and records the source ranges plus every meaningful action expected outside them, including the verified-empty case. Final app-review packs freeze the scene ledger with the project source hash, action-log hash and capture-manifest hash, and direct independent reviewers to inspect every omission. Missing, stale, malformed or incomplete ledgers block the pack. Legacy omission records without `scene` cannot be assigned safely: migrate them only when the matching scene is established by its edits and action log, or recapture that scene; compilation preserves the ambiguous file and fails with guidance. The per-capture omissions ledger uses the `flock` command from Linux util-linux to hold an OS-managed exclusive lock through the complete read/modify/atomic-replace transaction; the same child process owns the lock and writes. The kernel releases it automatically on process exit, with no stale-lock recovery protocol. Contenders wait at most five seconds. This currently requires Linux with util-linux `flock` on `PATH`.
 - `fit` is how much of the frame the recording fills (0.9 leaves a margin); `cursorSize` is the pointer's height on
   screen in px; `zoom` on a single edit overrides the derived push-in.
 - A cut holds its exact final recorded frame after the trimmed video ends, so a short media slot cannot expose a blank
@@ -118,7 +119,7 @@ run does not throw away the cuts you wrote.
   Later footage layers remain above earlier held frames.
 
 Keep the complete recorded wait when loading behavior matters. If it lasts longer than the narration, retain the full
-source wait and show its real completion; a held final result can then carry the remaining narration. Label or narrate
+source wait and show its real completion; a held final result can then carry the remaining narration. If the wait is omitted, omit its whole interval and record why; never cut into it and imply a faster completion. Label or narrate
 that as a result hold, not continuing motion. A necessary static age gate or saved-result state is valid footage when
 it is the actual outcome. Do not replace the task with a list of `shot` stills or imply a result happened sooner than
 the recording shows.

@@ -159,7 +159,24 @@ test('app-review legacy jobs without recorded provenance block review and reject
   const valid=review(context); valid.reviewer.agentId='runner-reviewer';
   valid.inspection.mode='playback';
   valid.inspection.evidence=context.pack.evidence.filter(e=>e.kind==='clip').map(e=>e.path);
+  valid.inspection.playbackAssertion='reviewer-asserted-not-authenticated';
   await assert.doesNotReject(submitReview(job,valid,{agentId:'runner-reviewer',role:'reviewer'}));
+});
+
+test('final app-review playback must cover all capture, scene and handoff intervals and disclose reviewer assertion', async t=>{
+  const job=await fixture(t), context=await freeze(job,'final');
+  context.personality='app-review';
+  context.pack.appCaptureIntervals=[{id:'screen-result',scene:'scene',start:5,end:10}];
+  const report=review(context); report.inspection.mode='playback';
+  report.inspection.evidence=context.pack.evidence.filter(e=>e.kind==='clip').map(e=>e.path);
+  assert.throws(()=>validateReview(report,context),/playbackAssertion.*cannot authenticate/i);
+  report.inspection.playbackAssertion='reviewer-asserted-not-authenticated';
+  const clip=context.pack.evidence.find(e=>e.kind==='clip'); clip.end=4;
+  assert.throws(()=>validateReview(report,context),/covering every scene and handoff interval/);
+  clip.end=12;
+  assert.doesNotThrow(()=>validateReview(report,context));
+  context.pack.appCaptureIntervals[0].end=13;
+  assert.throws(()=>validateReview(report,context),/covering app capture screen-result/);
 });
 
 test('timestamped blockers are retained, incomplete coverage never qualifies, corrected review is versioned',async t=>{

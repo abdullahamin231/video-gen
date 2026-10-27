@@ -5,9 +5,10 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
+import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {assertIndependentCaptureReviewer} from '../lib/review-pack.mjs';
-import {REVIEW_ROLES, loadReviewPack, submitReview} from '../lib/review.mjs';
+import {REVIEW_ROLES, loadReviewPack, submitReview, sourceFingerprint} from '../lib/review.mjs';
 import {loadPersonality, freezePersonality} from '../lib/personalities.mjs';
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const exec=promisify(execFile);
@@ -47,7 +48,7 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   // The two IDs below enter through the same runner environment consumed by the CLI.
   const plan=path.join(project,'plan.json');
   await writeFile(plan,JSON.stringify({task:'screen',url:`file://${path.join(ROOT,'tests/fixtures/app-capture/app.html')}`,
-    viewport:[1440,900],steps:[{do:'click',target:'#new-filter',why:'open the filter dialog'},{do:'wait',seconds:1,why:'inspect the open dialog'}]}));
+    viewport:[1440,900],steps:[{do:'click',target:'#new-filter',why:'open the filter dialog'}]}));
   const run=async(args,env={})=>exec(process.execPath,['scripts/video.mjs',...args],{cwd:ROOT,env:{...process.env,...env}}).catch(error=>{error.message+=`\nstdout:\n${error.stdout||''}\nstderr:\n${error.stderr||''}`;throw error;});
   await run(['app-capture','--job',scriptDir,'--plan',plan],{VIDEO_AGENT_ROLE:'app-review-builder',VIDEO_AGENT_ID:'runner-app-capture'});
   const capture=path.join(scriptDir,'capture/screen');
@@ -139,8 +140,59 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   await writeFile(path.join(reviewDir,'capture-visibility-dispositions.json'),JSON.stringify({...recorded,sourceHash:'stale'}));
   await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv));
   await writeFile(path.join(reviewDir,'capture-visibility-dispositions.json'),saved);
+  const omissionsFile=path.join(job,'capture/screen/omissions.json');
+  const omissions=await readFile(omissionsFile,'utf8');
+  const refreshReviewSourceHash=async()=>{
+    const sourceHash=await sourceFingerprint(job);
+    for(const rel of ['review/pixels.json','review/render-source.json','review/capture-visibility-dispositions.json']){
+      const file=path.join(job,rel),doc=JSON.parse(await readFile(file,'utf8'));doc.sourceHash=sourceHash;await writeFile(file,JSON.stringify(doc));
+    }
+  };
+  await rm(omissionsFile);
+  await refreshReviewSourceHash();
+  await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv),/missing capture\/screen\/omissions\.json/);
+  await writeFile(omissionsFile,omissions);
+  await refreshReviewSourceHash();
+  const ledger=JSON.parse(omissions);
+  await writeFile(omissionsFile,JSON.stringify({...ledger,actionsSha256:'stale'}));
+  await refreshReviewSourceHash();
+  await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv),/omissions\.json is stale or malformed/);
+  await writeFile(omissionsFile,JSON.stringify({...ledger,records:[{scene:'demo',actionIndex:999,reason:'invalid',evidence:[]}]}));
+  await refreshReviewSourceHash();
+  await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv),/missing or invalid scene-bound omission records/);
+  await writeFile(omissionsFile,omissions);
+  const editsFile=path.join(job,'capture/screen/edits.json'), editsText=await readFile(editsFile,'utf8');
+  const edited=JSON.parse(editsText); edited.edits[0].source=[0,0.1];
+  await writeFile(editsFile,JSON.stringify(edited)); await refreshReviewSourceHash();
+  await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv),/missing or invalid scene-bound omission records/,
+    'review-pack recomputes the complete expected omissions from current edits.json');
+  await writeFile(editsFile,editsText); await refreshReviewSourceHash();
+  await refreshReviewSourceHash();
   next=await run(['next','--job',job],fixtureEnv);
   assert.match(next.stdout,/STATE: freeze final review evidence from the encoded render/);
   await run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv);
-  assert.ok(JSON.parse(await readFile(path.join(reviewDir,'final/pack.json'),'utf8')));
+  const finalPack=JSON.parse(await readFile(path.join(reviewDir,'final/pack.json'),'utf8'));
+  const omissionEvidence=finalPack.evidence.find(item=>item.kind==='capture-omissions');
+  assert.ok(omissionEvidence,'the final pack freezes the omission ledger');
+  assert.match(await readFile(path.join(job,omissionEvidence.path),'utf8'),/"sourceHash"/);
+  assert.match(await readFile(path.join(job,'briefs/review-final-narration-fidelity.md'),'utf8'),/capture-omissions.*action-log hash.*capture-manifest hash/s,
+    'independent reviewers are explicitly directed to inspect the frozen omissions and hashes');
+  // Keep every provenance hash current: the final pack must reject the malformed action itself,
+  // not merely notice that someone changed the evidence files.
+  const actionFile=path.join(job,'capture/screen/actions.jsonl');
+  const malformedActions=(await readFile(actionFile,'utf8')).trim().split('\n').map(line=>JSON.parse(line));
+  delete malformedActions.find(action=>action.type==='click').t;
+  const malformedLog=malformedActions.map(action=>JSON.stringify(action)).join('\n')+'\n';
+  await writeFile(actionFile,malformedLog);
+  const badHash=createHash('sha256').update(malformedLog).digest('hex');
+  const captureManifestFile=path.join(job,'capture/screen/manifest.json');
+  const captureManifest=JSON.parse(await readFile(captureManifestFile,'utf8'));
+  captureManifest.files.actions.sha256=badHash;
+  await writeFile(captureManifestFile,JSON.stringify(captureManifest));
+  const currentLedger=JSON.parse(await readFile(omissionsFile,'utf8'));
+  currentLedger.actionsSha256=badHash;
+  for(const entry of currentLedger.scenes) entry.actionsSha256=badHash;
+  await writeFile(omissionsFile,JSON.stringify(currentLedger));
+  await refreshReviewSourceHash();
+  await assert.rejects(run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv),/action \d+ \(click\) has invalid timestamp/);
 });

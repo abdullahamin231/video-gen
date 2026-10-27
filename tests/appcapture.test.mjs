@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, access} from 'node:fs/promises';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {execFile as execFileCallback} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
@@ -49,16 +50,22 @@ async function fakeCapture(root, {duration = 3.2} = {}) {
     {t: 0.1, type: 'goto', url: 'https://app.example.test/filters', title: 'Filters'},
     {t: 0.6, type: 'move', x: 240, y: 160},
     {t: 0.8, type: 'click', x: 240, y: 160, target: '#new-filter', why: 'open the dialog', bounds: [140, 140, 200, 44]},
-    {t: 1.2, type: 'type', target: '#name', text: 'Bikes', why: null},
+    {t: 1.2, type: 'type', startedAt: 1.05, dur: 0.15, target: '#name', text: 'Bikes', why: null},
     {t: 1.5, type: 'click', x: 420, y: 200, target: '#save', why: 'save it', bounds: [360, 180, 120, 40]},
     {t: 1.95, type: 'scroll', dy: 420, fromY: 0, scrollY: 320, dur: 0.38, why: 'view the new row'},
     {t: 2.6, type: 'click', x: 900, y: 620, target: '#row-3', why: 'the new row', bounds: [700, 600, 400, 40]},
     {t: 3.0, type: 'assert', target: '#filters', text: 'Bikes', ok: true, why: 'the filter is listed'},
     {t: 3.1, type: 'end'},
   ];
-  await writeFile(path.join(dir, 'actions.jsonl'), actions.map(a => JSON.stringify(a)).join('\n') + '\n');
+  const actionLog = actions.map(a => JSON.stringify(a)).join('\n') + '\n';
+  await writeFile(path.join(dir, 'actions.jsonl'), actionLog);
+  const actionHash = createHash('sha256').update(actionLog).digest('hex');
+  const manifestFile = path.join(dir, 'manifest.json');
   const pointer = [];
   for (let t = 0.4; t < 3.0; t += 0.05) pointer.push({t: Number(t.toFixed(3)), x: Math.round(200 + t * 260), y: Math.round(120 + t * 170)});
+  const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+  manifest.files.actions = {path: 'actions.jsonl', sha256: actionHash};
+  await writeFile(manifestFile, JSON.stringify(manifest, null, 2));
   await writeFile(path.join(dir, 'pointer.json'), JSON.stringify(pointer));
   return dir;
 }
@@ -204,9 +211,29 @@ test('a compiled scene cuts the source, follows the log and validates against th
 test('a screenshot-only capture cannot compile into an app-review scene', async t => {
   const root = await tempRoot('appcapture-shot-only-'); t.after(() => rm(root, {recursive:true,force:true}));
   const capture = await fakeCapture(root);
-  await writeFile(path.join(capture,'actions.jsonl'), JSON.stringify({t:1,type:'shot',src:'shots/result.png',state:'result'})+'\n');
+  const shotLog = JSON.stringify({t:1,type:'shot',src:'shots/result.png',state:'result'})+'\n';
+  await writeFile(path.join(capture,'actions.jsonl'), shotLog);
+  const manifestFile = path.join(capture, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+  manifest.files.actions.sha256 = createHash('sha256').update(shotLog).digest('hex');
+  await writeFile(manifestFile, JSON.stringify(manifest, null, 2));
   const {job} = await fixtureJob(root);
   await assert.rejects(compileCaptureScene(job,capture,{scene:'filters',edits:[{id:'result',phrase:'the result',source:[0.5,2.5],feature:'filter'}]}),/no recorded task interaction/);
+});
+
+test('meaningful actions with malformed timestamps cannot evade capture completeness', async t => {
+  const root = await tempRoot('appcapture-bad-time-'); t.after(() => rm(root, {recursive:true,force:true}));
+  const capture = await fakeCapture(root);
+  const actionsFile = path.join(capture, 'actions.jsonl'), manifestFile = path.join(capture, 'manifest.json');
+  const actions = (await readFile(actionsFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  delete actions.find(action => action.type === 'click').t;
+  const log = actions.map(action => JSON.stringify(action)).join('\n') + '\n';
+  await writeFile(actionsFile, log);
+  const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+  manifest.files.actions.sha256 = createHash('sha256').update(log).digest('hex');
+  await writeFile(manifestFile, JSON.stringify(manifest));
+  const {job} = await fixtureJob(root);
+  await assert.rejects(compileCaptureScene(job, capture, EDITS), /action \d+ \(click\) has invalid timestamp/);
 });
 
 test('the real renderer composites and holds app capture pixels on a colored background', async t => {
@@ -297,19 +324,176 @@ test('capture-scene blocks screenshot-only edits and cuts through typing or wait
     {id: 'still', phrase: 'the saved filter', source: [2.1, 2.55], feature: 'F7'},
   ]}), /no recorded task interaction.*screenshots cannot stand in/i);
   const actionsFile = path.join(capture, 'actions.jsonl');
+  const refreshManifestActionHash = async () => {
+    const manifestFile = path.join(capture, 'manifest.json');
+    const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+    manifest.files.actions.sha256 = createHash('sha256').update(await readFile(actionsFile)).digest('hex');
+    await writeFile(manifestFile, JSON.stringify(manifest, null, 2));
+  };
   const actions = JSON.parse((await readFile(actionsFile, 'utf8')).split('\n').find(line => JSON.parse(line).type === 'type'));
   actions.startedAt = 0.95;
   actions.dur = 0.3;
   const lines = (await readFile(actionsFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
   const revised = lines.map(action => action.type === 'type' ? actions : action);
   await writeFile(actionsFile, revised.map(action => JSON.stringify(action)).join('\n') + '\n');
+  await refreshManifestActionHash();
   await assert.rejects(compileCaptureScene(job, capture, {scene: 'filters', edits: [
     {id: 'partial', phrase: 'enter the name', source: [1.1, 1.55], feature: 'F7'},
   ]}), /cuts through a recorded type sequence/);
   await writeFile(actionsFile, revised.map(action => JSON.stringify(action.type === 'type' ? {...action, type: 'wait'} : action)).join('\n') + '\n');
+  await refreshManifestActionHash();
   await assert.rejects(compileCaptureScene(job, capture, {scene: 'filters', edits: [
     {id: 'partial-wait', phrase: 'wait for the result', source: [1.1, 1.55], feature: 'F7'},
   ]}), /cuts through a recorded wait sequence/);
+});
+
+test('omitted task actions require action-log-bound omission records and preserve full wait semantics', async t => {
+  const root = await tempRoot('appcapture-omission-'), otherRoot = await tempRoot('appcapture-omission-other-');
+  t.after(() => Promise.all([rm(root, {recursive: true, force: true}), rm(otherRoot, {recursive: true, force: true})]));
+  const capture = await fakeCapture(root), {job} = await fixtureJob(root);
+  const edits = {scene: 'filters', edits: [{id: 'open', phrase: 'open the dialog', source: [0.6, 1.05], feature: 'F7'}]};
+  await assert.rejects(compileCaptureScene(job, capture, edits), /need evidence-backed omissions/);
+  const log = await readFile(path.join(capture, 'actions.jsonl'));
+  const digest = createHash('sha256').update(log).digest('hex');
+  const actions = log.toString().trim().split('\n').map(JSON.parse);
+  edits.omissions = actions.map((action, actionIndex) => ({action, actionIndex})).filter(({action}) =>
+    ['click','type','press','scroll','wait'].includes(action.type) && (action.t < 0.6 || action.t > 1.05)).map(({actionIndex}) => ({
+      actionIndex, reason: 'This action is outside the narrated moment selected for this cut.',
+      evidence: [{kind: 'action-log', path: 'actions.jsonl', sha256: digest, actionIndex}],
+    }));
+  const compiled = await compileCaptureScene(job, capture, edits);
+  assert.ok(compiled.omissions.length > 0);
+  const saved = JSON.parse(await readFile(path.join(capture, 'omissions.json'), 'utf8'));
+  assert.equal(saved.version, 2);
+  assert.equal(saved.scenes[0].scene, 'filters');
+  assert.equal(saved.scenes[0].actionsSha256, digest);
+  assert.equal(saved.scenes[0].omissionCount, compiled.omissions.length);
+  assert.equal(saved.records[0].evidence[0].sha256, digest);
+  assert.equal(saved.actionsSha256, digest);
+  const otherCapture = await fakeCapture(otherRoot);
+  const otherEvidence = {version: 1, capture: 'other-task', actionsSha256: 'other-capture-hash', records: [{scene: 'other-capture-scene'}]};
+  await writeFile(path.join(otherCapture, 'omissions.json'), JSON.stringify(otherEvidence));
+  // Evidence for a different scene sharing this capture must survive its own scene's refresh.
+  saved.records.push({scene: 'other-scene', actionIndex: 99, reason: 'kept', evidence: []});
+  await writeFile(path.join(capture, 'omissions.json'), JSON.stringify(saved));
+  await compileCaptureScene(job, capture, {scene: 'filters', edits: [
+    {id: 'all-actions', phrase: 'perform the complete task', source: [0.7, 3.1], feature: 'F7'},
+  ]});
+  const refreshed = JSON.parse(await readFile(path.join(capture, 'omissions.json'), 'utf8'));
+  assert.deepEqual(refreshed.records.map(record => record.scene), ['other-scene']);
+  assert.deepEqual(JSON.parse(await readFile(path.join(otherCapture, 'omissions.json'), 'utf8')), otherEvidence,
+    'compiling one capture must not alter another capture’s evidence');
+  assert.equal(await exists(path.join(capture, 'omissions.json')), true,
+    'other-scene evidence keeps the shared file present');
+  await writeFile(path.join(capture, 'omissions.json'), JSON.stringify({version: 1, capture: 'F7-filters', actionsSha256: digest,
+    records: [{scene: 'filters', actionIndex: 99, reason: 'stale', evidence: []}]}));
+  await compileCaptureScene(job, capture, {scene: 'filters', edits: [
+    {id: 'all-actions-again', phrase: 'perform the complete task again', source: [0.7, 3.1], feature: 'F7'},
+  ]});
+  const emptied = JSON.parse(await readFile(path.join(capture, 'omissions.json'), 'utf8'));
+  assert.deepEqual(emptied.scenes.map(({scene,omissionCount})=>({scene,omissionCount})),[{scene:'filters',omissionCount:0}],
+    'a scene with no omitted actions keeps an explicit verified-empty ledger');
+  edits.omissions[0].evidence[0].sha256 = '0'.repeat(64);
+  await assert.rejects(compileCaptureScene(job, capture, edits), /matching action-log hash/);
+});
+
+test('omission ledger flock recovers process death, serializes contenders, and preserves a live owner', async t => {
+  const root = await tempRoot('appcapture-omission-lock-'); t.after(() => rm(root, {recursive:true,force:true}));
+  const capture = await fakeCapture(root), {job} = await fixtureJob(root);
+  const edit = (scene, id, source) => ({scene, edits:[{id,phrase:'show the real task',source:[0.7,3.1],feature:'F7'}]});
+  await Promise.all([
+    compileCaptureScene(job,capture,edit('filters','first',[0.7,1.1])),
+    compileCaptureScene(job,capture,edit('results','second',[1.4,2.1])),
+  ]);
+  let ledger = JSON.parse(await readFile(path.join(capture,'omissions.json'),'utf8'));
+  assert.deepEqual(new Set(ledger.scenes.map(x=>x.scene)),new Set(['filters','results']));
+  const lock=path.join(capture,'.omissions.lock');
+  const acquire = () => new Promise((resolve,reject) => {
+    const child=spawn('flock',['-F','-x',lock,process.execPath,'-e',"process.stdout.write('LOCKED\\n');process.stdin.resume()"],{stdio:['pipe','pipe','pipe']});
+    let output=''; child.stdout.setEncoding('utf8'); child.stdout.on('data',chunk=>{output+=chunk;if(output.includes('LOCKED\n'))resolve(child);});
+    child.once('error',reject); child.once('close',code=>{if(!output.includes('LOCKED\n'))reject(new Error(`flock holder exited ${code}`));});
+  });
+  const crashed=await acquire();
+  const crashedClosed=new Promise(resolve=>crashed.once('close',resolve));
+  crashed.kill('SIGKILL');
+  await crashedClosed;
+  await Promise.all([
+    compileCaptureScene(job,capture,edit('third','after-crash',[0.7,2.9])),
+    compileCaptureScene(job,capture,edit('fourth','after-crash-two',[0.7,2.9])),
+  ]);
+  assert.equal(await exists(lock),true,'persistent lock inode remains available after owner death');
+  assert.equal(await exists(path.join(capture,'.omissions.recovery')),false,'no separately crashable recovery lock exists');
+  ledger = JSON.parse(await readFile(path.join(capture,'omissions.json'),'utf8'));
+  assert.ok(['third','fourth'].every(scene=>ledger.scenes.some(item=>item.scene===scene)), 'competing stale-lock recoverers preserve both scene updates');
+  const active=await acquire();
+  await assert.rejects(compileCaptureScene(job,capture,edit('blocked-active','blocked-active',[0.7,3.1])),/Timed out waiting.*owner is active/);
+  assert.equal(active.exitCode,null,'live owner remains alive while a contender times out');
+  active.kill('SIGTERM'); await new Promise(resolve=>active.once('close',resolve));
+});
+
+test('killed ledger transaction owner cannot write after lock release while a compiler contends', async t => {
+  const root=await tempRoot('appcapture-omission-owner-death-'); t.after(()=>rm(root,{recursive:true,force:true}));
+  const capture=await fakeCapture(root), {job}=await fixtureJob(root);
+  const edit=(scene,id)=>({scene,edits:[{id,phrase:'show the real task',source:[0.7,3.1],feature:'F7'}]});
+  await compileCaptureScene(job,capture,edit('durable','durable'));
+  const ledgerFile=path.join(capture,'omissions.json'), before=await readFile(ledgerFile,'utf8');
+  const lock=path.join(capture,'.omissions.lock'), marker=path.join(root,'owner-paused');
+  const helper=path.join(ROOT,'scripts/omission-lock-holder.mjs');
+  const child=spawn('flock',['-F','-x',lock,process.execPath,helper],{env:{...process.env,APPREVIEW_OMISSION_TEST_PAUSE_FILE:marker},stdio:['pipe','pipe','pipe']});
+  const ownerClosed=new Promise(resolve=>child.once('close',resolve));
+  child.stdin.end(JSON.stringify({captureDir:capture,update:{scene:'crashing',capture:'F7-filters',actionsSha256:'f'.repeat(64),records:[],ranges:[],expectedActionIndexes:[]}}));
+  for(let i=0;i<100&&!await exists(marker);i++) await new Promise(resolve=>setTimeout(resolve,20));
+  assert.equal(await exists(marker),true,'transaction reached its read phase while holding flock');
+  const contender=compileCaptureScene(job,capture,edit('contender','contender'));
+  child.kill('SIGKILL'); await ownerClosed;
+  await contender;
+  const after=JSON.parse(await readFile(ledgerFile,'utf8'));
+  assert.deepEqual(new Set(after.scenes.map(item=>item.scene)),new Set(['durable','contender']));
+  assert.equal(await readFile(ledgerFile,'utf8')===before,false,'contender committed its update after the dead owner released the lock');
+  assert.equal(after.scenes.some(item=>item.scene==='crashing'),false,'dead owner never completed or wrote its uncommitted transaction');
+  const leftovers=(await (await import('node:fs/promises')).readdir(capture)).filter(name=>name.startsWith('.omissions.')&&name.endsWith('.tmp'));
+  assert.deepEqual(leftovers,[],'atomic temporary files from a killed owner are absent');
+});
+
+test('scene-less legacy omission records fail closed with migration guidance', async t => {
+  const root=await tempRoot('appcapture-legacy-omissions-'); t.after(()=>rm(root,{recursive:true,force:true}));
+  const capture=await fakeCapture(root), {job}=await fixtureJob(root);
+  const log=await readFile(path.join(capture,'actions.jsonl'));
+  await writeFile(path.join(capture,'omissions.json'),JSON.stringify({version:1,records:[{actionIndex:4,reason:'legacy'}]}));
+  const actions=log.toString().trim().split('\n').map(JSON.parse), digest=createHash('sha256').update(log).digest('hex');
+  const edits={scene:'filters',edits:[{id:'open',phrase:'open it',source:[0.6,1.05],feature:'F7'}],omissions:actions.map((action,actionIndex)=>({action,actionIndex})).filter(({action})=>['click','type','press','scroll','wait'].includes(action.type)&&(action.t<0.6||action.t>1.05)).map(({actionIndex})=>({actionIndex,reason:'outside this narrated cut',evidence:[{kind:'action-log',path:'actions.jsonl',sha256:digest,actionIndex}]}))};
+  await assert.rejects(compileCaptureScene(job,capture,edits),/legacy or malformed scene-less records.*Migrate.*recapture/i);
+  assert.match(await readFile(path.join(capture,'omissions.json'),'utf8'),/legacy/,'the ambiguous evidence is preserved for review');
+});
+
+test('capture-scene rejects a modified action log even when omission evidence is rehashed', async t => {
+  const root = await tempRoot('appcapture-tampered-actions-'); t.after(() => rm(root, {recursive: true, force: true}));
+  const capture = await fakeCapture(root), {job} = await fixtureJob(root);
+  const actionsFile = path.join(capture, 'actions.jsonl');
+  const original = await readFile(actionsFile, 'utf8');
+  const changedActions = original.trim().split('\n').map(JSON.parse);
+  changedActions[1].x += 1;
+  await writeFile(actionsFile, changedActions.map(action => JSON.stringify(action)).join('\n') + '\n');
+  const changedLog = await readFile(actionsFile);
+  const changedDigest = createHash('sha256').update(changedLog).digest('hex');
+  const actions = changedActions;
+  const edits = {scene: 'filters', edits: [{id: 'open', phrase: 'open the dialog', source: [0.7, 1.1], feature: 'F7'}]};
+  edits.omissions = actions.map((action, actionIndex) => ({action, actionIndex})).filter(({action}) =>
+    ['click', 'type', 'press', 'scroll', 'wait'].includes(action.type) && (action.t < 0.7 || action.t > 1.1)).map(({actionIndex}) => ({
+      actionIndex, reason: 'This action is outside the narrated moment selected for this cut.',
+      evidence: [{kind: 'action-log', path: 'actions.jsonl', sha256: changedDigest, actionIndex}],
+    }));
+  await assert.rejects(compileCaptureScene(job, capture, edits), /action log provenance mismatch/);
+});
+
+test('legacy captures without an action hash fail closed with recapture guidance', async t => {
+  const root = await tempRoot('appcapture-legacy-no-action-hash-'); t.after(() => rm(root, {recursive: true, force: true}));
+  const capture = await fakeCapture(root), {job} = await fixtureJob(root);
+  const manifestFile = path.join(capture, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+  delete manifest.files.actions;
+  await writeFile(manifestFile, JSON.stringify(manifest, null, 2));
+  await assert.rejects(compileCaptureScene(job, capture, EDITS), /missing a valid files\.actions\.sha256.*legacy capture cannot be authenticated.*recapture/i);
 });
 
 test('captures travel from the script folder into the film job', async t => {
