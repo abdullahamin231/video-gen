@@ -68,7 +68,11 @@ for delivery.
 Nothing is rendered before the final review. Reviews look at the built HTML: the
 browser seeks the same seek-safe timeline the renderer captures, so a frame from
 the pack is the frame the MP4 will hold at that time. Prepare a frozen evidence pack for each
-build. Include the source fingerprint, duration, contact sheet sampled at least once per second,
+build. The pack is preflighted before it becomes visible to reviewers: every scene
+must contain image evidence, audio must span the film, and encoded packs must
+have clips covering each scene (and each app-capture interval). A failed preflight
+writes no pack and starts no reviewer; its consolidated error names every gap.
+Include the source fingerprint, duration, contact sheet sampled at least once per second,
 ordered frames stamped with their film time, phone-scale frames, and denser
 samples around changes of state, cue starts, and handoffs. Once the final reviews
 pass, the film is rendered once from exactly those sources (the render's source
