@@ -110,8 +110,18 @@ run does not throw away the cuts you wrote.
 - `source` is `[in, out]` in the recording. Cuts must not overlap: an overlapping range puts the same click in two
   shots, and the compiler warns.
 - `feature` and/or `result` say what the cut proves; at least one is required.
+- Preserve each real click, typed entry, keypress and scroll that establishes the narrated claim inside the chosen source ranges. `shot` PNGs are supporting evidence, not substitutes for those interactions. The compiler rejects a cut that splits a recorded typing or wait interval and warns about logged interactions omitted from all cuts.
 - `fit` is how much of the frame the recording fills (0.9 leaves a margin); `cursorSize` is the pointer's height on
   screen in px; `zoom` on a single edit overrides the derived push-in.
+- A cut holds its exact final recorded frame after the trimmed video ends, so a short media slot cannot expose a blank
+  composition background. Set `"hold": false` only when the shot is meant to disappear at the end of its source range.
+  Later footage layers remain above earlier held frames.
+
+Keep the complete recorded wait when loading behavior matters. If it lasts longer than the narration, retain the full
+source wait and show its real completion; a held final result can then carry the remaining narration. Label or narrate
+that as a result hold, not continuing motion. A necessary static age gate or saved-result state is valid footage when
+it is the actual outcome. Do not replace the task with a list of `shot` stills or imply a result happened sooner than
+the recording shows.
 
 ## 4. Compile
 
@@ -139,6 +149,80 @@ Then build the scene like any other:
 ```
 npm run video -- build --job jobs/<slug> --scene filter-save
 ```
+
+For the final app-review pass, render before freezing reviewer evidence and use the encoded output:
+
+```bash
+npm run video -- render --job jobs/<slug> --reuse-build true
+npm run video -- review-pack --job jobs/<slug> --stage final --from render
+```
+
+The pipeline's `next` command routes app-review finals through this order automatically. The review pack includes
+frames decoded from the MP4 and normal-speed clips from the same verified file; HTML-seek frames are not accepted as
+final app-review evidence because a browser seek can retain a cached video frame that real playback has already lost.
+
+### Unverified capture coverage
+
+The renderer's capture-visibility check marks transformed, animated, or overlapping capture layers `unverified`;
+that status is never promoted to `verified`. A final pack blocks until each such capture has one disposition in
+`review/capture-visibility-dispositions.json`, with the current `sourceHash` and `videoSha256` from
+`review/pixels.json`. Each entry names the exact `captureId`, `sceneId`, and verifier-reported `interval.start` / `interval.end`,
+uses `status: "visually-inspected"` and `decision: "acceptable"`, and includes hashed local PNG evidence frames.
+Include source and encoded-render frames at 10%, 50%, and 90% of the interval (each item's `sceneAt` must be within
+120 ms of those points); source frames also record `sourceAt`. The encoded-render frames must come from
+`renders/video.mp4`; source frames must come from the current capture recording. Example shape:
+
+```json
+{
+  "version": 1,
+  "sourceHash": "<current review/pixels.json sourceHash>",
+  "videoSha256": "<current review/pixels.json videoSha256>",
+  "dispositions": [{
+    "captureId": "screen-example",
+    "sceneId": "example",
+    "start": 4,
+    "end": 8,
+    "status": "visually-inspected",
+    "decision": "acceptable",
+    "reviewer": {"agentId":"<independent reviewer agent id>","independent":true},
+    "evidence": [
+      {"kind":"source-frame","sceneAt":4.4,"sourceAt":0.4,"path":"review/inspection/example-source-10.png","sha256":"<sha256>"},
+      {"kind":"render-frame","sceneAt":4.4,"path":"review/inspection/example-render-10.png","sha256":"<sha256>"}
+    ]
+  }]
+}
+```
+
+Repeat the paired frame records at 50% and 90%. The pack validates hashes, local PNG files, exact interval,
+complete disposition count, and current source/render identity. Missing, stale, malformed, rejected, unrelated, or
+inaccurate entries block. These records are a structured visual-inspection disposition, not a change to the underlying
+capture status or a generic prose waiver. The independent inspection must confirm that the rendered capture still
+shows the recorded app content across the interval; if it cannot, fix the composition or leave the pack blocked.
+
+The gate decodes each supplied PNG and checks its pixels against the actual source recording or encoded render at
+the declared timestamp. Source timestamps must match the source trim plus scene-relative time. PNG hashes alone do
+not establish provenance.
+
+After `render` and `verify` report unverified intervals, generate canonical pairs:
+
+```bash
+npm run video -- capture-visibility --job jobs/<slug> --generate
+```
+
+This writes six frames per interval directly from the current capture recording and `renders/video.mp4`, bound to the
+current hashes and verifier interval, and leaves each disposition pending. Delegate those frames to an independent
+reviewer using the project's existing `visual-mechanism` reviewer role/model policy. Request one `acceptable` or
+`reject` verdict and a concrete observation for every capture, with the reviewer identity and both current hashes.
+Save that response as local JSON and record it:
+
+```bash
+npm run video -- capture-visibility --job jobs/<slug> --record jobs/<slug>/review/independent-verdict.json
+npm run video -- review-pack --job jobs/<slug> --stage final --from render
+```
+
+Missing, stale, malformed, wrong-time, or rejected reports keep final-pack creation blocked. A rejection requires a
+scene repair and a fresh render/evidence round. Generation is not a visual judgment; only the independent reviewer's
+recorded verdict marks an interval inspected. This workflow does not add a human-approval checkpoint or a bypass.
 
 The compiled scene is a starting point, not a locked artefact: adjust framing, add callouts from the theme, cut a
 misleading pause. Keep the footage, the pointer path and the click positions as recorded — those are the evidence.

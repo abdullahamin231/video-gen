@@ -2,6 +2,8 @@
 
 Required: consistent near-black/white visual grammar with controlled red, yellow and green roles; sparse pictograms; the correct active rule; readable warning/captions; controlled narrator direction; logical escalation; a supported twist/payoff; stable objects and geography. Reject colourful explainer treatments, unnecessary slide cards, generic stock footage, copied branding, inconsistent rules and misleading factual framing. A deliberate hold or hard cut is valid here. Do not reject the film merely because it lacks the explainer's continuous physical animation or scientific causal diagram.
 
+Check the ominous progression as well as technical compliance: a familiar baseline should become specifically wrong, consequences should draw nearer, and the ending should leave a clear unresolved disturbance. Calm delivery, held images, silence/room tone and selective reveals should build tension together. Reject generic jump scares, melodramatic warnings, overused glitches or humour that dissolves the dread. Audience-facing narration and packaging must not use a fiction disclaimer; verify that sourced real-world claims are separated from invented lore in the research notes.
+
 Use docs/independent-review.md for evidence, independence and report format; apply this rubric to visual-mechanism findings. Narrative consequence, recognisable rule/violation and suspense fulfil this genre's mechanism requirement. Profile compliance is a production requirement, not an optional taste preference. Prototype acceptance locks the look; later scenes must match it. Never infer listening quality from stills or transcripts.
 
 ## Frame-study and caption acceptance

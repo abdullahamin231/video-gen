@@ -17,6 +17,15 @@ script until a capture manifest exists, because the verdict follows the session:
 - `manifest.json` — task/feature id, build, viewport and scale, starting URL and title, frame count, durations, results,
   console errors and SHA-256 of every file.
 
+Plan the capture as one continuous hands-on task. Keep the actual click, typing, keypress and scroll sequence in the
+recording and in the source ranges used by `edits.json`; PNG `shot` steps are supporting evidence and cannot replace
+the interaction that establishes a claim. Use a short, natural pointer approach and type with a human-readable delay.
+Wait for the real UI condition where possible. `wait` records its elapsed time: preserve the whole wait in the cut when
+loading behavior matters. If the wait exceeds the narration, let the recording run through the outcome and use a
+legitimate held result frame for the remaining narration; never speed it up, imply an earlier result, or describe the
+held frame as ongoing motion. Static age gates and necessary result states may remain on screen when clearly presented
+as a hold.
+
 Evidence must name the feature/task id, the installed version or build, viewport and scale, the starting state, each
 action with its observed result, the file hashes and the source time range — the manifest and action log carry all of
 them. Keep failed assertions: a flow that did not work is part of the verdict, and deleting it is falsification.
@@ -34,3 +43,12 @@ Capture cannot show what a headless browser cannot reach: native desktop windows
 anything behind a hardware key are outside this adapter. Report that boundary instead of faking the missing surface.
 Recordings are captured at CSS resolution, so a push-in stops at about 1.5× magnification; raise the viewport for a
 closer look rather than accepting a soft one.
+
+Pixel checks flag sustained near-black output, while capture visibility checks compare sampled regions of supported,
+untransformed capture layers with the corresponding recorded footage. This comparison also works for white or colored
+backgrounds and accepts a genuine black source frame when the rendered region matches it. Source duration proves only
+that media exists; it does not establish that the layer was visible. A failed comparison blocks the final review pack.
+Scenes with transforms, animated geometry or overlapping composition layers are reported as `unverified` in
+`review/pixels.json`; the report must not claim complete playback verification for them. These scenes still need
+human inspection in the encoded review evidence. A `blackScreenReason` note is descriptive only and never exempts
+rendered frames from verification.

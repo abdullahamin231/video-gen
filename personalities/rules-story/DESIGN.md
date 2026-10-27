@@ -12,6 +12,12 @@ The observed style is not strictly black/white/red. Red marks prohibition, dange
 
 White figures have soft glow/halation and fine coloured edge separation. Use a crisp readable core plus a restrained halo; a small red/blue fringe can become stronger during a glitch. The finish includes subtle grain/dust and intermittent horizontal interference/tearing. It is not pristine flat SVG and not a permanently obscured VHS screen. Keep all noise/offsets deterministic and seek-safe. Size these treatments relative to the final frame so they remain subtle on a phone.
 
+## Ominous atmosphere
+
+Treat the near-black stage as a source of suspense. Establish enough ordinary room geometry to make the first disturbance legible, then let negative space, a blocked sightline, a partial silhouette or a small change in a familiar object suggest that something is wrong. Escalate by changing one clear state at a time: light recedes, a gap appears, a figure turns toward an unseen source, or a repeated pattern breaks. Hold on a readable image long enough for the implication to land before revealing the next detail.
+
+Keep the menace controlled and story-specific. Use restrained red or yellow only when the danger, warning or attention in the story earns it. Reserve glitches and edge fringing for brief, motivated disruptions; constant distortion, generic horror overlays, gore, clutter and jump-scare flashes weaken the slow build and can hide the rule captions. Preserve clear silhouettes, readable commands and safe caption space throughout.
+
 ## Pictograms and scene composition
 
 Use original simplified filled human/animal silhouettes, round heads, minimal face marks, recognisable limbs and object profiles. White outlines and dark interior panels work for devices and architectural details. Keep a consistent graphic hand across people, creatures, props and environments. Establish the geography the story needs; revisit it with stable object placement while posture, gaze, object state or relationships change. Choose locations and props from the story rather than always using the same bedroom or corridor.
@@ -37,6 +43,8 @@ Landscape samples show a quiet original episode identifier top left, a tiny seve
 ## Motion and timing
 
 Compose a clear pictogram state, let its caption land, then make one specific change: posture, direction, prohibited action, device value, warning symbol or a close-up. Several related states may share a room. Short holds, clean cuts, controlled fades/typing, precise reframes and brief interference bursts all occur in the sampled sequences. Do not bounce every object into view or impose a scientific cause-and-effect metaphor on every phrase.
+
+Use pacing to deepen unease: let a warning or impossible detail sit briefly in silence or room tone, then reveal the consequence with a deliberate cut or state change. Keep sound sparse and tied to visible or implied story events. Avoid a constant music bed or repeated impact stingers as a substitute for suspense; keep every spoken instruction intelligible.
 
 In the dog sample at 35–36 seconds, a rule title holds before the room demonstration begins around 37 seconds. In the cat sample around 58–61 seconds, the title resolves and the command types in before cutting to the demonstration. Treat these as observed examples, not a mandatory timing grid for every rule. Voice/audio was not analysed in this frame study; do not claim measured sound timing or narrator identity from it.
 

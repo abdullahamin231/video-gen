@@ -4,17 +4,22 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, access} from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import {spawn} from 'node:child_process';
+import {execFile as execFileCallback} from 'node:child_process';
+import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
 import {validatePlan, jpegSize, captureSession} from '../lib/capture.mjs';
 import {validateEdits, clusterClicks, clusterFocus, compileCaptureScene} from '../lib/appcapture.mjs';
 import {carryCaptures} from '../lib/project.mjs';
 import {buildFilm} from '../lib/film.mjs';
+import {reviewerBrief} from '../lib/briefs.mjs';
 import {chromePath} from '../lib/inspect.mjs';
+import {loadPersonality, personalityMetadata, freezePersonality} from '../lib/personalities.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const execFile = promisify(execFileCallback);
 const exists = async file => { try { await access(file); return true; } catch { return false; } };
+const tempRoot = async prefix => { const base = path.join(ROOT, '.cache', 'tests'); await mkdir(base, {recursive: true}); return mkdtemp(path.join(base, prefix)); };
 const put = (dir, file, value) => writeFile(path.join(dir, file), JSON.stringify(value, null, 2));
 
 function ffmpeg(args) {
@@ -46,6 +51,7 @@ async function fakeCapture(root, {duration = 3.2} = {}) {
     {t: 0.8, type: 'click', x: 240, y: 160, target: '#new-filter', why: 'open the dialog', bounds: [140, 140, 200, 44]},
     {t: 1.2, type: 'type', target: '#name', text: 'Bikes', why: null},
     {t: 1.5, type: 'click', x: 420, y: 200, target: '#save', why: 'save it', bounds: [360, 180, 120, 40]},
+    {t: 1.95, type: 'scroll', dy: 420, fromY: 0, scrollY: 320, dur: 0.38, why: 'view the new row'},
     {t: 2.6, type: 'click', x: 900, y: 620, target: '#row-3', why: 'the new row', bounds: [700, 600, 400, 40]},
     {t: 3.0, type: 'assert', target: '#filters', text: 'Bikes', ok: true, why: 'the filter is listed'},
     {t: 3.1, type: 'end'},
@@ -125,6 +131,7 @@ test('edits must name narration words, a source range inside the recording and w
   assert.ok(errors.some(e => /record what this cut shows/.test(e)));
   const outside = validateEdits({scene: 'filters', edits: [{id: 'a', phrase: 'add a filter', source: [3, 9], feature: 'F7'}]}, 4);
   assert.ok(outside.some(e => /outside the 4s recording/.test(e)));
+  assert.ok(validateEdits({scene: 'filters', edits: [{id: 'a', phrase: 'result', source: [0, 1], feature: 'F7', hold: 'yes'}]}, 4).some(e => /hold.*true or false/.test(e)));
   assert.deepEqual(validateEdits(EDITS, 3.2), []);
 });
 
@@ -142,7 +149,7 @@ test('clicks far apart in time are separate things to look at, and their targets
 });
 
 test('a compiled scene cuts the source, follows the log and validates against the film schema', async t => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'appcapture-'));
+  const root = await tempRoot('appcapture-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const capture = await fakeCapture(root);
   const {job, film, alignment, manifest} = await fixtureJob(root);
@@ -154,6 +161,8 @@ test('a compiled scene cuts the source, follows the log and validates against th
   for (const warning of compiled.warnings) assert.match(warning, /would magnify a 1600px capture past 1\.5×/);
   assert.equal(compiled.report.length, 2);
   assert.equal(compiled.report[0].clicks, 2);
+  assert.equal(compiled.report[0].interactionCounts.type, 1);
+  assert.equal(compiled.report[0].interactionCounts.scroll, 1, 'the recorded scroll stays inside its continuous source cut');
 
   for (const edit of EDITS.edits) {
     const clip = path.join(job, 'assets/app-capture/F7-filters', `${edit.id}.mp4`);
@@ -192,8 +201,85 @@ test('a compiled scene cuts the source, follows the log and validates against th
   assert.ok(built.ok, `the compiled scene must pass the shared schema: ${JSON.stringify(built.errors ?? [])}`);
 });
 
+test('a screenshot-only capture cannot compile into an app-review scene', async t => {
+  const root = await tempRoot('appcapture-shot-only-'); t.after(() => rm(root, {recursive:true,force:true}));
+  const capture = await fakeCapture(root);
+  await writeFile(path.join(capture,'actions.jsonl'), JSON.stringify({t:1,type:'shot',src:'shots/result.png',state:'result'})+'\n');
+  const {job} = await fixtureJob(root);
+  await assert.rejects(compileCaptureScene(job,capture,{scene:'filters',edits:[{id:'result',phrase:'the result',source:[0.5,2.5],feature:'filter'}]}),/no recorded task interaction/);
+});
+
+test('the real renderer composites and holds app capture pixels on a colored background', async t => {
+  let chrome = null;
+  try { chrome = await chromePath(); } catch {}
+  if (!chrome) return t.skip('no Chrome on this machine');
+  const root = path.join(ROOT, '.cache', `appcapture-render-${process.pid}-${Date.now()}`);
+  await mkdir(root, {recursive: true});
+  t.after(() => rm(root, {recursive: true, force: true}));
+  const capture = await fakeCapture(root, {duration: 3.2});
+  const {job} = await fixtureJob(root);
+  await ffmpeg(['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=13', '-c:a', 'pcm_s16le', path.join(job, 'assets/narration.wav')]);
+  // Make the test a valid app-review production and visibly non-black canvas.
+  const manifest = JSON.parse(await readFile(path.join(job, 'job.json'), 'utf8'));
+  manifest.duration = 13;
+  const filmFile = path.join(job, 'film.json');
+  const film = JSON.parse(await readFile(filmFile, 'utf8'));
+  film.theme.bg = '#d8b34a';
+  await writeFile(filmFile, JSON.stringify(film, null, 2));
+  const profile = loadPersonality('app-review');
+  manifest.productionProfile = personalityMetadata(profile);
+  await writeFile(path.join(job, 'job.json'), JSON.stringify(manifest));
+  await freezePersonality(job, profile);
+  const reviewInstructions = reviewerBrief(job, 'visual-mechanism', {stage: 'final', interval: {start: 0, end: 13}}, 'review/final/pack.json', '0'.repeat(64), 'Judge the app evidence.', manifest);
+  assert.match(reviewInstructions, /Play the supplied encoded MP4 clips at normal speed/);
+  assert.match(reviewInstructions, /Never imply that audio was heard when it was not/);
+  const edits = {...EDITS, edits: EDITS.edits.map(edit => ({...edit, hold: true}))};
+  await compileCaptureScene(job, capture, edits, {width: 1920, height: 1080});
+  const built = await buildFilm(job, {inspect: false, print: false});
+  assert.ok(built.ok, `build: ${(built.errors || []).join('; ')}`);
+  const worldFile = path.join(job, 'assets/world.json');
+  const world = JSON.parse(await readFile(worldFile, 'utf8'));
+  const video = world.objects.find(object => object.type === 'video' && object.id === 'screen-open-dialog');
+  assert.ok(video, 'compiled capture video exists in the renderer input');
+  const start = video.mediaStart, end = start + video.mediaDuration;
+  assert.ok(end + 0.4 < 5.5, 'test clip ends before the next narrated cut');
+  const hf = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
+  const render = async output => execFile(process.execPath, [hf, 'render', '--quality', 'draft', '--fps', '10', '--output', output, '--quiet'], {cwd: job, timeout: 180000});
+  await render('renders/with-capture.mp4');
+  // Counterfactual render through the same HyperFrames renderer, with only the capture layer absent.
+  const shotFile = path.join(job, 'shots/filters.json');
+  const shot = JSON.parse(await readFile(shotFile, 'utf8'));
+  shot.objects = shot.objects.filter(object => object.id !== 'screen-open-dialog');
+  shot.actions = shot.actions.filter(action => action.target !== 'screen-open-dialog');
+  await writeFile(shotFile, JSON.stringify(shot, null, 2));
+  const absentBuild = await buildFilm(job, {inspect: false, print: false});
+  assert.ok(absentBuild.ok, `counterfactual build: ${(absentBuild.errors || []).join('; ')}`);
+  await render('renders/without-capture.mp4');
+  const frame = async (file, time) => {
+    const {stdout} = await execFile('ffmpeg', ['-v', 'error', '-ss', time.toFixed(3), '-i', file, '-frames:v', '1', '-vf', 'scale=96:54,format=rgb24', '-f', 'rawvideo', 'pipe:1'], {encoding: 'buffer'});
+    return stdout;
+  };
+  const differs = (a, b) => {
+    assert.equal(a.length, b.length);
+    let sum = 0, changed = 0;
+    for (let i = 0; i < a.length; i += 3) {
+      const d = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+      sum += d; if (d > 24) changed++;
+    }
+    return {mean: sum / a.length, changed: changed / (a.length / 3)};
+  };
+  const withFile = path.join(job, 'renders/with-capture.mp4'), withoutFile = path.join(job, 'renders/without-capture.mp4');
+  const before = differs(await frame(withFile, Math.max(0.1, start - 0.2)), await frame(withoutFile, Math.max(0.1, start - 0.2)));
+  assert.ok(before.mean < 2, `before playback should match the absent-layer render: ${JSON.stringify(before)}`);
+  for (const time of [start + 0.4, end + 0.2]) {
+    const delta = differs(await frame(withFile, time), await frame(withoutFile, time));
+    assert.ok(delta.mean > 4 && delta.changed > 0.08,
+      `captured frame/last-frame hold at ${time.toFixed(2)}s must appear in encoded MP4, delta ${JSON.stringify(delta)}`);
+  }
+});
+
 test('capture-scene refuses edits that do not match the recording', async t => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'appcapture-bad-'));
+  const root = await tempRoot('appcapture-bad-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const capture = await fakeCapture(root);
   const {job} = await fixtureJob(root);
@@ -202,8 +288,32 @@ test('capture-scene refuses edits that do not match the recording', async t => {
   ]}), /outside the .* recording/);
 });
 
+test('capture-scene blocks screenshot-only edits and cuts through typing or waits', async t => {
+  const root = await tempRoot('appcapture-sequence-');
+  t.after(() => rm(root, {recursive: true, force: true}));
+  const capture = await fakeCapture(root);
+  const {job} = await fixtureJob(root);
+  await assert.rejects(compileCaptureScene(job, capture, {scene: 'filters', edits: [
+    {id: 'still', phrase: 'the saved filter', source: [2.1, 2.55], feature: 'F7'},
+  ]}), /no recorded task interaction.*screenshots cannot stand in/i);
+  const actionsFile = path.join(capture, 'actions.jsonl');
+  const actions = JSON.parse((await readFile(actionsFile, 'utf8')).split('\n').find(line => JSON.parse(line).type === 'type'));
+  actions.startedAt = 0.95;
+  actions.dur = 0.3;
+  const lines = (await readFile(actionsFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  const revised = lines.map(action => action.type === 'type' ? actions : action);
+  await writeFile(actionsFile, revised.map(action => JSON.stringify(action)).join('\n') + '\n');
+  await assert.rejects(compileCaptureScene(job, capture, {scene: 'filters', edits: [
+    {id: 'partial', phrase: 'enter the name', source: [1.1, 1.55], feature: 'F7'},
+  ]}), /cuts through a recorded type sequence/);
+  await writeFile(actionsFile, revised.map(action => JSON.stringify(action.type === 'type' ? {...action, type: 'wait'} : action)).join('\n') + '\n');
+  await assert.rejects(compileCaptureScene(job, capture, {scene: 'filters', edits: [
+    {id: 'partial-wait', phrase: 'wait for the result', source: [1.1, 1.55], feature: 'F7'},
+  ]}), /cuts through a recorded wait sequence/);
+});
+
 test('captures travel from the script folder into the film job', async t => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'appcapture-carry-'));
+  const root = await tempRoot('appcapture-carry-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const script = path.join(root, 'jobs/scripts/demo/SCRIPT.md');
   await mkdir(path.join(path.dirname(script), 'capture/F1'), {recursive: true});
@@ -219,7 +329,7 @@ test('a headless capture records the session, the action log and the evidence', 
   let chrome = null;
   try { chrome = await chromePath(); } catch {}
   if (!chrome) return t.skip('no Chrome on this machine');
-  const root = await mkdtemp(path.join(os.tmpdir(), 'appcapture-run-'));
+  const root = await tempRoot('appcapture-run-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const dir = path.join(root, 'capture', 'F3');
   const page = path.join(ROOT, 'tests/fixtures/app-capture/app.html');
@@ -227,7 +337,9 @@ test('a headless capture records the session, the action log and the evidence', 
     task: 'F3-new-filter', feature: 'create a filter', build: 'fixture-1.0', url: `file://${page}`,
     viewport: [1440, 900], scale: 1,
     steps: [
+      {do: 'wait', for: '#never-present', timeout: 120, why: 'record the failed loading wait'},
       {do: 'wait', for: '#new-filter', why: 'the Filters screen has loaded'},
+      {do: 'scroll', dy: 360, settle: 120, why: 'move through the filters list'},
       {do: 'shot', name: '01-start', state: 'two filters, before'},
       {do: 'click', target: '#new-filter', why: 'open the dialog'},
       {do: 'type', target: '#filter-name', text: 'Bikes'},
@@ -240,6 +352,8 @@ test('a headless capture records the session, the action log and the evidence', 
   const result = await captureSession(dir, plan);
   assert.match(result.manifest.recorder.pointer, /not composited/);
   assert.ok(result.manifest.duration >= 1);
+  const failedWait=result.actions.find(a=>a.type==='wait'&&a.for==='#never-present');
+  assert.equal(failedWait.ok,false); assert.ok(failedWait.dur>=0.1); assert.match(failedWait.error,/timeout/i);
   assert.deepEqual(result.manifest.frameSize, [1440, 900]);
   assert.ok(await exists(path.join(dir, 'recording.mp4')));
   assert.ok(await exists(path.join(dir, 'shots/01-start.png')));
@@ -252,6 +366,11 @@ test('a headless capture records the session, the action log and the evidence', 
   }
   assert.ok(result.pointer.length > 5, 'the pointer path was sampled');
   assert.ok(result.pointer.every(sample => Number.isFinite(sample.x) && Number.isFinite(sample.y)));
+  const scroll = result.actions.find(a => a.type === 'scroll');
+  assert.ok(scroll.dur >= 0.1 && Number.isFinite(scroll.fromY) && Number.isFinite(scroll.scrollY),
+    'scroll is recorded as a paced gesture with observed before and after positions');
+  const typed = result.actions.find(a => a.type === 'type');
+  assert.ok(typed.dur >= 0.1 && typed.startedAt < typed.t, 'the log preserves the complete human-paced typing interval');
 
   const asserts = result.manifest.results.filter(r => r.kind === 'assert');
   assert.deepEqual(asserts.map(a => a.ok), [true, false], 'a failed expectation is recorded, not thrown away');
@@ -264,7 +383,7 @@ test('a session that cannot run a step keeps its footage, its log and the hand-w
   let chrome = null;
   try { chrome = await chromePath(); } catch {}
   if (!chrome) return t.skip('no Chrome on this machine');
-  const root = await mkdtemp(path.join(os.tmpdir(), 'appcapture-stop-'));
+  const root = await tempRoot('appcapture-stop-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const dir = path.join(root, 'capture', 'F4');
   await mkdir(dir, {recursive: true});
@@ -292,11 +411,47 @@ test('a session that cannot run a step keeps its footage, its log and the hand-w
   assert.ok(await exists(path.join(dir, 'plan.json')), 're-recording never deletes the plan or the edits');
 });
 
+test('concurrent capture attempts for one project fail without clearing its active artifacts', async t => {
+  const root = await tempRoot('appcapture-lock-');
+  t.after(() => rm(root, {recursive: true, force: true}));
+  const dir = path.join(root, 'capture', 'F12');
+  await mkdir(dir, {recursive: true});
+  await writeFile(path.join(dir, 'recording.mp4'), 'active capture');
+  await writeFile(path.join(dir, '.capture.lock'), JSON.stringify({pid: process.pid}));
+  await assert.rejects(captureSession(dir, {
+    task: 'F12', url: 'https://example.test', steps: [{do: 'wait', seconds: 1}],
+  }), /already running.*generated files were left untouched/);
+  assert.equal(await readFile(path.join(dir, 'recording.mp4'), 'utf8'), 'active capture');
+});
+
+test('a stale lock from an exited capture process is recovered safely', async t => {
+  const root = await tempRoot('appcapture-stale-lock-');
+  t.after(() => rm(root, {recursive: true, force: true}));
+  const dir = path.join(root, 'capture', 'F13');
+  await mkdir(dir, {recursive: true});
+  const dead = spawn('true');
+  await new Promise((resolve, reject) => { dead.once('error', reject); dead.once('close', resolve); });
+  await writeFile(path.join(dir, '.capture.lock'), JSON.stringify({pid: dead.pid}));
+  await assert.rejects(captureSession(dir, {task: 'bad id', url: 'https://example.test', steps: [{do: 'wait', seconds: 1}]}), /capture plan is invalid/);
+  assert.equal(await exists(path.join(dir, '.capture.lock')), false, 'recovered lock is cleaned after validation fails');
+});
+
+test('an old malformed lock is recovered while a fresh empty lock is preserved', async t => {
+  const root=await tempRoot('appcapture-malformed-lock-'); t.after(()=>rm(root,{recursive:true,force:true}));
+  const dir=path.join(root,'capture','F14'); await mkdir(dir,{recursive:true});
+  const lock=path.join(dir,'.capture.lock'); await writeFile(lock,'');
+  const old=new Date(Date.now()-180000); await (await import('node:fs/promises')).utimes(lock,old,old);
+  await assert.rejects(captureSession(dir,{task:'bad id',url:'https://example.test',steps:[{do:'wait',seconds:1}]}),/capture plan is invalid/);
+  await writeFile(lock,'');
+  await assert.rejects(captureSession(dir,{task:'F14',url:'https://example.test',steps:[{do:'wait',seconds:1}]}),/already running/);
+  assert.equal(await readFile(lock,'utf8'),'');
+});
+
 test('typed secrets are masked in the action log', async t => {
   let chrome = null;
   try { chrome = await chromePath(); } catch {}
   if (!chrome) return t.skip('no Chrome on this machine');
-  const root = await mkdtemp(path.join(os.tmpdir(), 'appcapture-secret-'));
+  const root = await tempRoot('appcapture-secret-');
   t.after(() => rm(root, {recursive: true, force: true}));
   const dir = path.join(root, 'capture', 'F9');
   await writeFile(path.join(root, 'secret.html'), '<label>Password <input id="pw" type="password"></label>');

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import {readFile, writeFile, mkdir, copyFile, access} from 'node:fs/promises';
+import {readFile, writeFile, mkdir, copyFile, access, rm} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {extractNarration, normalizeWords, reconcile, jobNameFor} from '../lib/timing.mjs';
 import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, saveToLibrary, saveAll} from '../lib/library.mjs';
-import {fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile} from '../lib/review.mjs';
-import {createReviewPack} from '../lib/review-pack.mjs';
+import {fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile, registerProducer} from '../lib/review.mjs';
+import {createReviewPack, generateCaptureInspection, assertIndependentCaptureReviewer} from '../lib/review-pack.mjs';
 import {parseStages, parseNote, recordHumanReview} from '../lib/human.mjs';
 import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail, MAX_THUMBNAILS} from '../lib/thumbnails.mjs';
 import {compareNarration} from '../lib/audio-verification.mjs';
@@ -45,7 +45,7 @@ const digest = async file => createHash('sha256').update(await readFile(file)).d
 // command is allowed, as before.
 const ROLE = process.env.VIDEO_AGENT_ROLE || '';
 const ROLE_AGENT = Boolean(ROLE) && ROLE !== 'orchestrator';
-const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review-pack', 'deliver', 'save-all', 'preview', 'mix', 'transcribe', 'alignment-approve', 'human-review', 'play', 'youtube-auth', 'youtube-upload',
+const ORCHESTRATOR_ONLY = new Set(['start', 'prepare', 'next', 'render', 'review-pack', 'capture-visibility', 'deliver', 'save-all', 'preview', 'mix', 'transcribe', 'alignment-approve', 'human-review', 'play', 'youtube-auth', 'youtube-upload',
   'thumbnails', 'thumbnail-choose', 'thumbnail-feedback', 'thumbnail-settings',
   'project-new', 'project-set', 'project-delete', 'script-review', 'watch', 'watch-serve', 'delegated']);
 // Chat projects (lib/project.mjs): commands that work on a project rather than a job.
@@ -80,6 +80,7 @@ const probe = async file => JSON.parse(await run('ffprobe', ['-v', 'error', '-sh
 // production (status → rendering/draft-rendered, stale reviews), so they need an explicit --reopen true.
 const PRODUCTION_COMMANDS = new Set(['transcribe', 'plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'kit-update',
   'news-ingest', 'news-transcribe', 'alignment-approve', 'check', 'review-pack', 'human-review', 'review-submit', 'deliver', 'render', 'library-use']);
+const PRODUCER_COMMANDS = new Set(['plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'kit-update', 'news-ingest', 'news-transcribe', 'alignment-approve', 'check', 'app-capture', 'capture-scene']);
 async function guardDelivered(job, command, opts) {
   if (!PRODUCTION_COMMANDS.has(command)) return;
   if (command === 'human-review' && opts.want !== undefined) return;
@@ -96,7 +97,7 @@ function options(args) {
   const result = {};
   while (args.length) {
     const key = args.shift();
-    if (key === '--json' && (!args.length || args[0].startsWith('--'))) { result.json = true; continue; }
+    if (['--json','--generate','--no-latest'].includes(key) && (!args.length || args[0].startsWith('--'))) { result[key.slice(2)] = true; continue; }
     if (!key.startsWith('--') || !args.length || args[0].startsWith('--')) throw new Error(`Expected --option value: ${key}`);
     if (key === '--note' || key === '--finding' || key === '--model' || key === '--tag') (result[key.slice(2)] ||= []).push(args.shift()); // repeatable
     else result[key.slice(2)] = args.shift();
@@ -113,6 +114,37 @@ async function jobPath(opts) {
   const latest = await json(path.join(ROOT, '.video/latest.json')).catch(() => null);
   if (!latest) throw new Error('No job selected. Prepare a job or pass --job jobs/<name>.');
   return path.resolve(ROOT, latest.job);
+}
+function producerRecord() {
+  const agentId = process.env.VIDEO_AGENT_ID, role = process.env.VIDEO_AGENT_ROLE;
+  return agentId && role && role !== 'reviewer' && !role.endsWith('-reviewer') ? {agentId, role, source:'VIDEO_AGENT_ID/VIDEO_AGENT_ROLE'} : null;
+}
+async function captureProducerHistory(script) {
+  const root = path.join(path.dirname(script), 'capture');
+  const entries = await (await import('node:fs/promises')).readdir(root, {withFileTypes:true}).catch(()=>[]);
+  const records=[];
+  for (const entry of entries.filter(e=>e.isDirectory())) {
+    const capture = await json(path.join(root,entry.name,'manifest.json')).catch(()=>null);
+    // Both stages own real runner records: app-capture writes `producer`, while
+    // capture-scene appends to `producerHistory`. Keep historical manifests
+    // without either field honestly unattributed.
+    const saved = [...(capture?.producer ? [capture.producer] : []), ...(Array.isArray(capture?.producerHistory) ? capture.producerHistory : [])];
+    for (const record of saved) if (record?.agentId && record.role && record.role !== 'reviewer' && !record.role.endsWith('-reviewer'))
+      records.push({agentId:record.agentId,role:record.role,source:record.source || 'saved-capture-manifest'});
+  }
+  const project=await json(path.join(path.dirname(script),'project.json')).catch(()=>null);
+  const delegations=[...(Array.isArray(project?.history) ? project.history.filter(h=>h && typeof h === 'object' && Array.isArray(h.tasks)) : []),...(project?.delegation ? [project.delegation] : [])];
+  for (const task of delegations.flatMap(d=>d.tasks || [])) if (task?.agentId && task.role && task.role !== 'reviewer' && !task.role.endsWith('-reviewer'))
+    records.push({agentId:task.agentId,role:task.role,source:'saved-project-delegation'});
+  return [...new Map(records.map(r=>[`${r.agentId}\0${r.role}`,r])).values()];
+}
+async function registerCaptureProducer(dir) {
+  const record=producerRecord();
+  if (!record) return;
+  const file=path.join(dir,'manifest.json'), manifest=await json(file);
+  manifest.producerHistory ||= [];
+  if (!manifest.producerHistory.some(r=>r.agentId===record.agentId&&r.role===record.role)) manifest.producerHistory.push(record);
+  await save(file,manifest);
 }
 async function prepare(opts) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(opts.name || '')) throw new Error('--name must be a lowercase job slug.');
@@ -157,6 +189,7 @@ async function prepare(opts) {
   await run('ffmpeg', ['-v', 'error', '-i', audio, '-ss', String(start), '-t', String(duration),
     '-vn', '-ar', '48000', '-ac', '1', '-c:a', 'pcm_s16le', path.join(job, 'assets/narration.wav')]);
   const actualDuration = Number((await probe(path.join(job, 'assets/narration.wav'))).format.duration);
+  const producerHistory = await captureProducerHistory(script);
   const manifest = {version: 1, name: opts.name, createdAt: new Date().toISOString(),
     duration: actualDuration, format, width: settings.width, height: settings.height, fps,
     audio: {path: 'assets/narration.wav', source: path.relative(ROOT, audio), sourceStart: start,
@@ -166,12 +199,14 @@ async function prepare(opts) {
     ...(channel ? {channelTheme: {path: CHANNEL_THEME_FILE, source: path.relative(ROOT, channel.file), sha256: await digest(channel.file)}} : {}),
     transcription: {language, model, engine, suppliedWords: !!opts.words},
     productionProfile, creativeMode: 'agent-discretion', workflow: personality.profile.workflow, status: 'awaiting-transcription',
-    review: {producerAgentIds: ['/root'], requiredRoles: ['visual-mechanism', 'narration-fidelity', 'continuity-legibility']},
+    review: {producerAgentIds: [...new Set(producerHistory.map(r=>r.agentId))], producerAgentRecords: producerHistory, producerIdentityStatus: producerHistory.length ? 'recorded' : 'unrecorded',
+      ...(producerHistory.length ? {} : {producerIdentityIssue: 'No runner-provided producer identity has been recorded yet.'}),
+      requiredRoles: ['visual-mechanism', 'narration-fidelity', 'continuity-legibility']},
     canvas: '#151915'};
   await save(path.join(job, 'job.json'), manifest);
   if (opts.words) await copyFile(path.resolve(ROOT, opts.words), path.join(job, 'transcript.json'));
   else await transcribe(job, manifest);
-  await finishPreparation(job, manifest, narration);
+  await finishPreparation(job, manifest, narration, {updateLatest: !opts['no-latest']});
 }
 async function transcribe(job, manifest) {
   const {model, language, engine = 'faster-whisper'} = manifest.transcription;
@@ -179,7 +214,7 @@ async function transcribe(job, manifest) {
   else await run('uv', ['run', '--locked', '--script', path.join(ROOT,'scripts/transcribe.py'),
     path.join(job,'assets/narration.wav'), path.join(job,'transcript.json'), '--model', model, '--language', language]);
 }
-async function finishPreparation(job, manifest, narration) {
+async function finishPreparation(job, manifest, narration, {updateLatest = true} = {}) {
   const actualDuration = manifest.duration;
   const words = normalizeWords(await json(path.join(job, 'transcript.json')), actualDuration);
   const alignment = reconcile(words, narration);
@@ -190,8 +225,10 @@ async function finishPreparation(job, manifest, narration) {
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
   manifest.status = 'prepared';
   await save(path.join(job, 'job.json'), manifest);
-  await mkdir(path.join(ROOT, '.video'), {recursive: true});
-  await save(path.join(ROOT, '.video/latest.json'), {job: path.relative(ROOT, job)});
+  if (updateLatest) {
+    await mkdir(path.join(ROOT, '.video'), {recursive: true});
+    await save(path.join(ROOT, '.video/latest.json'), {job: path.relative(ROOT, job)});
+  }
   console.log(`Prepared ${path.relative(ROOT, job)}: ${words.length} words, ${(alignment.matchRatio * 100).toFixed(1)}% exact script matches.`);
   console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
 }
@@ -434,6 +471,7 @@ audit | check | preview | render | verify [--job jobs/<slug>]
 render [--quality delivery --workers 3 --reuse-build true]  render + mix + verify, once, after the final reviews; reuse-build requires a current successful full build
 mix                                  redo the soundtrack mix on the current render (sources unchanged)
 review-pack --stage prototype|final [--start N --end N] [--from html|render]  freeze review evidence (frames from the built HTML by default; nothing is rendered)
+capture-visibility --generate | --record <review.json>   generate current paired source/render frames or record independent verdicts
 human-review --stage prototype|final --decision approve|revise [--note "12.5: text" ...]  record the person's own review of the current pack
 human-review --want prototype,final|none   choose which stages wait for the person (start takes --human-review too)
 play [--port 3004]                   play the built film in the browser, with a scene strip (read-only; no render)
@@ -489,7 +527,8 @@ try {
   if (['compile', 'assemble'].includes(command))
     throw new Error(`The legacy ${command} command has been retired. Use build for film.json jobs; recreate older jobs from their saved script and recording with start.`);
   const opts = options(args);
-  if (ROLE_AGENT && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
+  const reviewerRecordingVerdict = command === 'capture-visibility' && Boolean(opts.record) && ROLE === 'reviewer';
+  if (ROLE_AGENT && !reviewerRecordingVerdict && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
     throw new Error(`\`${command}${command === 'build' ? ' without --scene' : ''}\` advances the pipeline, which is the orchestrator's job. You are the ${ROLE}: finish the brief you were given and reply with its result. Do not start sub-agents.`);
   if (command === 'profiles') console.log(JSON.stringify(PERSONALITIES.map(id => loadPersonality(id).profile), null, 2));
   else if (command === 'profile-route') {
@@ -532,6 +571,8 @@ try {
   }
   else {
     const job = await jobPath(opts);
+    if (ROLE_AGENT && PRODUCER_COMMANDS.has(command) && command !== 'app-capture' && !ROLE.endsWith('-reviewer') && ROLE !== 'reviewer' && await exists(path.join(job, 'job.json')))
+      await registerProducer(job, {agentId: process.env.VIDEO_AGENT_ID, role: ROLE});
     if (advances(command, opts)) await assertNoDelegation(ROOT, path.basename(job), command);
     const decision = ['human-review', 'thumbnail-choose', 'thumbnail-feedback', 'review-waive'].includes(command) ? await personDecision(job, command, opts) : null;
     await guardDelivered(job, command, opts);
@@ -594,6 +635,8 @@ try {
       const {captureSession} = await import('../lib/capture.mjs');
       console.log(`Recording ${plan.task} at ${plan.viewport?.join('×') ?? '1440×900'}…`);
       const result = await captureSession(dir, plan, {onProgress: step => { if (step.do !== 'encode') console.log(`  ${step.do}${step.target ? ` ${step.target}` : ''}${step.why ? ` — ${step.why}` : ''}`); }});
+      result.manifest.producer = producerRecord();
+      await save(path.join(dir, 'manifest.json'), result.manifest);
       const clicks = result.actions.filter(a => a.type === 'click').length;
       const failed = result.manifest.results.filter(r => r.kind === 'assert' && !r.ok);
       console.log(`\nRecorded ${path.relative(ROOT, result.recording)} — ${result.manifest.duration}s, ${result.manifest.frames} frames, ${clicks} click(s), ${result.manifest.frameSize.join('×')} px.`);
@@ -618,6 +661,7 @@ try {
       const manifest = await json(path.join(job, 'job.json')).catch(() => ({}));
       const frame = [manifest.width || 1920, manifest.height || 1080];
       const {compileCaptureScene} = await import('../lib/appcapture.mjs');
+      await registerCaptureProducer(captureDir);
       const result = await compileCaptureScene(job, captureDir, edits, {
         width: numeric(opts.width, frame[0], 'width'), height: numeric(opts.height, frame[1], 'height'),
         fit: Number(opts.fit ?? 0.9), cursorSize: numeric(opts['cursor-size'], 54, 'cursor-size'),
@@ -650,6 +694,28 @@ try {
       const written = await writeReviewerBriefs(job, pack, packPath, packSha256);
       console.log(JSON.stringify({stage:pack.stage,packPath,packSha256,sourceHash:pack.sourceHash,videoSha256:pack.videoSha256,interval:pack.interval,evidenceCount:pack.evidence.length,briefs:written,
         next:`npm run video -- next --job ${path.relative(ROOT, job)}`},null,2));
+    } else if (command === 'capture-visibility') {
+      if (opts.generate === true || opts.generate === 'true') {
+        const result=await generateCaptureInspection(job);
+        await rm(path.join(job,'review/independent-verdict.json'),{force:true});
+        console.log(JSON.stringify({dispositions:result.dispositions.length,file:path.relative(ROOT,path.join(job,'review/capture-visibility-dispositions.json')),
+          instruction:'Delegate this file and its paired PNGs to an independent reviewer role; request one verdict per capture, then record the returned report with --record.'},null,2));
+      } else if (opts.record) {
+        const report=await json(path.resolve(ROOT,opts.record));
+        const file=path.join(job,'review/capture-visibility-dispositions.json'), current=await json(file);
+        if(report.sourceHash!==current.sourceHash||report.videoSha256!==current.videoSha256||!Array.isArray(report.dispositions)) throw new Error('Reviewer report is stale or malformed.');
+        if(report.dispositions.length!==current.dispositions.length||report.dispositions.some(v=>!current.dispositions.some(d=>d.captureId===v.captureId&&d.sceneId===v.sceneId))) throw new Error('Reviewer report has missing, duplicate, or unrelated capture verdicts.');
+        const reviewer=report.reviewer;
+        const authenticatedReviewer={agentId:process.env.VIDEO_AGENT_ID,role:process.env.VIDEO_AGENT_ROLE};
+        await assertIndependentCaptureReviewer(job,reviewer,authenticatedReviewer);
+        current.dispositions=current.dispositions.map(item=>{
+          const verdict=report.dispositions.find(v=>v.captureId===item.captureId&&v.sceneId===item.sceneId);
+          if(!verdict||!['acceptable','reject'].includes(verdict.decision)||typeof verdict.observation!=='string'||!verdict.observation.trim()) throw new Error(`Missing independent verdict/observation for ${item.captureId}.`);
+          return {...item,status:'visually-inspected',decision:verdict.decision,observation:verdict.observation.trim(),reviewer,authenticatedReviewer};
+        });
+        await save(file,current);
+        console.log(`Recorded ${reviewer.agentId} independent visual verdict(s). ${current.dispositions.some(d=>d.decision==='reject')?'Rejected intervals remain blocked; repair and render again.':'Run review-pack --stage final --from render to continue.'}`);
+      } else throw new Error('Use --generate or --record <reviewer-report.json>.');
     } else if (command === 'human-review') {
       if (opts.want !== undefined) {
         const file = path.join(job, 'job.json'), manifest = await json(file);
@@ -708,7 +774,7 @@ try {
       };
       scan(report, '');
       if (unfilled.length) throw new Error(`Replace the FILL-IN placeholder in: ${unfilled.join(', ')}. ("findingExample" is ignored.)`);
-      console.log(JSON.stringify(await submitReview(job,report),null,2));
+      console.log(JSON.stringify(await submitReview(job,report, {agentId: process.env.VIDEO_AGENT_ID, role: process.env.VIDEO_AGENT_ROLE}),null,2));
     } else if (command === 'review-waive') {
       // A person's decision only: no agent may waive its own reviews, the orchestrator included.
       if (ROLE) throw new Error('Only the person can waive review. Report the unresolved findings to them; they decide.');

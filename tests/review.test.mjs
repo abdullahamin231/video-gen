@@ -4,7 +4,8 @@ import {mkdtemp, mkdir, writeFile, readFile, rm, symlink} from 'node:fs/promises
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {sourceFingerprint, fileHash, loadReviewPack, validateReview, submitReview, reviewStatus,
-  acceptedPrototype, qualifyDelivery, REVIEW_ROLES} from '../lib/review.mjs';
+  acceptedPrototype, qualifyDelivery, REVIEW_ROLES, registerProducer} from '../lib/review.mjs';
+import {loadPersonality} from '../lib/personalities.mjs';
 
 const put = (job,file,value) => writeFile(path.join(job,file),JSON.stringify(value,null,2)+'\n');
 async function fixture(t) {
@@ -112,6 +113,53 @@ test('self review, reused agent identities, gaps and dishonest passes cannot qua
   assert.throws(()=>validateReview(stale,context),/different source/);
   for(const role of REVIEW_ROLES) {const r=review(context,role);r.reviewer.agentId='/root/same-agent';await submitReview(job,r);}
   assert.match((await reviewStatus(job,'final')).errors.join(' '),/different independent reviewer/);
+});
+
+test('runner-registered producer is rejected at submission and acceptance; producer identity is project-local',async t=>{
+  const a=await fixture(t), b=await fixture(t);
+  await Promise.all([registerProducer(a,{agentId:'t3/director-17',role:'director'}),
+    registerProducer(a,{agentId:'t3/builder-22',role:'builder'}),
+    registerProducer(b,{agentId:'t3/builder-other-project',role:'builder'})]);
+  const context=await freeze(a,'final');
+  const delegated=review(context);delegated.reviewer.agentId='t3/builder-22';
+  await assert.rejects(submitReview(a,delegated),/independent/);
+  const independent=review(context);independent.reviewer.agentId='t3/fresh-reviewer';
+  await submitReview(a,independent);
+  assert.equal((await reviewStatus(a,'final')).ok,false); // other two roles remain pending
+  // A forged/stale on-disk report is rechecked during final acceptance.
+  for(const role of REVIEW_ROLES) await put(a,`review/final/reviews/${role}.json`,review(context,role));
+  const forged=review(context,REVIEW_ROLES[0]);forged.reviewer.agentId='t3/builder-22';
+  await put(a,`review/final/reviews/${REVIEW_ROLES[0]}.json`,forged);
+  assert.match((await reviewStatus(a,'final')).errors.join(' '),/independent/);
+  assert.deepEqual(JSON.parse(await readFile(path.join(b,'job.json'))).review.producerAgentIds,
+    ['/root','/root/builder','t3/builder-other-project']);
+});
+
+test('legacy non-app-review jobs without producer history retain their established review behavior',async t=>{
+  const job=await fixture(t), manifest=JSON.parse(await readFile(path.join(job,'job.json')));
+  delete manifest.review.producerAgentIds; await put(job,'job.json',manifest);
+  const context=await freeze(job,'final');
+  await assert.doesNotReject(submitReview(job,review(context)));
+});
+
+test('app-review legacy jobs without recorded provenance block review and reject spoofed reviewer IDs',async t=>{
+  const job=await fixture(t), manifest=JSON.parse(await readFile(path.join(job,'job.json')));
+  const profile=await loadPersonality('app-review');
+  manifest.productionProfile={id:profile.profile.id,version:profile.profile.version,sha256:profile.sha256};
+  await put(job,'production-profile.json',profile);
+  manifest.review.producerAgentIds=['/root']; await put(job,'job.json',manifest);
+  let context=await freeze(job,'final');
+  await assert.rejects(submitReview(job,review(context),{agentId:'claimed-reviewer',role:'reviewer'}),/Producer identities are incomplete/);
+  manifest.review.producerAgentIds=['producer-real']; manifest.review.producerAgentRecords=[{agentId:'producer-real',role:'builder'}]; await put(job,'job.json',manifest);
+  context=await freeze(job,'final');
+  const forged=review(context); forged.reviewer.agentId='invented';
+  await assert.rejects(submitReview(job,forged,{agentId:'runner-reviewer',role:'reviewer'}),/match VIDEO_AGENT_ID/);
+  const stillOnly=review(context); stillOnly.verdict='pass';
+  assert.throws(()=>validateReview(stillOnly,context),/encoded MP4 clip in playback/);
+  const valid=review(context); valid.reviewer.agentId='runner-reviewer';
+  valid.inspection.mode='playback';
+  valid.inspection.evidence=context.pack.evidence.filter(e=>e.kind==='clip').map(e=>e.path);
+  await assert.doesNotReject(submitReview(job,valid,{agentId:'runner-reviewer',role:'reviewer'}));
 });
 
 test('timestamped blockers are retained, incomplete coverage never qualifies, corrected review is versioned',async t=>{
