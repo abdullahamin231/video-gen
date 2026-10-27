@@ -356,4 +356,4 @@ Assess truth and understanding consistently; supporting action may anticipate or
 Loading SSD rows copies them into RAM without deleting the persistent copy. Cosmetic timing is advisory. Deliberate overlap is allowed only when every visible word remains clearly readable; unreadable secondary labels are blocking too. Reversing an accepted repair requires
 a concrete contradiction or regression in current evidence.
 
-Readability is non-waivable: obscured, illegible or unintentionally overlapping text blocks delivery even after three creative review rounds. Intentional layering needs an explicit reason and clearly readable text.
+Readability is non-waivable: obscured, illegible or unintentionally overlapping text blocks delivery even after the configured creative review budget. Intentional layering needs an explicit reason and clearly readable text.
