@@ -13,7 +13,7 @@ try{
   const selected = process.argv.slice(2);
   for(const provider of selected.length ? selected : ['Codex','Claude','OpenCode','Pi']){
     if(!['Codex','Claude','OpenCode','Pi'].includes(provider))throw new Error('Unsupported provider');
-    const job=app.store.create({title:`${provider} connectivity check`,prompt:'Read-only runner connectivity check',provider,main:'',models:{},format:'landscape',duration:10,gateScript:false,gatePrototype:false});
+    const job=app.store.create({title:`${provider} connectivity check`,prompt:'Read-only runner connectivity check',provider,main:'',models:{},format:'landscape',duration:10,gateScript:false});
     job.status='running';app.store.save(job);
     const timer=setTimeout(()=>{void app.runner.control(job,'cancel');},90000);
     try{

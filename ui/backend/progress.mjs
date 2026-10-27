@@ -80,13 +80,8 @@ export function computeProgress(job, { files = [], archived = [] } = {}) {
     const active = film.find(step => ['current', 'repair'].includes(step.status));
     const command = commands.find(item => ['build', 'render', 'review-pack', 'save-all', 'deliver', 'mix', 'plan-check'].includes(item.command));
     if (active && command) active.running = { command: command.command, startedAt: command.startedAt, agentId: command.agentId };
-    // Your film reviews are pipeline steps (prototype-human, final-human); waiting on one is your turn.
+    // Your film review is a pipeline step (final-human); waiting on it is your turn.
     for (const step of film) if (/-human$/.test(step.id) && step.status === 'current') Object.assign(step, { status: 'waiting', detail: job.gate?.kind === step.id.split('-')[0] && !job.gate.decision ? 'Your turn: watch it and decide' : step.detail });
-    // Jobs started before the pipeline knew about your review keep the older checkpoint step.
-    if (job.gatePrototype && !film.some(step => step.id === 'prototype-human')) {
-      const index = film.findIndex(step => step.id === 'prototype-review');
-      if (index >= 0) film.splice(index + 1, 0, gateStep(job, 'prototype', 'Your prototype checkpoint', film[index].status === 'done'));
-    }
   } else {
     const starting = commandRunning('start');
     film = [stepFrom('prepare', 'Narration timed to the script', starting ? 'current' : 'pending', starting ? 'Transcribing and timing the narration' : 'Job not created yet'),
@@ -174,7 +169,7 @@ export function computeHealth(job, events, now = Date.now()) {
   const delivered = job.status === 'complete';
   if (!delivered && job.pipeline?.steps?.some(step => step.status === 'blocked')) add('error', `Pipeline blocked: ${job.pipeline.steps.find(step => step.status === 'blocked').detail}`);
   if (!delivered) for (const step of job.pipeline?.steps || []) if (step.status === 'repair') add('warning', `${step.label}: ${step.detail}`);
-  const rounds = Math.max(job.pipeline?.reviews?.prototype?.rounds || 0, job.pipeline?.reviews?.final?.rounds || 0);
+  const rounds = job.pipeline?.reviews?.final?.rounds || 0;
   if (!delivered && rounds >= 2) add('warning', `Independent review has failed ${rounds} rounds (after 3 rounds, continues with disclosed findings)`);
   if (job.status === 'running' && live.length && quietFor > (longCommand ? 30 : 8) * 60000)
     add('warning', `No activity for ${Math.round(quietFor / 60000)} min${longCommand ? ` while ${longCommand.command} runs` : ''}`);

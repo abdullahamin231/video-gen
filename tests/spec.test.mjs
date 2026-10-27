@@ -10,7 +10,7 @@ const words = 'so you go look up gpus and then you see the prices the rtx 5090 i
 const alignment = {matchRatio: 1, words};
 const scene = (id, start) => ({id, start, idea: 'i', mechanism: 'm', states: ['a', 'b', 'c'], payoff: 'p', camera: 'c', handoff: 'h', why_not_basic: 'w', alternatives: ['x']});
 export const THEME = {name: 'Test look', description: 'Chunky white outlines on a near-black stage, flat saturated fills, hard offset shadows and heavy display type for prices.', bg: '#101010', colors: {white: '#f0f0f0', grey: '#888888', dim: '#444444', faint: '#222222', blue: '#1488dd', yellow: '#ffd23f', red: '#e0342f', green: '#3fbf6f'}, meanings: {yellow: 'money'}};
-const film = {version: 2, title: 't', concept: 'c', theme: THEME, alternatives: [{concept: 'a', rejected: 'b'}, {concept: 'c', rejected: 'd'}], subjects: [], prototype: 'one',
+const film = {version: 2, title: 't', concept: 'c', theme: THEME, alternatives: [{concept: 'a', rejected: 'b'}, {concept: 'c', rejected: 'd'}], subjects: [],
   scenes: [scene('one', {boundary: 'start'}), scene('two', {phrase: 'the rtx'})]};
 
 test('film plan resolves scene starts from spoken phrases', () => {
@@ -20,8 +20,8 @@ test('film plan resolves scene starts from spoken phrases', () => {
 });
 
 test('film plan errors are specific', () => {
-  assert.throws(() => validateFilm({...film, prototype: 'nope', scenes: [scene('one', {}), scene('two', {phrase: 'not spoken'})]}, alignment, 12),
-    e => e instanceof SpecError && e.errors.some(m => /prototype/.test(m)) && e.errors.some(m => /not in the recording/.test(m)));
+  assert.throws(() => validateFilm({...film, scenes: [scene('one', {}), scene('two', {phrase: 'not spoken'})]}, alignment, 12),
+    e => e instanceof SpecError && e.errors.some(m => /not in the recording/.test(m)));
 });
 
 test('a film must declare one design theme, and the theme is checked', () => {

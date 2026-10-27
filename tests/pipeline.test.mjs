@@ -21,9 +21,10 @@ async function fixture(t) {
   const audio = Buffer.from('test recording bytes');
   await writeFile(path.join(job,'assets/narration.wav'),audio);
   const manifest = {duration:2,width:1920,height:1080,name:'fixture',canvas:'#f0eadf',
-    transcription:{language:'en'},audio:{sha256:createHash('sha256').update(audio).digest('hex')}};
+    transcription:{language:'en'},audio:{sha256:createHash('sha256').update(audio).digest('hex')},
+    review:{producerAgentIds:['/fixture/producer'],producerAgentRecords:[{agentId:'/fixture/producer',role:'builder'}]}};
   const a = reconcile([{id:'w0',text:'local',start:.1,end:.4},{id:'w1',text:'machine',start:.5,end:1}], 'local machine');
-  const film = {version: 2, title: 'Fixture', concept: 'A device appears', prototype: 'opening',
+  const film = {version: 2, title: 'Fixture', concept: 'A device appears',
     theme: {name: 'Test', description: 'Bold white device outlines on a dark surface, with yellow highlights for the active parts. Heavy labels and direct, deliberate motion keep the subject readable.', bg: '#101010', colors: {white: '#ffffff', yellow: '#ffd23f'}},
     scenes: [{id: 'opening', start: {boundary: 'start'}, idea: 'Show the device', kind: 'html', file: 'compositions/opening.html'}]};
   for (const [name, data] of Object.entries({'job.json': manifest, 'alignment.json': a, 'film.json': film}))
@@ -75,7 +76,7 @@ test('film audit checks installed library files against frozen hashes', async t 
   assert.match(audit.stderr, /frozen file changed/);
 });
 
-test('CLI qualifies real encoded media only after prototype and final independent review records',async t=>{
+test('CLI qualifies real encoded media only after the independent final review records',async t=>{
   const {job}=await fixture(t);
   await mkdir(path.join(job,'renders'));
   const ffmpeg = args => {
@@ -102,7 +103,7 @@ test('CLI qualifies real encoded media only after prototype and final independen
   // render through the pipeline and commission actual independent agents.
   await writeFile(path.join(job,'review/render-source.json'),JSON.stringify({version:1,
     sourceHash:await sourceFingerprint(job),videoSha256:await fileHash(path.join(job,'renders/video.mp4'))}));
-  for(const stage of ['prototype','final']) {
+  for(const stage of ['final']) {
     const packResult=spawnSync(process.execPath,[path.join(ROOT,'scripts/video.mjs'),'review-pack','--job',job,'--stage',stage,'--from','render'],{encoding:'utf8'});
     assert.equal(packResult.status,0,packResult.error?.message || packResult.stderr);
     const dispatch=JSON.parse(packResult.stdout);

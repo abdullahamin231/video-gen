@@ -55,7 +55,7 @@ Write `news.json`. All clocks are seconds; no speed changes. Example with a two-
 
 ```json
 {
-  "version": 1, "title": "Approved news title", "duration": 4, "prototype": "analysis",
+  "version": 1, "title": "Approved news title", "duration": 4,
   "scenes": [
     {"id": "analysis", "at": 0, "duration": 2, "source": "event", "in": 10,
      "silentBroll": true, "silentReason": "Contextual B-roll, not a quotation",
@@ -96,7 +96,7 @@ npm run video -- build --job jobs/<slug>
 npm run video -- next --job jobs/<slug>
 ```
 
-Normal asset archiving, prototype/final independent reviews and requested human approvals remain in place. Review packs use the **full edit mix**, not the shorter commentary recording. News repair briefs return to the news editor. The final render uses HyperFrames through the normal wrapper and muxes the reviewed speech mix.
+Normal asset archiving, independent final reviews and requested human approvals remain in place. Review packs use the **full edit mix**, not the shorter commentary recording. News repair briefs return to the news editor. The final render uses HyperFrames through the normal wrapper and muxes the reviewed speech mix.
 
 `verify` checks encoded size/fps/duration/audio, waveform fidelity against the full mix, subtitle raster samples at onset/middle/end and adjacent frames, and actual-media raster samples against the reviewed edit. `review/news-verification.json` is bound to the exact video and source hashes. Missing/stale subtitle verification blocks `qualifyDelivery` even when review was waived or its round budget exhausted. It cannot be waived as an editorial finding. Inspect final render sync and listen to original/source speech; never claim signal tests prove intelligibility or factual accuracy.
 

@@ -88,7 +88,6 @@ async function fixtureJob(root) {
       meanings: {yellow: 'the pointer and what it touches'}},
     alternatives: [{concept: 'Screen on a light canvas', rejected: 'the app is light already'}, {concept: 'Stills only', rejected: 'the recording is the evidence'}],
     subjects: [{id: 'app', what: 'the application screen'}],
-    prototype: 'filters',
     scenes: [{
       id: 'filters', start: {boundary: 'start'}, idea: 'Show the filter being created', mechanism: 'Click the button, type a name, save',
       states: ['empty form', 'filled form', 'filter listed'], payoff: 'The filter exists', camera: 'Push in on each control',

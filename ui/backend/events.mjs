@@ -131,7 +131,7 @@ export function describeTask(role, prompt) {
   else if ((match = /^direct-(.+)$/.exec(name))) { scene = match[1]; task = `Direct and build from “${scene}”`; }
   else if ((match = /^build-(.+)$/.exec(name))) { scene = match[1]; task = `Build scene “${scene}”`; }
   else if ((match = /^repair-(.+)$/.exec(name))) { scene = match[1]; task = `Repair scene “${scene}”`; }
-  else if ((match = /^review-(prototype|final)-(.+)$/.exec(name))) { stage = match[1]; task = `Review ${stage}: ${match[2].replace(/-/g, ' ')}`; scene = ''; }
+  else if ((match = /^review-(final)-(.+)$/.exec(name))) { stage = match[1]; task = `Review ${stage}: ${match[2].replace(/-/g, ' ')}`; scene = ''; }
   if (!task) task = { 'script-researcher': 'Gather the sources', 'script-writer': 'Write the script', 'script-reviewer': 'Independent script review', 'thumbnail-maker': 'Design the thumbnail', 'thumbnail-reviewer': 'Independent thumbnail review', orchestrator: 'Orchestrate the production' }[role] || `${role} task`;
   return { brief, scene, task, stage };
 }

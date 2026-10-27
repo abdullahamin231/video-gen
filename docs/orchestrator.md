@@ -52,8 +52,8 @@ sub-agents do the creative work from self-contained brief files. This works the 
   Reviewer sub-agents must be new agents that did not build anything.
   The step names a role (`script-researcher`, `script-writer`, `video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
   that name, use it: it pins the role's model (see "Models per role" below). Otherwise use any fresh sub-agent.
-- **`STATE: human review of the prototype/final`** — the user asked to watch the film at this stage (`start
-  --human-review prototype,final`). In the video UI, call the runner's `checkpoint` tool with that kind; the user watches
+- **`STATE: human review of the final`** — the user asked to watch the whole film before its one render (`start
+  --human-review final`). In the video UI, call the runner's `checkpoint` tool with that kind; the user watches
   the built film there and the UI records their decision. Elsewhere, ask them to run `npm run video -- play --job <job>`
   (it plays the built HTML in the browser with a scene strip; nothing is rendered or changed), then record exactly what
   they said with `human-review --decision approve` or `--decision revise --note "12.5: <their words>"`. Never decide for
@@ -155,14 +155,13 @@ link with the local MP4 and thumbnail paths. If authorization needs refreshing o
 |---|---|---|---|
 | Script researcher (new script) | the user's request | `jobs/scripts/<slug>/sources/`, `SOURCES.md` | the writer and script reviewer |
 | Script writer (visual plan for a supplied script) | `briefs/visuals.md` | `inputs/visuals.md`: concept, theme, every scene's events at exact words, assets, thumbnail | `next` (required sections) |
-| Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` transcribed from the visual plan (its theme, concept, scenes, who builds each) and the assets it needs, then the scenes it owns: the prototype, its context, and any later scene it keeps | `plan-check`, `build --scene` |
+| Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` transcribed from the visual plan (its theme, concept, scenes, who builds each) and the assets it needs, then every scene it owns, built in one context | `plan-check`, `build --scene` |
 | Scene builder (one per delegated scene) | `briefs/build-<scene>.md` | `shots/<scene>.json` (+ hook, components, Manim file) built from the visual plan's section for that scene (quoted in the brief); departures recorded in `notes` | `build --scene` (spec errors, browser checks, motion transcript) |
 | Repair builder | `briefs/repair-<scene>.md` | fixes to a delegated scene | same |
 | Reviewers ×3 | `briefs/review-<stage>-<role>.md` | `review/<stage>/incoming/<role>.json` | `review-submit` |
 
-The prototype scene (the most demanding 10–15 s) and its prerequisite introduction/context are built in order,
-reviewed (from the built HTML, without rendering) before later scenes are built. By default the director builds them itself, in the same context
-that planned them; it delegates later scenes with `"owner": "builder"` in film.json.
+Scenes are built in order, all before the one review. By default the director builds every scene itself, in the same
+context that planned them; it delegates a scene only by writing `"owner": "builder"` for it in film.json.
 
 Build errors mean the film is broken or untrue (invalid spec, no declared design theme, missing assets, unspoken cue
 words, conflicting or non-seek-safe motion, nondeterminism, unsourced numbers). Every film has exactly one design theme,

@@ -64,7 +64,7 @@ test('composites are validated: highlights must be quoted words, numbers need a 
   await mkdir(path.join(job, 'shots')); await mkdir(path.join(job, 'inputs'));
   const words = 'the model needs ninety four gigabytes'.split(' ').map((text, i) => ({id: `w${i}`, text, start: i * 0.5, end: i * 0.5 + 0.4}));
   await writeFile(path.join(job, 'inputs/narration.txt'), words.map(w => w.text).join(' '));
-  const film = {version: 2, title: 't', concept: 'c', theme: THEME, prototype: 'one', scenes: [{id: 'one', start: {boundary: 'start'}, idea: 'i'}]};
+  const film = {version: 2, title: 't', concept: 'c', theme: THEME, scenes: [{id: 'one', start: {boundary: 'start'}, idea: 'i'}]};
   const shot = objects => writeFile(path.join(job, 'shots/one.json'), JSON.stringify({scene: 'one', objects, actions: [{do: 'fill', target: 'mem', at: 'start', to: 'lots'}]}));
   await shot([
     {id: 'quote', type: 'card', at: [960, 540], text: 'It fits at 512 GB.', highlight: 'does not fit'},

@@ -6,7 +6,7 @@ Structure: an impossible event involving an everyday thing; an immediate instruc
 
 Do not label the story as fiction in narration, captions, titles, thumbnail copy or public descriptions. Let the impossible premise, invented events and story context establish the kind of story without a disclaimer. Research factual statements and distinguish sourced facts from invented lore in research.md; never present invented rules as real-world advice. Do not copy a reference episode's plot, wording, institutional identity or presenter voice. A reference URL supplies style direction, not permission to download its footage. A researcher can provide factual background; the writer invents the scenario and rules.
 
-Keep SCRIPT.md clean and use the normal script/visual-plan file structure. Events, scene IDs, spoken boundaries, prototype and assets still need to be explicit in VISUALS.md. For this genre a scene's mechanism means the visible rule, violation or consequence; it need not be a scientific demonstration. Titles pair a concrete anomaly with a short command. Thumbnails use the central anomaly and a readable warning, matching DESIGN.md; avoid the explainer thumbnail study's visual style.
+Keep SCRIPT.md clean and use the normal script/visual-plan file structure. Events, scene IDs, spoken boundaries and assets still need to be explicit in VISUALS.md. For this genre a scene's mechanism means the visible rule, violation or consequence; it need not be a scientific demonstration. Titles pair a concrete anomaly with a short command. Thumbnails use the central anomaly and a readable warning, matching DESIGN.md; avoid the explainer thumbnail study's visual style.
 
 ## Titles and thumbnails
 

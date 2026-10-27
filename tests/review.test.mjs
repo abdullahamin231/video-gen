@@ -4,7 +4,7 @@ import {mkdtemp, mkdir, writeFile, readFile, rm, symlink} from 'node:fs/promises
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {sourceFingerprint, fileHash, loadReviewPack, validateReview, submitReview, reviewStatus,
-  acceptedPrototype, qualifyDelivery, REVIEW_ROLES, registerProducer} from '../lib/review.mjs';
+  qualifyDelivery, REVIEW_ROLES, registerProducer} from '../lib/review.mjs';
 import {loadPersonality} from '../lib/personalities.mjs';
 
 const put = (job,file,value) => writeFile(path.join(job,file),JSON.stringify(value,null,2)+'\n');
@@ -18,7 +18,7 @@ async function fixture(t) {
   await writeFile(path.join(job,'assets/narration.wav'),'synthetic contract fixture, not measured audio');
   await writeFile(path.join(job,'renders/video.mp4'),'synthetic render hash fixture, not actual video');
   await writeFile(path.join(job,'STORYBOARD.md'),'Subject operates and produces a result.');
-  await writeFile(path.join(job,'review/REPORT.md'),'Reviewed prototype and final film with documented limitations.');
+  await writeFile(path.join(job,'review/REPORT.md'),'Reviewed the final film with documented limitations.');
   return job;
 }
 
@@ -57,21 +57,16 @@ test('source digest includes media, scene and storyboard edits but excludes rend
   await writeFile(path.join(job,'renders/video.mp4'),'new render');
   await writeFile(path.join(job,'review/REPORT.md'),'new review notes');
   const m=JSON.parse(await readFile(path.join(job,'job.json')));
-  m.status='complete';m.completedAt='now';m.delivery={sha:'receipt'};m.reviewRounds={prototype:3};m.reviewRoundPacks={prototype:'pack-hash'};
+  m.status='complete';m.completedAt='now';m.delivery={sha:'receipt'};m.reviewRounds={final:3};m.reviewRoundPacks={final:'pack-hash'};
   await put(job,'job.json',m);
   assert.equal(await sourceFingerprint(job),initial);
   await writeFile(path.join(job,'compositions/scene.html'),'changed operation');
   assert.notEqual(await sourceFingerprint(job),initial);
 });
 
-test('delivery requires accepted prototype and all three independent final reviews of current output',async t=>{
+test('delivery requires all three independent final reviews of current output',async t=>{
   const job=await fixture(t);
   await assert.rejects(qualifyDelivery(job));
-  const prototype=await freeze(job,'prototype');await accept(job,prototype);
-  await acceptedPrototype(job);
-  // Full film development changes the source and render, not the accepted prototype evidence.
-  await writeFile(path.join(job,'compositions/scene.html'),'developed full film');
-  await writeFile(path.join(job,'renders/video.mp4'),'new full-film render');
   const final=await freeze(job,'final');
   await submitReview(job,review(final));
   assert.equal((await reviewStatus(job,'final')).ok,false);
@@ -79,7 +74,6 @@ test('delivery requires accepted prototype and all three independent final revie
   await accept(job,final);
   const qualification=await qualifyDelivery(job);
   assert.equal(qualification.ok,true);
-  assert.equal(qualification.prototypePackSha256,prototype.packSha256);
   assert.equal(qualification.videoSha256,final.pack.videoSha256);
   assert.equal(qualification.reviewerIds.length,3);
 });
@@ -207,13 +201,12 @@ test('signal-only narration reports require frozen measured integrity evidence',
   assert.throws(()=>validateReview(r,context),/audio evidence/);
 });
 
-test('altered accepted prototype evidence and pending report block delivery',async t=>{
-  const job=await fixture(t),prototype=await freeze(job,'prototype');await accept(job,prototype);
-  const final=await freeze(job,'final');await accept(job,final);
+test('altered evidence and a pending report block delivery',async t=>{
+  const job=await fixture(t),final=await freeze(job,'final');await accept(job,final);
   await writeFile(path.join(job,'review/REPORT.md'),'# Production review\n\nPending creative build and validation.');
   await assert.rejects(qualifyDelivery(job),/Complete the production report/);
-  await writeFile(path.join(job,'review/prototype/frame.png'),'altered historical evidence');
-  await assert.rejects(acceptedPrototype(job),/evidence changed/);
+  await writeFile(path.join(job,'review/final/frame.png'),'altered evidence');
+  assert.equal((await reviewStatus(job,'final')).ok,false);
 });
 
 test('review writes reject symlinked directories and report targets',async t=>{
@@ -243,14 +236,14 @@ test('external render symlink cannot be loaded as frozen local review media',asy
 });
 
 test('a report with several problems lists them all, each with its field', async t => {
-  const job=await fixture(t), context=await freeze(job,'prototype');
+  const job=await fixture(t), context=await freeze(job,'final');
   const r=review(context,'narration-fidelity');
   r.inspection.mode='watched'; delete r.inspection.audio; r.coverage=[{start:0,end:99}];
-  r.findings=[{id:'F1',severity:'blocking',start:1,end:2,subject:'label',requirement:'',observed:'cut off',repair:'',evidence:['review/prototype/missing.png']}];
+  r.findings=[{id:'F1',severity:'blocking',start:1,end:2,subject:'label',requirement:'',observed:'cut off',repair:'',evidence:['review/final/missing.png']}];
   const error=assert.throws(()=>validateReview(r,context),error=>{
     for (const field of ['inspection.mode','inspection.audio','coverage[0]','findings[0] (F1)','verdict']) assert(error.message.includes(field+':'),field);
     assert.match(error.message,/requirement, repair must be filled in/);
-    assert.match(error.message,/evidence not in the pack: review\/prototype\/missing\.png/);
+    assert.match(error.message,/evidence not in the pack: review\/final\/missing\.png/);
     assert.match(error.message,/^The report has \d+ problems/);
     return true;
   });
@@ -269,11 +262,8 @@ function blockedReview(context, role) {
 test('three failed rounds continue with disclosed findings, never fabricated passing verdicts', async t => {
   const job = await fixture(t);
   const manifest = JSON.parse(await readFile(path.join(job,'job.json')));
-  manifest.reviewRounds = {prototype:3, final:3};
+  manifest.reviewRounds = {final:3};
   await put(job,'job.json',manifest);
-  const prototype = await freeze(job,'prototype');
-  for (const role of REVIEW_ROLES) await submitReview(job,blockedReview(prototype,role));
-  assert.equal((await acceptedPrototype(job)).disposition,'review-limit-reached');
   const final = await freeze(job,'final');
   for (const role of REVIEW_ROLES.slice(0,2)) await submitReview(job,blockedReview(final,role));
   assert.equal((await reviewStatus(job,'final')).ok,false, 'never skip pending reviewers');
@@ -285,7 +275,7 @@ test('three failed rounds continue with disclosed findings, never fabricated pas
   const result = await qualifyDelivery(job);
   assert.equal(result.reviewDisposition,'review-limit-reached');
   assert.equal(result.independentReviewPassed,false);
-  assert.equal(result.unresolvedFindings.length,6);
+  assert.equal(result.unresolvedFindings.length,3);
   await writeFile(path.join(job,'renders/video.mp4'),'tampered');
   await assert.rejects(qualifyDelivery(job));
 });
@@ -333,10 +323,8 @@ test('readability blockers cannot be waived after three or more review rounds',a
 test('only a waiver of the current film lets endless readability findings continue, disclosed and never as a pass',async t=>{
   const {waiveReview}=await import('../lib/review.mjs');
   const job=await fixture(t);
-  const prototype=await freeze(job,'prototype');await accept(job,prototype);
-  await writeFile(path.join(job,'compositions/scene.html'),'developed full film');
   const final=await freeze(job,'final');
-  const m=JSON.parse(await readFile(path.join(job,'job.json')));m.reviewRounds={prototype:1,final:25};await put(job,'job.json',m);
+  const m=JSON.parse(await readFile(path.join(job,'job.json')));m.reviewRounds={final:25};await put(job,'job.json',m);
   for (const role of REVIEW_ROLES.slice(1)) await submitReview(job,review(final,role));
   const blocked={...review(final,REVIEW_ROLES[0]),verdict:'revise',findings:[{id:'F1',severity:'blocking',start:1,end:2,subject:'Caption',
     requirement:'Readable at phone size',observed:'The caption is illegible at 480 px',repair:'Make it larger',evidence:[final.pack.evidence[0].path]}]};

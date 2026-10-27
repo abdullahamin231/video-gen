@@ -215,7 +215,7 @@ measurement, and nobody claims the film "sounds good". The full process, fields 
 
 The script writer makes the film's creative decisions in `VISUALS.md` (see the script-writing skill's
 `references/visuals.md`): it invents at least two whole-film concepts and picks the strongest, chooses the design
-theme, splits the script into scenes by idea, picks the prototype, and writes each scene's stage, events at exact
+theme, splits the script into scenes by idea, and writes each scene's stage, events at exact
 words, payoff, assets and handoff concretely enough to build without guessing.
 
 ### Director
@@ -223,10 +223,10 @@ words, payoff, assets and handoff concretely enough to build without guessing.
 With a visual plan, the director carries it out rather than replacing it:
 
 1. Read the visual plan, the script and the word table.
-2. Transcribe the plan into `film.json`: its concept, alternatives, theme, subjects, prototype and scenes, keeping the
+2. Transcribe the plan into `film.json`: its concept, alternatives, theme, subjects and scenes, keeping the
    plan's scene ids and wording. Record any change the recording or toolset forces in `"departures"`.
 3. Collect the assets the plan names (product images, logos, fonts) into `assets/`, and the music it describes.
-4. Build the prototype and the scenes before it, look at the frames, and fix what looks weak before review.
+4. Build every scene it owns, look at the frames, and fix what looks weak before review.
 
 Without a visual plan (jobs planned before visual plans existed), the director makes those creative decisions itself:
 choose the theme, invent at least two whole-film concepts and pick the strongest, split the recording into scenes and
@@ -240,11 +240,10 @@ be built as written or does not work. They keep the narrated idea, the spoken ti
 next scene needs. Departures from the plan are recorded in `notes`. Without a visual plan, builders have full creative
 authority over their scene inside the theme.
 
-### Prototype gate
+### Review gate
 
-The prototype and its context are rendered and reviewed by three independent reviewers before later scenes are
-built. If the prototype looks like slides, clip art or a diagram with labels, the concept is redesigned, not
-decorated. A prototype pass does not approve the rest of the film.
+The complete built film is reviewed by three independent reviewers before its one render. If it looks like slides,
+clip art or a diagram with labels, the concept is redesigned, not decorated.
 
 ## Review checklist
 

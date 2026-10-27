@@ -5,7 +5,7 @@ AGENTS.md routes normal requests to a personality-specific ORCHESTRATOR.md. The 
 | Folder | Treatment | Current renderer |
 | --- | --- | --- |
 | explainer | Existing scientific/educational/technical explanation | Supported |
-| rules-story | Fixed Bradikinin-style fictional rule/survival storytelling | Supported; prototype approval tunes the style |
+| rules-story | Fixed Bradikinin-style fictional rule/survival storytelling | Supported; human approval tunes the style |
 | news-financial | Real financial sources and original commentary | Supported real-media adapter; mandatory subtitles |
 | news-political | Real political footage/articles, commentary and circular presenter | Supported real-media adapter; mandatory subtitles |
 | app-review | Actual hands-on app recordings and cursor-guided review | Supported for browser apps (`app-capture` + `capture-scene`); native desktop surfaces are outside the adapter |

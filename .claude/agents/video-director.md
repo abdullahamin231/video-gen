@@ -1,6 +1,6 @@
 ---
 name: video-director
-description: Turns the script writer's visual plan into film.json and builds the film's key scenes (the prototype, its context and any scene it keeps) from a director brief written by `npm run video -- next`. Carries out the plan rather than inventing one, so it runs on the cheap model.
+description: Turns the script writer's visual plan into film.json and builds every scene it owns from a director brief written by `npm run video -- next`. Carries out the plan rather than inventing one, so it runs on the cheap model.
 model: claude-haiku-5-5
 ---
 

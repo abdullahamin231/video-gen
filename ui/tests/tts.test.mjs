@@ -12,7 +12,7 @@ import { computeProgress } from '../backend/progress.mjs';
 import { QUOTA_NOTICE, GEMINI_TTS_MODEL, GEMINI_TTS_FALLBACK_MODEL } from '../../lib/tts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const defaults = { title: 'Narration fixture', prompt: 'A video about batteries', provider: 'Codex', format: 'landscape', gateScript: false, gatePrototype: false };
+const defaults = { title: 'Narration fixture', prompt: 'A video about batteries', provider: 'Codex', format: 'landscape', gateScript: false,  };
 async function fixture() {
   await mkdir(path.join(root, '.cache'), { recursive: true });
   const folder = await mkdtemp(path.join(root, '.cache/ui-tts-test-'));

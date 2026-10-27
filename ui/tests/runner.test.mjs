@@ -16,7 +16,7 @@ import { routeModel } from '../shared/routing.mjs';
 import { orchestratorPrompt } from '../backend/prompt.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const defaults = { title: 'Runner integration', prompt: 'A one-minute test fixture only', provider: 'Codex', main: '', models: {}, format: 'landscape', duration: 60, gateScript: false, gatePrototype: false };
+const defaults = { title: 'Runner integration', prompt: 'A one-minute test fixture only', provider: 'Codex', main: '', models: {}, format: 'landscape', duration: 60, gateScript: false,  };
 const testFolders = [];
 after(async () => { for (const folder of testFolders) await rm(folder, { recursive: true, force: true }); });
 async function workspace() {
@@ -58,7 +58,7 @@ test('pipeline commands, next output, shell file reads and brief tasks are recog
   assert.equal(told.state, 'independent final review (a, b)'); assert.deepEqual(told.spawns, [{ role: 'reviewer', brief: 'jobs/x/briefs/review-final-a.md' }]);
   assert.equal(fileFromCommand('sed -n 1,40p jobs/x/film.json'), 'jobs/x/film.json');
   assert.deepEqual(describeTask('builder', 'Read jobs/x/briefs/build-spam.md and follow it exactly.'), { brief: 'jobs/x/briefs/build-spam.md', scene: 'spam', task: 'Build scene “spam”', stage: '' });
-  assert.equal(describeTask('reviewer', 'Read jobs/x/briefs/review-prototype-visual-mechanism.md and follow it exactly.').stage, 'prototype');
+  assert.equal(describeTask('reviewer', 'Read jobs/x/briefs/review-final-visual-mechanism.md and follow it exactly.').stage, 'final');
 });
 
 test('job token accounting reconciles Claude placeholders and resumed costs without double counting', () => {
@@ -254,22 +254,23 @@ test('a checkpoint survives a restart and the decision reaches the resumed orche
 test('film checkpoints are recorded by the pipeline, never approved once for every later build', async t => {
   const folder = await workspace(); const store = new Store(folder);
   const runner = new Runner({ root, store, statusCommand: noStatus }); runner.closed = true; t.after(() => runner.shutdown());
-  const job = store.create({ ...defaults, gatePrototype: true, gateFinal: false });
+  const job = store.create({ ...defaults, gateFinal: false });
   const orchestrator = { id: 'o', role: 'orchestrator', status: 'running' }; job.agents.push(orchestrator); job.status = 'running';
   // Switched off: the runner says so and continues.
   assert.equal((await runner.tool(job, 'o', 'checkpoint', { kind: 'final', summary: 'Watch it' })).decision, 'continue');
+  job.gateFinal = true;
   // On: the decision needs the job's current review pack; without one nothing is recorded or approved.
-  const waiting = runner.tool(job, 'o', 'checkpoint', { kind: 'prototype', summary: 'Watch it' });
+  const waiting = runner.tool(job, 'o', 'checkpoint', { kind: 'final', summary: 'Watch it' });
   await new Promise(resolve => setTimeout(resolve, 20));
-  assert.equal(job.status, 'gate'); assert.equal(job.gate.kind, 'prototype');
+  assert.equal(job.status, 'gate'); assert.equal(job.gate.kind, 'final');
   await assert.rejects(runner.control(job, 'approve', { notes: [] }), /ENOENT|review pack|no such file/i);
-  assert.equal(job.gate.decision, null); assert.ok(!job.approvedGates?.includes('prototype'));
+  assert.equal(job.gate.decision, null); assert.ok(!job.approvedGates?.includes('final'));
   runner.gates.get(job.id)?.reject(new Error('test over')); await waiting.catch(() => {});
 });
 
 test('progress joins script, pipeline, thumbnail and delivery; health reads facts, not agent claims', () => {
-  const job = { status: 'running', scriptPath: 'jobs/scripts/v', jobPath: 'jobs/v', slug: 'v', scriptReview: { status: 'pass', stale: false }, agents: [{ id: 'b1', role: 'builder', status: 'running', step: 'scenes', scene: 'b' }], gatePrototype: true, activeCommands: [],
-    pipeline: { state: 'build final', current: 'scenes', steps: [{ id: 'prepare', label: 'P', status: 'done' }, { id: 'prototype-review', label: 'R', status: 'done' }, { id: 'scenes', label: 'S', status: 'current', detail: '1/2 built' }, { id: 'deliver', label: 'D', status: 'pending' }], scenes: [] } };
+  const job = { status: 'running', scriptPath: 'jobs/scripts/v', jobPath: 'jobs/v', slug: 'v', scriptReview: { status: 'pass', stale: false }, agents: [{ id: 'b1', role: 'builder', status: 'running', step: 'scenes', scene: 'b' }], activeCommands: [],
+    pipeline: { state: 'build final', current: 'scenes', steps: [{ id: 'prepare', label: 'P', status: 'done' }, { id: 'final-review', label: 'R', status: 'done' }, { id: 'scenes', label: 'S', status: 'current', detail: '1/2 built' }, { id: 'deliver', label: 'D', status: 'pending' }], scenes: [] } };
   const files = [{ path: 'jobs/scripts/v/SCRIPT.md' }, { path: 'jobs/scripts/v/review.md' }, { path: 'jobs/scripts/v/narration.wav' }];
   const progress = computeProgress(job, { files });
   assert.deepEqual(progress.phases.map(phase => phase.id), ['script', 'film', 'thumbnail', 'delivery']);
@@ -277,9 +278,9 @@ test('progress joins script, pipeline, thumbnail and delivery; health reads fact
   assert.deepEqual(progress.phases[0].steps.map(step => step.status), ['done', 'done', 'done', 'done']);
   const fresh = computeProgress({ ...job, pipeline: undefined, agents: [{ id: 'r1', role: 'script-researcher', status: 'running' }] }, { files: [] });
   assert.deepEqual(fresh.phases[0].steps.slice(0, 2).map(step => step.status), ['current', 'pending']);
-  assert.deepEqual(progress.phases[1].steps.map(step => step.id), ['prepare', 'prototype-review', 'prototype-gate', 'scenes', 'deliver']);
+  assert.deepEqual(progress.phases[1].steps.map(step => step.id), ['prepare', 'final-review', 'scenes', 'deliver']);
   assert.deepEqual(progress.phases[1].steps.find(step => step.id === 'scenes').agents, ['b1']);
-  assert.equal(progress.current.id, 'scenes'); assert.equal(progress.phases[1].steps[2].status, 'pending');
+  assert.equal(progress.current.id, 'scenes'); assert.equal(progress.phases[1].steps[2].status, 'current');
   const events = [{ type: 'tool', status: 'failed', at: new Date().toISOString() }];
   assert.equal(computeHealth(job, events).level, 'ok');
   const stalled = computeHealth(job, [{ type: 'tool', at: new Date(Date.now() - 20 * 60000).toISOString() }]);
@@ -405,7 +406,7 @@ test('pipeline status is read-only and matches the state machine for an unprepar
   const folder = await workspace(); const jobDir = path.join(folder, 'empty-job'); await mkdir(jobDir);
   const output = execFileSync(process.execPath, [path.join(root, 'scripts/video.mjs'), 'status', '--json', '--job', jobDir], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
   const status = JSON.parse(output.trim().split('\n').at(-1));
-  assert.equal(status.state, 'not prepared'); assert.equal(status.current, 'prepare'); assert.equal(status.steps.length, 11);
+  assert.equal(status.state, 'not prepared'); assert.equal(status.current, 'prepare'); assert.equal(status.steps.length, 8);
   assert.equal((await readFile(path.join(root, 'scripts/video.mjs'), 'utf8')).includes("command === 'status'"), true);
 });
 

@@ -439,7 +439,7 @@ const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
 
-start --audio <file> --script <file> [--profile <id>] [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review prototype,final]   create a job (a VISUALS.md beside the script is picked up automatically)
+start --audio <file> --script <file> [--profile <id>] [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review final]   create a job (a VISUALS.md beside the script is picked up automatically)
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
                                      the job is named from the script file, else its folder or title (e.g. jobs/scripts/<slug>/SCRIPT.md → <slug>); --name overrides
 next [--job jobs/<slug>]             print the single next step (state machine)
@@ -470,10 +470,10 @@ transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
 audit | check | preview | render | verify [--job jobs/<slug>]
 render [--quality delivery --workers 3 --reuse-build true]  render + mix + verify, once, after the final reviews; reuse-build requires a current successful full build
 mix                                  redo the soundtrack mix on the current render (sources unchanged)
-review-pack --stage prototype|final [--start N --end N] [--from html|render]  freeze review evidence (frames from the built HTML by default; nothing is rendered)
+review-pack --stage final [--from html|render]  freeze review evidence for the whole film (frames from the built HTML by default; nothing is rendered)
 capture-visibility --generate | --record <review.json>   generate current paired source/render frames or record independent verdicts
-human-review --stage prototype|final --decision approve|revise [--note "12.5: text" ...]  record the person's own review of the current pack
-human-review --want prototype,final|none   choose which stages wait for the person (start takes --human-review too)
+human-review --stage final --decision approve|revise [--note "12.5: text" ...]  record the person's own review of the current pack
+human-review --want final|none   choose whether the person reviews the whole film (start takes --human-review too)
 play [--port 3004]                   play the built film in the browser, with a scene strip (read-only; no render)
 thumbnails [--json]                  after delivery: the next thumbnail step (N variants, review, pick, archive)
 thumbnail-settings [--count 1-6] [--pick true|false]   variants to make, and whether the person picks (start: --thumbnails, --pick-thumbnail)
@@ -482,7 +482,7 @@ thumbnail-verdict --variant v1 --status pass|blocked [--finding ".." ...] --insp
 thumbnail-choose --variant v1 [--by you]   make a passing variant the thumbnail and archive it
 thumbnail-feedback --variant v1 --note "<their words>"   ask for that variant again with the person's feedback
 review-submit --file <report.json>   validate an independent sub-agent report
-review-status --stage prototype|final  check independent review qualification
+review-status --stage final  check independent review qualification
 review-waive --stage final --reason ".."   the person stops creative review of the current film (never an agent)
 deliver                             qualify current reviews and mark complete
 preview [--port 3002]                persistent HyperFrames Studio
@@ -494,7 +494,7 @@ library-use --item <id@version> --job jobs/<slug>  freeze files and record hashe
 Chat projects (T3 Code; docs/t3-orchestrator.md): the whole video from an agreed brief, one step at a time
 profiles | profile-route --prompt "<request>" [--profile <id>]   inspect personalities / infer routing (read-only)
 project-new --name <slug> [--profile explainer|rules-story|news-financial|news-political|app-review] [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|ming|gemini --audio f --script f --music f
-            --review script,prototype,final,thumbnail|none --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
+            --review script,final,thumbnail|none --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
 next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews on Tailscale)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
 stage-bar --project <slug>          the stage bar as one HTML page, for T3 html_render (read-only)
@@ -683,12 +683,7 @@ try {
     else if (command === 'audit') console.log(JSON.stringify(await filmAudit(job), null, 2));
     else if (command === 'verify') await verify(job);
     else if (command === 'review-pack') {
-      let start = numeric(opts.start,0,'start'), end = opts.end === undefined ? undefined : numeric(opts.end,0,'end');
-      if ((opts.stage || 'final') === 'prototype' && opts.start === undefined) {
-        const {prototypeInterval} = await import('../lib/film.mjs');
-        const iv = prototypeInterval(await json(path.join(job,'timing.json')), await json(path.join(job,'film.json')), (await json(path.join(job,'job.json'))).duration);
-        start = iv.start; end = iv.end;
-      }
+      const start = numeric(opts.start,0,'start'), end = opts.end === undefined ? undefined : numeric(opts.end,0,'end');
       const pack = await createReviewPack(job, {stage:opts.stage || 'final', start, end, from: opts.from || 'html'});
       const packPath = path.join(job,pack.packPath), packSha256 = await fileHash(packPath);
       const written = await writeReviewerBriefs(job, pack, packPath, packSha256);

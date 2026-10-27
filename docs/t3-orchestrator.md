@@ -29,7 +29,7 @@ Do not research the topic yourself or draft the script: that is the researcher's
 When they say to make it, settle only what is still open, in one short message if anything is: format (landscape
 long-form or vertical short), a length if they want one (otherwise the writer chooses), narration (Ming, expressive and local, the
 default; or Kokoro or Gemini), and whether they supplied a script or recording. Defaults keep every checkpoint on: script,
-prototype, final film, thumbnail.
+final film, thumbnail.
 
 1. Choose a short lowercase slug (`ssd-slowdown`). Write the agreed brief to `jobs/scripts/<slug>/BRIEF.md`: what the
    video is, for whom, the angle you agreed, every link and file they gave, their own notes and opinions. Use their
@@ -38,7 +38,7 @@ prototype, final film, thumbnail.
 
    ```bash
    npm run -s video -- project-new --name <slug> --profile <inferred-id> [--format vertical] [--duration 90] [--tts ming|kokoro|gemini] \
-     [--script <file> --audio <file>] [--music <file>] [--review script,prototype,final,thumbnail|none] [--thumbnails 3] [--idea <id>]
+     [--script <file> --audio <file>] [--music <file>] [--review script,final,thumbnail|none] [--thumbnails 3] [--idea <id>]
    ```
 
    A supplied script is used as written (and its `VISUALS.md` if one sits beside it); a supplied recording is kept
@@ -65,7 +65,7 @@ Do exactly what it prints, then run it again. Repeat until it prints `STATE: don
   again. When all have finished, run `npm run video -- delegated --project <slug>`, then `next`. Never do their work,
   never edit their files, never add your opinions to a task, never reuse a task for a different brief. If a task fails,
   run `delegated` and `next`: unfinished work is issued again.
-- **`STATE: your review of the script / prototype / final` or `you pick the thumbnail`**: a checkpoint (section 4).
+- **`STATE: your review of the script / final` or `you pick the thumbnail`**: a checkpoint (section 4).
 - **`STATE: blocked` / `pipeline bug`**: report the reason to the user word for word and stop.
 
 Whenever you tell the user where the video stands (the start, each checkpoint, each time a delegated round finishes, and
@@ -114,7 +114,7 @@ only when they explicitly ask, after you have told them the unresolved findings.
 
 If they send direction between checkpoints, say it will be applied at the next checkpoint and record it there, word
 for word. If they change a setting ("don't make me approve the script", "five thumbnails", "use Codex for builders"):
-`npm run video -- project-set --project <slug> [--review prototype,final] [--thumbnails 5] [--model builder=codex:gpt-6-luna]`.
+`npm run video -- project-set --project <slug> [--review final] [--thumbnails 5] [--model builder=codex:gpt-6-luna]`.
 
 ## 5. Delivery
 

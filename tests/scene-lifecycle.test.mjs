@@ -39,7 +39,7 @@ test('part-counted objects receive a simultaneous exit; later hide does not carr
   for(const dir of ['shots','inputs']) await mkdir(path.join(job,dir));
   const theme={name:'Test',description:'Chunky white outlines on a near-black stage, flat saturated fills, hard offset shadows and heavy display type for prices.',bg:'#101010',colors:{white:'#eeeeee',yellow:'#ffdd33'}};
   const scene=(id,start)=>({id,start,idea:'Comparison',mechanism:'Count',states:['a','b'],payoff:'Number',camera:'Static',handoff:'Clear',why_not_basic:'Visible result',alternatives:['A']});
-  const plan={version:2,title:'Test',concept:'Count',theme,alternatives:[{concept:'A',rejected:'B'},{concept:'B',rejected:'A'}],subjects:[],prototype:'one',scenes:[scene('one',{boundary:'start'}),scene('two',{phrase:'next'})]};
+  const plan={version:2,title:'Test',concept:'Count',theme,alternatives:[{concept:'A',rejected:'B'},{concept:'B',rejected:'A'}],subjects:[],scenes:[scene('one',{boundary:'start'}),scene('two',{phrase:'next'})]};
   const alignment={words:[{text:'count',start:0,end:.4},{text:'next',start:2,end:2.4}]};
   await writeFile(path.join(job,'shots/one.json'),JSON.stringify({scene:'one',objects:[{id:'old',type:'counter',at:[100,100],numbers:'Illustrative count'}],actions:[{do:'count',target:'old.text',at:'start',to:42,numbers:'Illustrative count',dur:.5}]}));
   await writeFile(path.join(job,'shots/two.json'),JSON.stringify({scene:'two',objects:[],actions:[{do:'hide',target:'old',at:'end-0.1'}]}));

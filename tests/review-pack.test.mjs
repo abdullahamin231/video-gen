@@ -75,14 +75,14 @@ test('review pack freezes dense rendered evidence and normal speed clips', {skip
     assert.ok(probe.streams.some(stream => stream.codec_type === 'audio'));
     assert.equal(clip.playbackRate, 1);
   }
-  const second = await createReviewPack(job, {from: 'render', stage: 'prototype'});
+  const second = await createReviewPack(job, {from: 'render'});
   assert.notEqual(second.evidence.find(item => item.kind === 'frames').path, samples[0].path);
   assert.equal(second.videoSha256, pack.videoSha256);
-  assert.equal((await loadReviewPack(job, 'prototype')).pack.videoSha256, pack.videoSha256);
+  assert.equal((await loadReviewPack(job, 'final')).pack.videoSha256, pack.videoSha256);
   const frozenVerification = second.evidence.find(item => item.kind === 'verification');
   await writeFile(path.join(job, 'review/render-verification.json'), '{}');
   assert.equal(JSON.parse(await readFile(path.join(job, frozenVerification.path), 'utf8')).narrationIntegrity.ok, true);
-  assert.equal((await loadReviewPack(job, 'prototype')).pack.videoSha256, pack.videoSha256);
+  assert.equal((await loadReviewPack(job, 'final')).pack.videoSha256, pack.videoSha256);
   await assert.rejects(createReviewPack(job, {from: 'render'}), /verification is stale/);
 });
 
@@ -233,7 +233,7 @@ test('review pack rejects partial final, invalid intervals and escaped output', 
   const job = await fixture(t);
   for (const options of [{start: -1}, {end: 4}, {start: 2, end: 1}, {start: NaN}, {start: '0'}, {end: 2}])
     await assert.rejects(createReviewPack(job, {from: 'render', ...options}), /interval|full video/);
-  await assert.rejects(createReviewPack(job, {from: 'render', stage: 'prototype', start: 1}), /10–15 seconds/);
+  await assert.rejects(createReviewPack(job, {from: 'render', stage: 'prototype', start: 1}), /must be final/);
   await assert.rejects(createReviewPack(job, {from: 'render', stage: 'other'}), /stage/);
   await assert.rejects(createReviewPack(job, {from: 'render', output: '../escape.json'}), /review directory/);
   await assert.rejects(createReviewPack(job, {from: 'render', output: 'review/../../escape.json'}), /review directory/);

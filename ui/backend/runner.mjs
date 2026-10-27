@@ -17,7 +17,7 @@ import { QUOTA_NOTICE, modelFallbackNotice } from '../../lib/tts.mjs';
 const LIVE = new Set(['starting', 'running', 'waiting']);
 // Checkpoints on the film itself: you watch the built HTML and approve it or leave notes at moments in it.
 const MAX_UNTERMINATED_LINE = 64 * 1024 * 1024;
-export const FILM_GATES = ['prototype', 'final'];
+export const FILM_GATES = ['final'];
 // How many thumbnail variants this thread makes and whether you pick (job.json thumbnails / pickThumbnail).
 async function syncThumbnailSettings(dir, job) {
   const file = path.join(dir, 'job.json');
@@ -27,7 +27,7 @@ async function syncThumbnailSettings(dir, job) {
   await writeFile(file, JSON.stringify({ ...manifest, ...want }, null, 2) + '\n');
   return true;
 }
-export const humanStagesOf = job => FILM_GATES.filter(kind => kind === 'prototype' ? job.gatePrototype : job.gateFinal);
+export const humanStagesOf = job => FILM_GATES.filter(() => job.gateFinal);
 const MAX_PROCESSES = 4; // per job, including the orchestrator: enough for three parallel reviewers
 const STATUS_INTERVAL = 5000;
 // The pipeline view of a verified delivery: every node done, nothing next.
@@ -59,7 +59,7 @@ function stepFor(job, role, task) {
   const current = job.pipeline?.current;
   if (task.scene) {
     if (current && current !== 'prepare' && current !== 'deliver') return current;
-    return job.pipeline?.scenes?.find(scene => scene.id === task.scene)?.prototypeCut ? 'prototype-scenes' : 'scenes';
+    return job.pipeline?.scenes?.find(scene => scene.id === task.scene) ? 'scenes' : 'scenes';
   }
   return { 'script-researcher': 'sources', 'script-writer': 'script', 'script-reviewer': 'script-review', 'thumbnail-maker': 'thumbnail-art', 'thumbnail-reviewer': 'thumbnail-review' }[role] || current || '';
 }
@@ -350,10 +350,10 @@ export class Runner {
       } finally { if (agent.status === 'waiting') agent.status = 'running'; delete agent.waitingFor; this.store.save(job); }
     }
     if (name === 'checkpoint') {
-      if (!['script', 'prototype', 'final', 'thumbnail'].includes(args.kind) || typeof args.summary !== 'string') throw new Error('Invalid checkpoint');
+      if (!['script', 'final', 'thumbnail'].includes(args.kind) || typeof args.summary !== 'string') throw new Error('Invalid checkpoint');
       // A decision made while the orchestrator was not running is returned before anything else.
       if (job.gate?.kind === args.kind && job.gate.decision && !job.gate.consumed) return this.consume(job);
-      const enabled = { script: job.gateScript, prototype: job.gatePrototype, final: job.gateFinal, thumbnail: job.gateThumbnail !== false }[args.kind];
+      const enabled = { script: job.gateScript, final: job.gateFinal, thumbnail: job.gateThumbnail !== false }[args.kind];
       if (!enabled) {
         // The pipeline asks only for stages the job wants; a checkpoint switched off since then stops it asking.
         if (FILM_GATES.includes(args.kind)) await this.syncHumanReview(job);

@@ -81,7 +81,7 @@ for(const [profile,vertical] of [['news-financial',false],['news-political',true
     const html=await readFile(path.join(job,'index.html'),'utf8');
     assert.match(html,/data-media-start="1"/);
     assert.equal(html.includes('id="presenter"'),profile==='news-political');
-    const pack=await createReviewPack(job,{stage:'prototype'});
+    const pack=await createReviewPack(job,{stage:'final'});
     assert.ok(pack.evidence.some(e=>e.path==='assets/news-mix.wav'));
     assert.ok(pack.evidence.some(e=>e.kind==='frames'));
     await assert.rejects(requireNewsDelivery(job),/ENOENT|delivery requires/);

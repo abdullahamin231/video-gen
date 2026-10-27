@@ -5,7 +5,7 @@ export const ROLES = [
   { role: 'script-researcher', label: 'Script researcher', hint: 'Fetches every source and its primary evidence before the writer starts', tier: 'weak', pin: 'script-researcher' },
   { role: 'script-writer', label: 'Script writer', hint: 'Narration script and visual plan, from the saved sources', tier: 'strong', legacy: 'directorModel', pin: 'script-writer' },
   { role: 'script-reviewer', label: 'Script reviewer', hint: 'Independent script review', tier: 'strong', legacy: 'reviewerModel', pin: 'script-reviewer' },
-  { role: 'director', label: 'Director', hint: 'Turns the visual plan into film.json; builds the prototype scenes', tier: 'weak', legacy: 'directorModel', pin: 'video-director' },
+  { role: 'director', label: 'Director', hint: 'Turns the visual plan into film.json; builds the scenes it owns', tier: 'weak', legacy: 'directorModel', pin: 'video-director' },
   { role: 'builder', label: 'Scene builders', hint: 'Delegated scenes and their repairs', tier: 'weak', legacy: 'sub', pin: 'video-builder' },
   { role: 'reviewer', label: 'Film reviewers', hint: 'The three independent film reviews', tier: 'weak', legacy: 'reviewerModel', pin: 'video-reviewer' },
   { role: 'thumbnail-maker', label: 'Thumbnail maker', hint: 'Thumbnail brief and design', tier: 'weak', legacy: 'directorModel', pin: 'video-director' },

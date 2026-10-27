@@ -29,7 +29,7 @@ const words = 'one two three four five six seven eight nine ten eleven twelve'.s
   .map((text, i) => ({id: `w${i}`, text, start: 0.5 + i * 0.75, end: 0.5 + i * 0.75 + 0.5, scriptText: text}));
 const alignment = {matchRatio: 1, words};
 const scene = (id, start) => ({id, start, idea: 'i', mechanism: 'm', states: ['a', 'b', 'c'], payoff: 'p', camera: 'c', handoff: 'h', why_not_basic: 'w', alternatives: ['x']});
-const film = {version: 2, title: 't', concept: 'c', theme: THEME, alternatives: [{concept: 'a', rejected: 'b'}, {concept: 'c', rejected: 'd'}], subjects: [], prototype: 'one',
+const film = {version: 2, title: 't', concept: 'c', theme: THEME, alternatives: [{concept: 'a', rejected: 'b'}, {concept: 'c', rejected: 'd'}], subjects: [],
   scenes: [scene('one', {boundary: 'start'}), scene('two', {phrase: 'seven'})]};
 const manifest = {duration: 10, width: 1920, height: 1080, fps: 30};
 

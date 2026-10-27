@@ -65,10 +65,10 @@ function config(input, existing) {
     if (!DELEGATE_ROLES.includes(role)) throw fail(`Unknown role ${role}`);
     if (!string(model)) throw fail(`Invalid model for ${role}`);
   }
-  if (typeof input.gateScript !== 'boolean' || typeof input.gatePrototype !== 'boolean' || !['boolean', 'undefined'].includes(typeof input.gateFinal) || !['boolean', 'undefined'].includes(typeof input.gateThumbnail)) throw fail('Invalid checkpoint settings');
+  if (typeof input.gateScript !== 'boolean' || !['boolean', 'undefined'].includes(typeof input.gateFinal) || !['boolean', 'undefined'].includes(typeof input.gateThumbnail)) throw fail('Invalid checkpoint settings');
   if (input.thumbnails !== undefined && (!Number.isInteger(input.thumbnails) || input.thumbnails < 1 || input.thumbnails > 6)) throw fail('Choose 1–6 thumbnails');
   if (existing && input.provider !== existing.provider && existing.agents.length) throw fail('Provider cannot change after its first agent starts. Create a new thread to use a different CLI.');
-  return { ttsProvider, provider: input.provider, main: (input.main || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (models[role] || '').trim()])), gateScript: input.gateScript, gatePrototype: input.gatePrototype, gateFinal: Boolean(input.gateFinal),
+  return { ttsProvider, provider: input.provider, main: (input.main || '').trim(), models: Object.fromEntries(DELEGATE_ROLES.map(role => [role, (models[role] || '').trim()])), gateScript: input.gateScript, gateFinal: Boolean(input.gateFinal),
     gateThumbnail: input.gateThumbnail ?? existing?.gateThumbnail ?? true, thumbnails: input.thumbnails ?? existing?.thumbnails };
 }
 

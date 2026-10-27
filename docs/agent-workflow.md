@@ -28,14 +28,13 @@ native desktop surfaces stay outside that adapter. See [personality packages](..
 
 `next` (`lib/film.mjs nextStep`) derives the state from these files: no film.json and no complete visual plan → script
 writer (`briefs/visuals.md`; jobs that already have a film.json skip this); missing/invalid plan → director; missing
-prerequisite context and prototype shots → their owners in scene order (consecutive director-owned scenes share one
+scene shots → their owners in scene order (consecutive director-owned scenes share one
 `direct-<scene>.md` brief); stale build → build; build errors → repair briefs (one `repair-director.md` for director-owned
 scenes, one per delegated scene, in parallel); style findings are warnings for reviewers; unsaved assets → save-all;
 no current pack → review-pack (frames from the built HTML, nothing rendered); missing reviews → reviewers; failed reviews →
 repair briefs from blocking findings (at most 4 distinct failed packs per stage, then `blocked`); plan defects or repeated
 visual failures → director revision; all three pass and the job's `humanReview` lists the stage → wait for the person
-(`human review <stage>`), whose notes go to the scenes they point at as repair findings, word for word; prototype accepted →
-build the remaining scenes; final pass → render once (stale render → render; pixel errors → repair) → deliver. Querying the same failed pack does not consume another round.
+(`human review final`), whose notes go to the scenes they point at as repair findings, word for word; final pass → render once (stale render → render; pixel errors → repair) → deliver. Querying the same failed pack does not consume another round.
 Review counters are excluded from render fingerprints. Persisted completion is requalified before `next` reports done.
 
 `next` and `deliver` qualify only the local MP4. After the thumbnail stage, the orchestrator uploads that MP4 as

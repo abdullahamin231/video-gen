@@ -17,23 +17,23 @@ async function fixture(t, {owners={}}={}) {
   t.after(()=>rm(job,{recursive:true,force:true}));
   for(const dir of ['shots','inputs','review','assets']) await mkdir(path.join(job,dir));
   const words=['opening','comparison','ending'].map((text,i)=>({id:`w${i}`,text,start:i*6,end:i*6+1}));
-  const alignment={matchRatio:1,words},manifest={duration:18,width:1920,height:1080,status:'prepared'};
-  const film={version:2,title:'Fixture',concept:'A comparison',theme:{name:'Test look',description:'Chunky white outlines on a near-black stage,flat saturated fills,hard offset shadows and heavy display type for prices.',bg:'#101010',colors:{white:'#f0f0f0',grey:'#888888',dim:'#444444',faint:'#222222',blue:'#1488dd',yellow:'#ffd23f',red:'#e0342f',green:'#3fbf6f'},meanings:{yellow:'money'}},alternatives:[{concept:'A',rejected:'B'},{concept:'C',rejected:'D'}],subjects:[{id:'subject',what:'Recurring subject'}],prototype:'comparison',
+  const alignment={matchRatio:1,words},manifest={duration:18,width:1920,height:1080,status:'prepared',review:{producerAgentIds:['/fixture/producer'],producerAgentRecords:[{agentId:'/fixture/producer',role:'builder'}]}};
+  const film={version:2,title:'Fixture',concept:'A comparison',theme:{name:'Test look',description:'Chunky white outlines on a near-black stage,flat saturated fills,hard offset shadows and heavy display type for prices.',bg:'#101010',colors:{white:'#f0f0f0',grey:'#888888',dim:'#444444',faint:'#222222',blue:'#1488dd',yellow:'#ffd23f',red:'#e0342f',green:'#3fbf6f'},meanings:{yellow:'money'}},alternatives:[{concept:'A',rejected:'B'},{concept:'C',rejected:'D'}],subjects:[{id:'subject',what:'Recurring subject'}],
     scenes:words.map((w,i)=>({id:w.text,start:i?{phrase:w.text}:{boundary:'start'},idea:'Idea',mechanism:'Operation',states:['initial','operation','consequence'],payoff:'Result',camera:'Static',handoff:'Same subject',why_not_basic:'Meaning',alternatives:['Other'],carry:i?['subject']:[],...(owners[w.text]?{owner:owners[w.text]}:{})}))};
   await put(job,'job.json',manifest);await put(job,'alignment.json',alignment);await put(job,'film.json',film);
   return {job,film,manifest,alignment};
 }
 
-test('the director builds the prototype and its context in one brief; later scenes wait',async t=>{
+test('the director builds every scene it owns in one brief',async t=>{
   const {job}=await fixture(t);
   const first=await nextStep(job);
-  assert.equal(first.state,'build prototype');assert.match(first.text,/video-director: "Read .*direct-opening\.md/);
-  assert.match(first.text,/"opening", "comparison"/);assert.doesNotMatch(first.text,/ending/);
+  assert.equal(first.state,'build');assert.match(first.text,/video-director: "Read .*direct-opening\.md/);
+  assert.match(first.text,/"opening", "comparison", "ending"/);
   const brief=await readFile(path.join(job,'briefs/direct-opening.md'),'utf8');
-  assert.match(brief,/### opening/);assert.match(brief,/### comparison/);assert.doesNotMatch(brief,/### ending/);
+  assert.match(brief,/### opening/);assert.match(brief,/### comparison/);assert.match(brief,/### ending/);
 });
 
-test('delegated scenes go to builders in order, before a dependent prototype',async t=>{
+test('delegated scenes go to builders in order',async t=>{
   const {job}=await fixture(t,{owners:{opening:'builder',comparison:'builder'}});
   const first=await nextStep(job);
   assert.match(first.text,/video-builder: "Read .*build-opening\.md/);assert.doesNotMatch(first.text,/build-ending\.md/);
@@ -47,6 +47,7 @@ test('a passing build with builder notes stays fresh across next',async t=>{
   const {job}=await fixture(t);
   await put(job,'shots/opening.json',{scene:'opening',notes:'Kept a long hold on purpose.',objects:[{id:'subject',type:'circle',at:[960,540],r:100}],actions:[]});
   await put(job,'shots/comparison.json',{scene:'comparison',objects:[],actions:[]});
+  await put(job,'shots/ending.json',{scene:'ending',objects:[],actions:[]});
   await nextStep(job);
   const built=await buildFilm(job,{inspect:false,print:false});
   assert.ok(built.ok);
@@ -64,21 +65,22 @@ async function failedReviewFixture(t, {scope='scene',sceneIds,owners}={}) {
   const f=await fixture(t,{owners}),{job}=f;
   await put(job,'shots/opening.json',{scene:'opening',objects:[{id:'subject',type:'circle',at:[960,540],r:100}],actions:[]});
   await put(job,'shots/comparison.json',{scene:'comparison',objects:[],actions:[]});
+  await put(job,'shots/ending.json',{scene:'ending',objects:[],actions:[]});
   await buildFilm(job,{inspect:false,print:false});
-  await mkdir(path.join(job,'renders'));await mkdir(path.join(job,'review/prototype'));
+  await mkdir(path.join(job,'renders'));await mkdir(path.join(job,'review/final'));
   await writeFile(path.join(job,'renders/video.mp4'),'Synthetic state-machine fixture, not video.');
   const sourceHash=await sourceFingerprint(job),videoSha256=await fileHash(path.join(job,'renders/video.mp4'));
   await put(job,'review/render-source.json',{version:1,sourceHash,videoSha256});
   const evidence=[];
   for (const [name,kind] of [['frame.png','frames'],['sheet.png','contact-sheet'],['clip.mp4','clip'],['audio.wav','audio']]) {
-    const file='review/prototype/'+name;await writeFile(path.join(job,file),'Synthetic evidence fixture');
-    evidence.push({path:file,kind,start:6,end:kind==='frames'?6:16,sha256:await fileHash(path.join(job,file))});
+    const file='review/final/'+name;await writeFile(path.join(job,file),'Synthetic evidence fixture');
+    evidence.push({path:file,kind,start:kind==='frames'?6:0,end:kind==='frames'?6:18,sha256:await fileHash(path.join(job,file))});
   }
-  await put(job,'review/prototype/pack.json',{version:1,stage:'prototype',sourceHash,videoSha256,duration:18,interval:{start:6,end:16},scenes:[{id:'comparison',start:6,end:16}],evidence});
-  const context=await loadReviewPack(job,'prototype');
-  for(const role of REVIEW_ROLES) await submitReview(job,{version:1,stage:'prototype',role,sourceHash,videoSha256,packSha256:context.packSha256,
+  await put(job,'review/final/pack.json',{version:1,stage:'final',sourceHash,videoSha256,duration:18,interval:{start:0,end:18},scenes:[{id:'opening',start:0,end:6},{id:'comparison',start:6,end:12},{id:'ending',start:12,end:18}],evidence});
+  const context=await loadReviewPack(job,'final');
+  for(const role of REVIEW_ROLES) await submitReview(job,{version:1,stage:'final',role,sourceHash,videoSha256,packSha256:context.packSha256,
     reviewer:{agentId:'/fixture/'+role,independent:true},inspection:{mode:'frame-sequence',visual:'viewed',evidence:[evidence[0].path],limitations:['Synthetic test judgment, not a production review.'],...(role==='narration-fidelity'?{audio:'listened'}:{})},
-    initialObservation:'Synthetic fixture',coverage:[{start:6,end:16}],verdict:role==='visual-mechanism'?'revise':'pass',
+    initialObservation:'Synthetic fixture',coverage:[{start:0,end:18}],verdict:role==='visual-mechanism'?'revise':'pass',
     findings:role==='visual-mechanism'?[{id:'F1',severity:'blocking',scope,...(sceneIds?{sceneIds}:{}),start:6,end:7,subject:'subject',requirement:'Meaning',observed:'Result missing',repair:'Show the consequence',evidence:[evidence[0].path]}]:[]});
   return {...f,context};
 }
@@ -88,7 +90,7 @@ test('querying one failed pack twice does not consume rounds or invalidate the r
   assert.equal((await nextStep(job)).state,'repair');
   assert.equal((await nextStep(job)).state,'repair');
   assert.equal(await sourceFingerprint(job),before);
-  assert.equal(JSON.parse(await readFile(path.join(job,'job.json'))).reviewRounds.prototype,1);
+  assert.equal(JSON.parse(await readFile(path.join(job,'job.json'))).reviewRounds.final,1);
 });
 
 test('concept failures return to the director; boundary findings can target the earlier scene',async t=>{
@@ -127,8 +129,10 @@ test('style is advice: small text and off-theme colours warn, invented numbers s
 
 test('review templates leave inspection and coverage unclaimed; final review rejects missing scenes',async t=>{
   const {job}=await failedReviewFixture(t);
-  const template=JSON.parse(await readFile(await reviewTemplate(job,{stage:'prototype',role:'visual-mechanism'})));
+  const template=JSON.parse(await readFile(await reviewTemplate(job,{stage:'final',role:'visual-mechanism'})));
   assert.deepEqual(template.coverage,[]);assert.deepEqual(template.inspection.evidence,[]);assert.match(template.inspection.visual,/FILL-IN/);
+  await rm(path.join(job,'shots/ending.json'));
+  await buildFilm(job,{inspect:false,print:false,allowMissing:true});
   await assert.rejects(createReviewPack(job,{stage:'final'}),/cannot omit scenes/);
 });
 

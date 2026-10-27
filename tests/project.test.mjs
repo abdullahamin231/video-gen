@@ -47,7 +47,7 @@ test('a project needs an agreed brief and a free name', async t => {
   await assert.rejects(createProject(r, {name: 'demo'}), /BRIEF\.md/);
   await assert.rejects(createProject(r, {name: 'Bad Name'}), /lowercase/);
   const p = await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', format: 'vertical', duration: '60'});
-  assert.deepEqual(p.review, ['script', 'prototype', 'final', 'thumbnail']);
+  assert.deepEqual(p.review, ['script', 'final', 'thumbnail']);
   assert.equal(p.duration, 60);
   assert.equal(p.tts, 'ming');
   await assert.rejects(createProject(r, {name: 'demo', brief: 'x'}), /exists/);
@@ -111,7 +111,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   await put(r, 'narration.wav', 'RIFF');
   s = await step(r);
   assert.equal(s.state, 'start');
-  assert.match(s.text, /start --name demo --audio "jobs\/scripts\/demo\/narration\.wav" --script jobs\/scripts\/demo\/SCRIPT\.md --human-review prototype,final --pick-thumbnail true/);
+  assert.match(s.text, /start --name demo --audio "jobs\/scripts\/demo\/narration\.wav" --script jobs\/scripts\/demo\/SCRIPT\.md --human-review final --pick-thumbnail true/);
   const log = (await readFile(S(r, 'human/decisions.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
   assert.deepEqual(log.map(d => [d.decision, d.quote]), [['revise', 'open with the benchmark'], ['approve', 'yes, go']]);
 });
@@ -170,7 +170,8 @@ test('film steps become T3 tasks and external Tailscale reviews', async t => {
   const final = await adaptStep(r, project, {state: 'human review', text: 'STATE: human review of the final (x)\nDO: ...'}, DEFAULT_CHAT_CONFIG);
   assertExternalReview(final);
   assert.match(final, /--stage final --decision revise/);
-  assert.match(gate, /human-review --job jobs\/demo --stage prototype --decision approve --quote/);
+  assert.match(gate, /human-review --job jobs\/demo --stage final --decision approve --quote/);
+  assert.match(gate, /the whole film, before its one render/);
   const thumbs = await adaptStep(r, project, {state: 'choose thumbnail', text: 'STATE: the person picks the thumbnail (2 passed review: v1 "A", v2 "B")\nDO: ...'}, DEFAULT_CHAT_CONFIG);
   assertExternalReview(thumbs);
   assert.match(thumbs, /STATE: you pick the thumbnail \(2 passed/);
@@ -211,18 +212,18 @@ test('script review verdicts', () => {
 test('pipeline stages mark the step the video is on', async () => {
   const {pipelineStages} = await import('../lib/project.mjs');
   const {renderStageBar} = await import('../lib/stagebar.mjs');
-  const project = {review: ['script', 'prototype', 'final', 'thumbnail'], tts: 'kokoro'};
+  const project = {review: ['script', 'final', 'thumbnail'], tts: 'kokoro'};
   const at = status => { const s = pipelineStages({project, ...status}); return s.current && `${s.current.group}/${s.current.step}`; };
   assert.equal(at({phase: 'gathering sources'}), 'Script/Sources');
   assert.equal(at({phase: 'waiting for your script approval'}), 'Script/Your approval');
   assert.equal(at({phase: 'script review: fail'}), 'Script/Script written');
   assert.equal(at({phase: 'narration'}), 'Narration/Narration (kokoro)');
-  const ids = ['prepare', 'visuals', 'plan', 'prototype-scenes', 'prototype-build', 'prototype-review', 'prototype-human', 'scenes', 'final-build',
+  const ids = ['prepare', 'visuals', 'plan', 'scenes', 'final-build',
     'final-review', 'final-human', 'final-render', 'deliver'];
   const film = cur => ({steps: ids.map((id, i) => ({id, status: cur == null || i < ids.indexOf(cur) ? 'done' : id === cur ? 'repair' : 'pending', detail: ''}))});
   const s = pipelineStages({project, phase: 'film: build', film: film('final-build')});
-  assert.deepEqual([s.current.group, s.current.step, s.current.problem], ['Full film', 'Build and checks', true]);
-  assert.deepEqual(s.groups.map(g => g.status), ['done', 'done', 'done', 'done', 'current', 'pending', 'pending']);
+  assert.deepEqual([s.current.group, s.current.step, s.current.problem], ['Film', 'Build and checks', true]);
+  assert.deepEqual(s.groups.map(g => g.status), ['done', 'done', 'done', 'current', 'pending', 'pending']);
   const thumbs = (made, chosen) => ({variants: [{made, review: made ? {status: 'pass'} : null, needsWork: !made}], chosen});
   assert.equal(at({phase: 'film delivered', film: film(null), thumbnails: thumbs(false)}), 'Thumbnail/Variants made');
   assert.equal(at({phase: 'film delivered', film: film(null), thumbnails: thumbs(true)}), 'Thumbnail/Your pick');

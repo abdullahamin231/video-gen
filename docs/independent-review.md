@@ -61,10 +61,9 @@ IDs or submit director-authored opinions under reviewer identities.
 
 ## Evidence and coverage
 
-Review the demanding 10–15 s prototype before extending the film. Use the same
-three roles at that gate. Review the whole film again after assembly; a good
-prototype does not approve an unseen second half. The final review must cover
-the exact sources that are rendered for delivery.
+Review the whole film once, after every scene builds. There is no earlier
+prototype gate. The final review must cover the exact sources that are rendered
+for delivery.
 
 Nothing is rendered before the final review. Reviews look at the built HTML: the
 browser seeks the same seek-safe timeline the renderer captures, so a frame from
@@ -169,10 +168,10 @@ Both require current valid independent coverage and passing technical verificati
 ## Commands and machine-readable contract
 
 The host runs the commands and commissions the reviewers itself. For example,
-after the prototype builds, select the demanding prototype interval:
+after the film builds, freeze the full interval:
 
 ```bash
-npm run video -- review-pack --job jobs/example --stage prototype --start 8 --end 20
+npm run video -- review-pack --job jobs/example --stage final
 ```
 
 `review-pack` creates `review/<stage>/pack.json` and a frozen evidence run
@@ -187,7 +186,7 @@ and verdict `incomplete`. The blind visual role reads diagnostics only after sav
 `next` dispatches reviewers and repairs automatically.
 The command prepares dispatch material; the host's agent tools execute the
 reviews. Use `--stage final` for the whole film once every scene builds.
-The prototype is normally 10–15 s; a shorter film can use its whole duration.
+`--stage prototype` is retired and exits with an explanation.
 Interval arguments are film seconds, not word-count timing estimates. Sample
 the built film itself, never a Studio state (Studio stamps ids into the job's HTML).
 
@@ -214,7 +213,7 @@ SHA-256 values; timestamps must match the pack's real interval.
 ```json
 {
   "version": 1,
-  "stage": "prototype",
+  "stage": "final",
   "role": "visual-mechanism",
   "reviewer": {"agentId": "<actual reviewer agent ID>", "independent": true},
   "packSha256": "<pack SHA-256>",
@@ -296,15 +295,15 @@ inspection.
 Submit each review and inspect the gate status:
 
 ```bash
-npm run video -- review-submit --job jobs/example --file jobs/example/review/prototype/incoming/visual-mechanism.json
-npm run video -- review-status --job jobs/example --stage prototype
+npm run video -- review-submit --job jobs/example --file jobs/example/review/final/incoming/visual-mechanism.json
+npm run video -- review-status --job jobs/example --stage final
 ```
 
 Submission takes the stage from the report and stores the validated record at
 `review/<stage>/reviews/<role>.json`. `review-status` returns structured status
 and exits unsuccessfully while the gate is unmet. The host must read and act
 on findings, not merely retry the status command. Repeat submission for all
-three roles. Preserve the accepted prototype evidence when expanding the film.
+three roles.
 
 After the final pack and all three current reviews pass (and, when the person asked to see the film, their approval),
 `next` asks for one `render`, which writes a source receipt for the encoded result. Then run:
@@ -313,11 +312,8 @@ After the final pack and all three current reviews pass (and, when the person as
 npm run video -- deliver --job jobs/example
 ```
 
-`deliver` checks accepted prototype history, current final reviews and evidence,
-the render's source receipt, and technical media verification before recording
-completion. A prototype is historical evidence of a reviewed approach: its
-frozen source, video, pack, and review hashes must remain internally consistent,
-but its source hash need not equal the later full-film source hash. Final
+`deliver` checks the current final reviews and evidence, the render's source
+receipt, and technical media verification before recording completion. Final
 qualification strictly matches the current source and delivered MP4. Changing
 scenes, assets, cues, narration, camera behavior, or the final render invalidates
 the corresponding current qualification. Re-run review after such changes;
@@ -325,7 +321,7 @@ do not copy old hashes into a new report.
 
 ## Bounded creative review policy
 
-Each prototype/final stage gets at most three complete failed review rounds. Wait for all three role reports
+The final review gets at most three complete failed review rounds. Wait for all three role reports
 before producing one combined repair brief; repeated `next` on the same pack does not consume another round.
 After the third failed round, if no readability blockers remain, proceed with a `review-limit-reached` disposition and preserve other creative blocking findings
 in delivery metadata. Reviewer verdicts stay unchanged; this is completion with disclosed findings, not a pass.

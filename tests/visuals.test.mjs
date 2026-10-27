@@ -19,9 +19,6 @@ Sticker graphics on near-black.
 {"name": "Stickers", "description": "Sticker graphics", "bg": "#101010", "colors": {"white": "#f0f0f0"}}
 \`\`\`
 
-## Prototype
-\`comparison\` — the hardest passage.
-
 ## Scenes
 
 ### opening — the shelf appears
@@ -99,7 +96,7 @@ test('with a visual plan the director transcribes it and builders get their scen
   assert.equal(step.state, 'plan'); assert.match(step.text, /video-director: "Read .*director\.md/);
   const brief = await readFile(path.join(dir, 'briefs/director.md'), 'utf8');
   assert.match(brief, /Copy the plan into film\.json/); assert.doesNotMatch(brief, /Invent at least 2/);
-  const film = {version: 2, title: 'Fixture', concept: 'Shelf', theme: {}, prototype: 'comparison',
+  const film = {version: 2, title: 'Fixture', concept: 'Shelf', theme: {},
     scenes: [{id: 'opening', start: {boundary: 'start'}, idea: 'Shelf'}, {id: 'comparison', start: {phrase: 'comparison'}, idea: 'Two', owner: 'builder'}]};
   const card = builderBrief(dir, {duration: 18, width: 1920, height: 1080}, film, {id: 'comparison', start: 6, end: 18}, JSON.parse(await readFile(path.join(dir, 'alignment.json'), 'utf8')));
   assert.match(card, /visual direction for this scene/); assert.match(card, /\$3,999 swings onto the left box/);

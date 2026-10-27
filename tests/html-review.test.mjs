@@ -16,9 +16,9 @@ async function fixture(t, {human} = {}) {
   t.after(() => rm(job, {recursive: true, force: true}));
   for (const dir of ['shots', 'inputs', 'review', 'assets']) await mkdir(path.join(job, dir));
   const words = ['opening', 'comparison', 'ending'].map((text, i) => ({id: `w${i}`, text, start: i * 6, end: i * 6 + 1}));
-  const manifest = {duration: 18, width: 1920, height: 1080, status: 'prepared', ...(human ? {humanReview: human} : {})};
+  const manifest = {duration: 18, width: 1920, height: 1080, status: 'prepared', review: {producerAgentIds: ['/fixture/producer'], producerAgentRecords: [{agentId: '/fixture/producer', role: 'builder'}]}, ...(human ? {humanReview: human} : {})};
   const film = {version: 2, title: 'Fixture', concept: 'A comparison', theme: {name: 'Test look', description: 'Chunky white outlines on a near-black stage,flat saturated fills,hard offset shadows and heavy display type for prices.', bg: '#101010', colors: {white: '#f0f0f0', grey: '#888888', dim: '#444444', faint: '#222222', blue: '#1488dd', yellow: '#ffd23f', red: '#e0342f', green: '#3fbf6f'}, meanings: {yellow: 'money'}},
-    alternatives: [{concept: 'A', rejected: 'B'}, {concept: 'C', rejected: 'D'}], subjects: [{id: 'subject', what: 'Recurring subject'}], prototype: 'comparison',
+    alternatives: [{concept: 'A', rejected: 'B'}, {concept: 'C', rejected: 'D'}], subjects: [{id: 'subject', what: 'Recurring subject'}],
     scenes: words.map((w, i) => ({id: w.text, start: i ? {phrase: w.text} : {boundary: 'start'}, idea: 'Idea', mechanism: 'Operation', states: ['initial', 'operation', 'consequence'], payoff: 'Result', camera: 'Static', handoff: 'Same subject', why_not_basic: 'Meaning', alternatives: ['Other'], carry: i ? ['subject'] : []}))};
   await put(job, 'job.json', manifest); await put(job, 'alignment.json', {matchRatio: 1, words}); await put(job, 'film.json', film);
   await writeFile(path.join(job, 'assets/narration.wav'), 'Synthetic narration fixture');
@@ -28,7 +28,8 @@ async function fixture(t, {human} = {}) {
 }
 
 // A synthetic html pack (what review-pack writes from the built film), then the three reviews.
-async function htmlPack(job, stage, {start = 0, end = 18, verdict = 'pass'} = {}) {
+async function htmlPack(job, {start = 0, end = 18, verdict = 'pass'} = {}) {
+  const stage = 'final';
   await mkdir(path.join(job, `review/${stage}`), {recursive: true});
   const sourceHash = await sourceFingerprint(job), evidence = [];
   for (const [name, kind] of [['frame.png', 'frames'], ['sheet.png', 'contact-sheet']]) {
@@ -57,23 +58,16 @@ async function render(job, {integrity = true} = {}) {
   await writeFile(path.join(job, 'review/REPORT.md'), 'Production report fixture.');
 }
 
-test('the prototype is reviewed from the built HTML: next never asks for a render before the final review', async t => {
+test('the whole film is reviewed from the built HTML: next never asks for a render before the final review', async t => {
   const job = await fixture(t);
   await buildFilm(job, {inspect: false, print: false});
   const first = await nextStep(job);
-  assert.equal(first.state, 'review-pack prototype');
+  assert.equal(first.state, 'review-pack final');
   assert.match(first.text, /no render/); assert.doesNotMatch(first.text, /video -- render/);
-  await htmlPack(job, 'prototype', {start: 6, end: 16});
-  // The third passing report accepts the prototype; next moves straight on to the rest of the film.
-  assert.equal((await nextStep(job)).state, 'review-pack final');
-  // The full film: built, reviewed from HTML, and only then rendered once.
-  await buildFilm(job, {inspect: false, print: false});
-  assert.equal((await nextStep(job)).state, 'review-pack final');
-  await htmlPack(job, 'final');
+  await htmlPack(job);
   const step = await nextStep(job);
   assert.equal(step.state, 'render'); assert.match(step.text, /--reuse-build true/);
   assert.equal((await jobProgress(job)).current, 'final-render');
-  assert.ok(!(await jobProgress(job)).steps.some(s => s.id === 'prototype-render'));
   await assert.rejects(qualifyDelivery(job), /final render is missing/);
   await render(job);
   assert.equal((await nextStep(job)).state, 'deliver');
@@ -84,9 +78,7 @@ test('the prototype is reviewed from the built HTML: next never asks for a rende
 test('delivery needs the render of exactly the reviewed sources, with narration that matches', async t => {
   const job = await fixture(t);
   await buildFilm(job, {inspect: false, print: false});
-  await htmlPack(job, 'prototype', {start: 6, end: 16}); await nextStep(job);
-  await buildFilm(job, {inspect: false, print: false});
-  await htmlPack(job, 'final');
+  await htmlPack(job);
   await render(job, {integrity: false});
   await assert.rejects(qualifyDelivery(job), /narration does not match/);
   await render(job);
@@ -98,17 +90,17 @@ test('delivery needs the render of exactly the reviewed sources, with narration 
 });
 
 test('the person reviews after the reviewers pass; their notes become repairs word for word', async t => {
-  const job = await fixture(t, {human: ['prototype']});
+  const job = await fixture(t, {human: ['final']});
   await buildFilm(job, {inspect: false, print: false});
-  const pack = await htmlPack(job, 'prototype', {start: 6, end: 16});
+  const pack = await htmlPack(job);
   const waiting = await nextStep(job);
-  assert.equal(waiting.state, 'human review prototype');
-  assert.match(waiting.text, /checkpoint \{kind: "prototype"/); assert.match(waiting.text, /Never decide for them/);
-  assert.equal((await jobProgress(job)).current, 'prototype-human');
+  assert.equal(waiting.state, 'human review final');
+  assert.match(waiting.text, /checkpoint \{kind: "final"/); assert.match(waiting.text, /Never decide for them/);
+  assert.equal((await jobProgress(job)).current, 'final-human');
   // Not accepted until the person decides.
-  assert.equal((await nextStep(job)).state, 'human review prototype');
-  await assert.rejects(recordHumanReview(job, {stage: 'prototype', decision: 'revise'}), /at least one note/);
-  const record = await recordHumanReview(job, {stage: 'prototype', decision: 'revise', notes: [parseNote('3: The bar should be red, not blue'), parseNote('Slower overall')]});
+  assert.equal((await nextStep(job)).state, 'human review final');
+  await assert.rejects(recordHumanReview(job, {stage: 'final', decision: 'revise'}), /at least one note/);
+  const record = await recordHumanReview(job, {stage: 'final', decision: 'revise', notes: [parseNote('3: The bar should be red, not blue'), parseNote('Slower overall')]});
   assert.equal(record.notes[0].start, 3, 'a note on the introduction keeps its moment');
   assert.equal(record.packSha256, pack.packSha256);
   const repair = await nextStep(job);
@@ -118,29 +110,17 @@ test('the person reviews after the reviewers pass; their notes become repairs wo
   // The repaired film is a new pack: the old decision no longer counts.
   await writeFile(path.join(job, 'shots/comparison.json'), JSON.stringify({scene: 'comparison', objects: [], actions: [], notes: 'repaired'}));
   await buildFilm(job, {inspect: false, print: false});
-  const second = await htmlPack(job, 'prototype', {start: 6, end: 16});
-  assert.equal(await humanDecision(job, 'prototype', second.packSha256), null);
-  assert.equal((await nextStep(job)).state, 'human review prototype');
-  await recordHumanReview(job, {stage: 'prototype', decision: 'approve'});
-  assert.equal((await nextStep(job)).state, 'review-pack final');
-});
-
-test('the final human review comes before the one render', async t => {
-  const job = await fixture(t, {human: ['final']});
-  await buildFilm(job, {inspect: false, print: false});
-  await htmlPack(job, 'prototype', {start: 6, end: 16});
-  assert.equal((await nextStep(job)).state, 'review-pack final', 'only the stages asked for wait');
-  await buildFilm(job, {inspect: false, print: false});
-  await htmlPack(job, 'final');
+  const second = await htmlPack(job);
+  assert.equal(await humanDecision(job, 'final', second.packSha256), null);
   assert.equal((await nextStep(job)).state, 'human review final');
   await recordHumanReview(job, {stage: 'final', decision: 'approve'});
   assert.equal((await nextStep(job)).state, 'render');
 });
 
 test('human review settings and notes parse strictly, and the setting is not a production source', async t => {
-  assert.deepEqual(parseStages('prototype,final'), ['prototype', 'final']);
+  assert.deepEqual(parseStages('prototype,final'), ['final'], 'legacy prototype waits for the one final review');
   assert.deepEqual(parseStages('none'), []);
-  assert.throws(() => parseStages('script'), /prototype, final/);
+  assert.throws(() => parseStages('script'), /final/);
   assert.deepEqual(parseNote('12.5-14: make it red'), {start: 12.5, end: 14, text: 'make it red'});
   assert.deepEqual(parseNote('just slower'), {text: 'just slower'});
   const job = await fixture(t), before = await sourceFingerprint(job);
@@ -153,10 +133,10 @@ test('human review settings and notes parse strictly, and the setting is not a p
 test('a complete third failed round advances to render; partial rounds never trigger repairs', async t => {
   const job = await fixture(t);
   await buildFilm(job, {inspect:false, print:false});
-  await htmlPack(job,'prototype',{start:6,end:16});
+  await htmlPack(job);
   await nextStep(job);
   await buildFilm(job, {inspect:false, print:false});
-  const context = await htmlPack(job,'final');
+  const context = await htmlPack(job);
   const report = await read(job,'review/final/reviews/visual-mechanism.json');
   report.verdict = 'revise';
   report.findings = [{id:'F1',severity:'blocking',start:6,end:7,scope:'scene',sceneIds:['comparison'],

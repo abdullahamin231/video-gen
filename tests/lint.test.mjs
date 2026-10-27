@@ -15,7 +15,7 @@ async function job(t, hook) {
   for (const d of ['shots', 'assets']) await mkdir(path.join(dir, d));
   const words = ['opening', 'ending'].map((text, i) => ({id: `w${i}`, text, start: i * 4, end: i * 4 + 1}));
   const alignment = {matchRatio: 1, words}, manifest = {name: 'lint', duration: 8, width: 1920, height: 1080, fps: 30};
-  const film = {version: 2, title: 'Lint', concept: 'c', prototype: 'opening', alternatives: [{concept: 'A', rejected: 'B'}, {concept: 'C', rejected: 'D'}],
+  const film = {version: 2, title: 'Lint', concept: 'c', alternatives: [{concept: 'A', rejected: 'B'}, {concept: 'C', rejected: 'D'}],
     theme: {name: 'Test look', description: 'Chunky white outlines on a near-black stage, flat saturated fills, hard offset shadows and heavy display type.', bg: '#101010', colors: {white: '#f0f0f0', yellow: '#ffd23f'}},
     scenes: words.map((w, i) => ({id: w.text, start: i ? {phrase: w.text} : {boundary: 'start'}, idea: 'Idea', mechanism: 'Operation', states: ['a', 'b', 'c'], payoff: 'Result', camera: 'Static', handoff: 'Same', why_not_basic: 'Meaning', alternatives: ['Other']}))};
   await put(dir, 'shots/opening.json', {scene: 'opening', objects: [{id: 'a', type: 'circle', at: [960, 540], r: 100}], actions: [{do: 'create', target: 'a', at: 'start+0.5', dur: 1}], ...(hook ? {hook: 'shots/opening.hook.js'} : {})});
