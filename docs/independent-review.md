@@ -71,7 +71,9 @@ the pack is the frame the MP4 will hold at that time. Prepare a frozen evidence 
 build. The pack is preflighted before it becomes visible to reviewers: every scene
 must contain image evidence, audio must span the film, and encoded packs must
 have clips covering each scene (and each app-capture interval). A failed preflight
-writes no pack and starts no reviewer; its consolidated error names every gap.
+writes no pack and starts no reviewer; its consolidated error names every gap. Each frozen pack is also archived as
+`review/<stage>/packs/<sha256>.json`, so a later round cannot erase what its reviewers saw. The live
+`review/<stage>/pack.json` remains the current pack that qualification and repair checks read.
 Include the source fingerprint, duration, contact sheet sampled at the review depth's frame step
 (standard: once per second), ordered frames stamped with their film time, phone-scale frames, and denser
 samples around changes of state, cue starts, and handoffs. Once the final reviews

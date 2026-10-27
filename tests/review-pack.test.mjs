@@ -46,6 +46,9 @@ test('review pack freezes dense rendered evidence and normal speed clips', {skip
   assert.deepEqual(pack.interval, {start: 0, end: 3});
   assert.deepEqual(pack.scenes.map(scene => scene.id), ['opening', 'payoff']);
   assert.equal(pack.sourceHash, await sourceFingerprint(job));
+  assert.match(pack.packArchivePath, /^review\/final\/packs\/[a-f0-9]{64}\.json$/);
+  assert.equal(pack.packSha256, sha(await readFile(path.join(job, pack.packArchivePath))));
+  assert.equal(await readFile(path.join(job, pack.packArchivePath), 'utf8'), await readFile(path.join(job, pack.packPath), 'utf8'));
   assert.equal((await loadReviewPack(job, 'final')).pack.videoSha256, pack.videoSha256);
   const samples = pack.evidence.filter(item => item.kind === 'frames');
   for (const expected of [0, 0.8, 1, 1.5, 2])
@@ -77,6 +80,7 @@ test('review pack freezes dense rendered evidence and normal speed clips', {skip
   }
   const second = await createReviewPack(job, {from: 'render'});
   assert.notEqual(second.evidence.find(item => item.kind === 'frames').path, samples[0].path);
+  assert.notEqual(second.packArchivePath, pack.packArchivePath);
   assert.equal(second.videoSha256, pack.videoSha256);
   assert.equal((await loadReviewPack(job, 'final')).pack.videoSha256, pack.videoSha256);
   const frozenVerification = second.evidence.find(item => item.kind === 'verification');
