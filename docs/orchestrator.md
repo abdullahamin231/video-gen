@@ -92,32 +92,31 @@ catalog for tracked tasks. After a tracked batch finishes, run `delegated --proj
 
 ```mermaid
 flowchart TD
-    A[User brief or supplied material] --> B[Project and editorial profile]
-    B --> C{Inputs needed?}
-    C -->|Factual script| D[Research and retained sources]
-    C -->|App review| E[Record actual browser tasks]
-    E --> D
-    D --> F[Write narration and concise visual intent]
-    F --> G[Independent script review]
-    G -->|Revise or missing evidence| D
-    G --> H{Requested script checkpoint}
-    C -->|Supplied script or recording| H
-    H --> I[Use recording or generate whole narration]
-    I --> J[Measure word timing and prepare job]
-    J --> K[Director authors native HyperFrames scenes]
-    J --> N[News adapter: cleared media and source speech]
-    K --> L[Build: assemble, lint, inspect, test seeking]
-    N --> L
-    L -->|Technical failure| K
-    L --> M[Freeze full-film review evidence]
-    M --> O[Independent review]
-    O -->|Concrete repairs| K
-    O --> P{Requested film checkpoint}
-    P --> Q[Render and verified soundtrack]
-    Q -->|Verification failure| K
-    Q --> R[Qualify local delivery]
-    R --> S[Thumbnail variants and independent review]
-    S --> T[User selection if requested; archive]
-    T --> U[Approved publishing copy]
-    U --> V[Unlisted upload unless opted out]
+    A[Brief or supplied material] --> B[Project and editorial intent]
+    B --> C{Script needed?}
+    C -->|Yes| D[Research, write and independently review]
+    D --> E[Requested script checkpoint]
+    C -->|No| E
+    E --> F[Use recording or generate Ming narration]
+    F --> G[Measure word timing and prepare job]
+    G --> H[Author native scenes or real-media news edit]
+    H --> I[Build, lint and inspect]
+    I -->|Repair| H
+    I --> J{App review?}
+    J -->|Yes| K[Render and verify actual playback]
+    K -->|Repair| H
+    K --> L[Freeze full-film evidence]
+    J -->|No| L
+    L --> M[Independent film review]
+    M -->|Concrete repairs| H
+    M --> N[Requested film checkpoint]
+    N --> O{Current verified render?}
+    O -->|No| P[Render and verify soundtrack and pixels]
+    P -->|Repair| H
+    P --> Q[Qualify local delivery]
+    O -->|Yes| Q
+    Q --> R[Thumbnail creation and independent review]
+    R --> S[Selection if requested and archive]
+    S --> T[Approved publishing copy]
+    T --> U[Unlisted upload unless opted out]
 ```
