@@ -7,7 +7,7 @@ import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
-const skill=path.join(root,'.opencode/skills/script-writing');
+const skill=path.join(root,'skills/script-writing');
 async function workspace(t) {
   const dir=await mkdtemp(path.join(os.tmpdir(),'script-writing-'));
   t.after(()=>rm(dir,{recursive:true,force:true}));return dir;
@@ -72,7 +72,6 @@ test('source fetch accepts Reddit post and JSON URLs without duplicating the suf
   }
 });
 
-test('script-writing skill aliases resolve to the canonical skill',async()=>{
-  for(const alias of ['.agents/skills/script-writing','.claude/skills/script-writing'])
-    assert.equal(await realpath(path.join(root,alias)),await realpath(skill));
+test('script-writing tools live in the canonical skill folder',async()=>{
+  assert.equal(await realpath(skill), path.join(root, 'skills/script-writing'));
 });

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Review a demo"
-  short_description: "Inspect recordings, changes, and privacy findings"
-  default_prompt: "Use $reshoot-review to review a reshoot run and its findings without treating execution success as approval."
