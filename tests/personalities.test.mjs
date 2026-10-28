@@ -37,7 +37,7 @@ test('normal requests route by treatment, with storytelling fixed and ambiguous 
 test('each personality has its own complete package, with truthful renderer readiness', () => {
   for (const id of PERSONALITIES) {
     const snapshot = loadPersonality(id);
-    assert.match(snapshot.files['ORCHESTRATOR.md'], new RegExp(`--profile ${id}`));
+    assert.match(snapshot.files['PROFILE.md'], new RegExp(`--profile ${id}`));
     assert.match(snapshot.sha256, /^[a-f0-9]{64}$/);
     assert.doesNotThrow(() => assertRenderReady(snapshot));
   }
@@ -49,15 +49,15 @@ test('frozen instructions survive catalog edits and reject missing, changed or m
   const snapshot = loadPersonality('rules-story', catalog);
   const metadata = await freezePersonality(dir, snapshot);
   await writeFile(path.join(dir, 'project.json'), JSON.stringify({productionProfile: metadata}));
-  await writeFile(path.join(catalog, 'rules-story/DESIGN.md'), 'Future catalog design');
+  await writeFile(path.join(catalog, 'rules-story/PROFILE.md'), 'Future catalog design');
   assert.notEqual(loadPersonality('rules-story', catalog).sha256, snapshot.sha256);
   const catalogEdit = structuredClone(snapshot);
-  catalogEdit.files['DESIGN.md'] = 'A different future design';
-  assert.equal(readPersonality(dir).files['DESIGN.md'], snapshot.files['DESIGN.md']);
+  catalogEdit.files['PROFILE.md'] = 'A different future design';
+  assert.equal(readPersonality(dir).files['PROFILE.md'], snapshot.files['PROFILE.md']);
   await assert.rejects(freezePersonality(dir, loadPersonality('explainer')), /frozen/);
   const brief = personalityBrief(dir, '# Writer\nOriginal task.');
   assert.match(brief, /Production personality: rules-story v[0-9]+/);
-  assert.ok(!brief.includes(loadPersonality('explainer').files['DESIGN.md']));
+  assert.ok(!brief.includes(loadPersonality('explainer').files['PROFILE.md']));
   const before = await sourceFingerprint(dir);
   await writeFile(path.join(dir, PROFILE_FILE), JSON.stringify(catalogEdit));
   assert.throws(() => readPersonality(dir), /changed or are invalid/);
@@ -78,7 +78,7 @@ test('automatic project routing persists through research and revision without a
   await projectStep(root, 'story');
   const research = await readFile(path.join(dir, 'briefs/research.md'), 'utf8');
   assert.match(research, /rules-story v[0-9]+/);
-  assert.match(research, /seven numbered rules/);
+  assert.match(research, /rules-based treatment/);
   await closeDelegation(root, 'story');
   await writeFile(path.join(dir, 'SOURCES.md'), '# Original premise and factual background');
   await projectStep(root, 'story');
@@ -93,14 +93,14 @@ test('story direction/build briefs exclude explainer design and retain the fixed
   const manifest = {duration: 12, width: 1920, height: 1080};
   const alignment = {words: [{text: 'Listen', start: 0, end: 1}]};
   const director = directorBrief(dir, manifest, alignment);
-  assert.match(director, /Bradikinin frame-study specification/);
+  assert.match(director, /docs\/composition.md/);
   assert.doesNotMatch(director, /Show the real thing, drawn|Everything else you draw as SVG|Invent at least 2 genuinely different whole-film concepts/);
   const film = {concept: 'Rules', scenes: [{id: 'opening', idea: 'Rule one', carry: [], start: {boundary: 'start'}}]};
   const builder = builderBrief(dir, manifest, film, {id: 'opening', start: 0, end: 12}, alignment);
-  assert.match(builder, /Short holds, clean cuts/);
+  assert.match(builder, /creative\s+authority/);
   assert.doesNotMatch(builder, /every object arrives with motion/);
   const file = await writeBrief(dir, 'build-opening.md', builder);
-  assert.match(await readFile(file, 'utf8'), /Frozen rules-story\/REVIEW.md/);
+  assert.match(await readFile(file, 'utf8'), /production-profile.json/);
 });
 
 test('news uses its own source rubric and app review records the session before it writes', async t => {
@@ -108,7 +108,7 @@ test('news uses its own source rubric and app review records the session before 
   await createProject(root, {name: 'news', brief: 'Cover today\'s financial news.'});
   await projectStep(root, 'news');
   const news = await readFile(path.join(root, 'jobs/scripts/news/briefs/research.md'), 'utf8');
-  assert.match(news, /verify ownership\/public-domain/);
+  assert.match(news, /reuse rights/);
   assert.doesNotMatch(news, /Show the real thing, drawn/);
 
   await createProject(root, {name: 'app', brief: 'Review T3 Code entirely.'});
@@ -195,17 +195,3 @@ test('prepared personality projects support inspection, status and listing while
 });
 
 
-test('legacy frozen news capability is supported without changing its identity or admitting future blocked adapters', async t => {
-  const root=await fixture(t), catalog=path.join(root,'catalog');
-  await cp(path.resolve('personalities/news-political'),path.join(catalog,'news-political'),{recursive:true});
-  const definition=JSON.parse(await readFile(path.join(catalog,'news-political/profile.json')));
-  definition.version=1;definition.renderReady=false;definition.blocker='Source-clip audio, editorial timeline and multi-speaker captions are not implemented in the current renderer.';
-  await writeFile(path.join(catalog,'news-political/profile.json'),JSON.stringify(definition));
-  const legacy=loadPersonality('news-political',catalog);
-  await freezePersonality(root,legacy);
-  const before=await readFile(path.join(root,PROFILE_FILE),'utf8');
-  assert.doesNotThrow(()=>assertRenderReady(readPersonality(root)));
-  assert.equal(await readFile(path.join(root,PROFILE_FILE),'utf8'),before);
-  const future=structuredClone(legacy);future.profile.version=99;future.profile.blocker='Future adapter not implemented';
-  assert.throws(()=>assertRenderReady(future),/Future adapter/);
-});

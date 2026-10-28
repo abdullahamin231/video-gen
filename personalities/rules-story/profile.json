@@ -1,6 +1,6 @@
 {
   "id": "rules-story",
-  "version": 2,
+  "version": 3,
   "name": "Rules-based storytelling (Bradikinin style)",
   "workflow": "rules-story",
   "renderReady": true

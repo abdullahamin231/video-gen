@@ -1,6 +1,6 @@
 {
   "id": "app-review",
-  "version": 3,
+  "version": 4,
   "name": "Hands-on app review",
   "workflow": "app-review",
   "renderReady": true

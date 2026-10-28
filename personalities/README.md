@@ -1,30 +1,15 @@
-# Video personalities
+# Editorial profiles
 
-AGENTS.md routes normal requests to a personality-specific ORCHESTRATOR.md. The agent selects the ID; the user does not need to name it. Four families have five concrete packages:
+Choose by treatment, not just topic. The user's explicit direction wins.
 
-| Folder | Treatment | Current renderer |
-| --- | --- | --- |
-| explainer | Existing scientific/educational/technical explanation | Supported |
-| rules-story | Fixed Bradikinin-style fictional rule/survival storytelling | Supported; human approval tunes the style |
-| news-financial | Real financial sources and original commentary | Supported real-media adapter; mandatory subtitles |
-| news-political | Real political footage/articles, commentary and circular presenter | Supported real-media adapter; mandatory subtitles |
-| app-review | Actual hands-on app recordings and cursor-guided review | Supported for browser apps (reshoot + `capture-ingest` + `capture-scene`); native desktop surfaces are outside the adapter |
+| Intent | Profile |
+|---|---|
+| Teach a concept or mechanism | [explainer](explainer/PROFILE.md) |
+| Original uncanny fiction or survival rules | [rules-story](rules-story/PROFILE.md) |
+| Markets, earnings or financial reporting | [news-financial](news-financial/PROFILE.md) |
+| Elections, government or political reporting | [news-political](news-political/PROFILE.md) |
+| Actually test or demonstrate software | [app-review](app-review/PROFILE.md) |
 
-Every folder contains profile.json, ORCHESTRATOR.md, EDITORIAL.md, DESIGN.md, TOOLS.md and REVIEW.md. Edit the appropriate package, not the shared runbook, to change that personality. Explainer design/vocabulary were moved out of lib/briefs.mjs. All generated research, writing, direction, building, repair, review and thumbnail briefs receive the selected package. Generic skills/schema examples cannot change the chosen genre.
-
-The agent can inspect routing without creating a project:
-
-```bash
-npm run video -- profiles
-npm run video -- profile-route --prompt "Make a horror story about an elevator"
-```
-
-Once the user requests production, the agent passes --profile with its inferred choice to project-new or start/prepare. Omitted choices use conservative inference from the agreed brief (or supplied script). Ambiguous news requests return no ID and require one clarification. Explicit choices are validated. Unknown IDs fail. Resuming uses saved state rather than reclassifying the latest message.
-
-New projects store ID/version/SHA-256 in project.json and the complete frozen package in production-profile.json. Prepared jobs inherit that snapshot from the script folder and store its metadata in job.json. Missing/changed/mismatched snapshots fail; changing global instructions does not alter existing jobs. Reviews include the frozen snapshot in the source fingerprint. Existing jobs with no metadata retain the explainer default. project-set cannot switch personalities; create a new project for a different treatment.
-
-News renderReady=true is backed by actual adapter/render tests, including encoded speech/subtitle checks. App-review films record the session with reshoot, ingest the clean take and compile rings and camera from its action log ([reshoot.md](../docs/reshoot.md)); a review without that evidence is still blocked, because the script and verdict must follow the recording rather than precede it. No profile can silently fall back to the explainer. Never change renderReady solely to bypass that check.
-
-No video.config.json changes, T3 fork, native picker or provider-model change is needed. T3 reads AGENTS.md and the selected orchestrator; its usual delegated-role lifecycle remains in docs/t3-orchestrator.md. The video-gen web UI also receives profile routing instructions. chat.config.json provider profiles stay separate.
-
-Financial and political catalog profiles are v3 for the footage-led design revision and use the verified real-media news-edit adapter; see [news workflow](../docs/news.md). Old frozen v1 news projects retain their identity and gain the adapter capability without snapshot edits. Browser-app capture is supported; native desktop windows and OS dialogs remain outside that adapter.
+Load only the selected profile. Ask a routing question only when the treatment is genuinely ambiguous.
+`project-new --profile <id>` saves its instructions with the project. Provider/model settings are separate.
+Profiles establish purpose and evidentiary boundaries; agents choose the storytelling and implementation.
