@@ -58,3 +58,11 @@ Encoded capture verification compares supported footprints against source frames
 footprints require independent paired-frame inspection through `capture-visibility` and the generated
 review assignment. Pixel checks cannot establish the truth of a product claim; the reviewer must inspect
 the real session. Do not claim coverage or listening that the available evidence does not support.
+
+For independent capture inspection, compare every paired source/render PNG in
+`review/capture-visibility-dispositions.json` at the named interval points. Record
+`review/independent-verdict.json` with the current sourceHash and videoSha256, actual
+`reviewer: {agentId, independent:true}`, and `dispositions: [{captureId,sceneId,decision,observation}]`.
+Decision is `acceptable` or `reject`; the observation describes what the paired images actually show.
+Missing, obscured or materially inconsistent app content requires rejection. This is visual judgment,
+not automated pixel verification.

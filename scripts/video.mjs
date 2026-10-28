@@ -16,7 +16,7 @@ import {planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextSt
 import {installRuntime} from '../lib/composition.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {SpecError} from '../lib/composition.mjs';
-import {directorBrief, writeBrief} from '../lib/briefs.mjs';
+import {directorBrief, writeBrief, taskPrompt} from '../lib/briefs.mjs';
 import {findVisualPlan, VISUALS_FILE} from '../lib/timing.mjs';
 import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/format.mjs';
 import {loadConfig, resolveSettings} from '../lib/format.mjs';
@@ -179,6 +179,9 @@ async function prepare(opts) {
   const productionProfile = await freezePersonality(job, personality);
 
   await writeFile(path.join(job, 'inputs/source-script.md'), sourceScript);
+  const sourceBrief = opts['brief-file'] ? path.resolve(ROOT,opts['brief-file']) : path.join(path.dirname(script),'BRIEF.md');
+  const hasBrief = await exists(sourceBrief);
+  if(hasBrief) await copyFile(sourceBrief,path.join(job,'inputs/brief.md'));
   // The writer's visual plan travels with the script; without one, `next` asks a writer for it before planning.
   const visuals = opts.visuals ? path.resolve(ROOT, opts.visuals) : await findVisualPlan(script);
   if (visuals) await copyFile(visuals, path.join(job, VISUALS_FILE));
@@ -194,6 +197,7 @@ async function prepare(opts) {
     duration: actualDuration, format, width: settings.width, height: settings.height, fps,
     audio: {path: 'assets/narration.wav', source: path.relative(ROOT, audio), sourceStart: start,
       sha256: await digest(path.join(job, 'assets/narration.wav'))},
+    ...(hasBrief ? {brief:{path:'inputs/brief.md',source:path.relative(ROOT,sourceBrief)}} : {}),
     script: {path: 'inputs/source-script.md', source: path.relative(ROOT, script), sha256: await digest(script)},
     ...(visuals ? {visuals: {path: VISUALS_FILE, source: path.relative(ROOT, visuals), sha256: await digest(visuals)}} : {}),
     ...(channel ? {channelTheme: {path: CHANNEL_THEME_FILE, source: path.relative(ROOT, channel.file), sha256: await digest(channel.file)}} : {}),
@@ -221,7 +225,7 @@ async function finishPreparation(job, manifest, narration, {updateLatest = true}
   await save(path.join(job, 'alignment.json'), alignment);
   await writeFile(path.join(job, 'SCRIPT.md'), `# Recorded excerpt\n\n${words.map(w => w.text).join(' ')}\n`);
   await writeBrief(job, 'director.md', directorBrief(job, manifest, alignment));
-  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: ${manifest.workflow}\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nUse docs/composition.md for authoring and docs/orchestrator.md for transport.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nProduction is driven by the orchestrator alone: npm run video -- next --job jobs/${manifest.name}. An agent following a brief in briefs/ follows only that brief.\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
+  await writeFile(path.join(job,'BRIEF.md'),taskPrompt('film',{name:manifest.name,contract:'docs/composition.md',recording:'assets/narration.wav',script:'inputs/source-script.md',userBrief:manifest.brief?.path||null,duration:manifest.duration,width:manifest.width,height:manifest.height}));
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
   manifest.status = 'prepared';
   await save(path.join(job, 'job.json'), manifest);

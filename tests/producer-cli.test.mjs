@@ -64,6 +64,7 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   });
   const script=path.join(scriptDir,'SCRIPT.md'), audio=path.join(project,'narration.wav');
   await writeFile(script,'# Demo\n\nThe setting is visible.');
+  await writeFile(path.join(scriptDir,'BRIEF.md'),'Show the actual product session with a restrained visual treatment.');
   const profile=await loadPersonality('app-review');
   const productionProfile=await freezePersonality(scriptDir,profile);
   await writeFile(path.join(scriptDir,'project.json'),JSON.stringify({slug:'fixture',productionProfile}));
@@ -80,6 +81,7 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   await run(['prepare','--name',slug,'--audio',audio,'--script',script,'--profile','app-review','--words',words,'--no-latest']);
   const manifest=JSON.parse(await readFile(path.join(job,'job.json'),'utf8'));
   assert.equal(manifest.productionProfile.id,'app-review');
+  assert.equal(await readFile(path.join(job,'inputs/brief.md'),'utf8'),'Show the actual product session with a restrained visual treatment.');
   await writeFile(path.join(job,'film.json'),JSON.stringify({version:2,title:'Capture',concept:'Actual session',scenes:[{id:'demo',kind:'html',file:'compositions/demo.html',idea:'Recorded task',owner:'builder'}]}));
   await run(['capture-scene','--job',job,'--capture','capture/screen','--scene','demo'],{VIDEO_AGENT_ROLE:'app-review-builder',VIDEO_AGENT_ID:'runner-job-capture-scene'});
   const withScene=JSON.parse(await readFile(path.join(job,'job.json'),'utf8'));
