@@ -53,9 +53,9 @@ async function body(req) {
 }
 const string = (value, max = 120) => typeof value === 'string' && value.length <= max && !value.includes('\0');
 function config(input, existing) {
-  const ttsProvider = input.ttsProvider ?? (existing ? existing.ttsProvider || 'kokoro' : DEFAULT_TTS_PROVIDER);
-  if (!TTS_PROVIDERS.includes(ttsProvider)) throw fail('Choose Kokoro, Ming or Gemini for narration');
-  if (existing && ttsProvider !== (existing.ttsProvider || 'kokoro') && existing.agents.length)
+  const ttsProvider = input.ttsProvider ?? (existing ? existing.ttsProvider || 'ming' : DEFAULT_TTS_PROVIDER);
+  if (!TTS_PROVIDERS.includes(ttsProvider)) throw fail('Choose Ming for narration');
+  if (existing && ttsProvider !== (existing.ttsProvider || 'ming') && existing.agents.length)
     throw fail('Narration provider cannot change after production starts. Choose it when creating a new video.');
   if (!providerNames.includes(input.provider)) throw fail('Choose Codex, Claude, OpenCode, or Pi');
   if (!string(input.main ?? '')) throw fail('Invalid main model');

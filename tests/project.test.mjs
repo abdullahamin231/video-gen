@@ -65,7 +65,7 @@ test('review depth is chosen per project and can be changed before the job freez
 
 test('the script stage: sources, writer, review rounds, the person approves, narration, start', async t => {
   const r = await root(t);
-  await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', duration: '90', tts: 'kokoro'});
+  await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', duration: '90', tts: 'ming'});
   let s = await projectStep(r, 'demo');
   assert.equal(s.state, 'gather the sources');
   assert.match(s.text, /"role":"research"/);
@@ -117,7 +117,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
 
   s = await step(r);
   assert.equal(s.state, 'narration');
-  assert.match(s.text, /tts jobs\/scripts\/demo\/SCRIPT\.md --narration --provider kokoro .* -o jobs\/scripts\/demo\/narration\.wav/);
+  assert.match(s.text, /tts jobs\/scripts\/demo\/SCRIPT\.md --narration --provider ming .* -o jobs\/scripts\/demo\/narration\.wav/);
   await put(r, 'narration.wav', 'RIFF');
   s = await step(r);
   assert.equal(s.state, 'start');
@@ -222,12 +222,12 @@ test('script review verdicts', () => {
 test('pipeline stages mark the step the video is on', async () => {
   const {pipelineStages} = await import('../lib/project.mjs');
   const {renderStageBar} = await import('../lib/stagebar.mjs');
-  const project = {review: ['script', 'final', 'thumbnail'], tts: 'kokoro'};
+  const project = {review: ['script', 'final', 'thumbnail'], tts: 'ming'};
   const at = status => { const s = pipelineStages({project, ...status}); return s.current && `${s.current.group}/${s.current.step}`; };
   assert.equal(at({phase: 'gathering sources'}), 'Script/Sources');
   assert.equal(at({phase: 'waiting for your script approval'}), 'Script/Your approval');
   assert.equal(at({phase: 'script review: fail'}), 'Script/Script written');
-  assert.equal(at({phase: 'narration'}), 'Narration/Narration (kokoro)');
+  assert.equal(at({phase: 'narration'}), 'Narration/Narration (ming)');
   const ids = ['prepare', 'visuals', 'plan', 'scenes', 'final-build',
     'final-review', 'final-human', 'final-render', 'deliver'];
   const film = cur => ({steps: ids.map((id, i) => ({id, status: cur == null || i < ids.indexOf(cur) ? 'done' : id === cur ? 'repair' : 'pending', detail: ''}))});

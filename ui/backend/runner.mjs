@@ -12,7 +12,6 @@ import { computeProgress, computeHealth, scriptDisposition } from './progress.mj
 import { routeModel, CLAUDE_AGENT_TYPES, DELEGATE_ROLES } from '../shared/routing.mjs';
 import { recordHumanReview, setHumanStages } from '../../lib/human.mjs';
 import { thumbnailDimensions, thumbnailStatus, chooseThumbnail, addThumbnailFeedback } from '../../lib/thumbnails.mjs';
-import { QUOTA_NOTICE, modelFallbackNotice } from '../../lib/tts.mjs';
 
 const LIVE = new Set(['starting', 'running', 'waiting']);
 // Checkpoints on the film itself: you watch the built HTML and approve it or leave notes at moments in it.
@@ -184,7 +183,7 @@ export class Runner {
     this.credentials.set(token, { thread: job.id, agentId: agent.id });
     const options = invocation(job.provider, { model: agent.model, session: agent.sessionId || '', bridge: this.bridge, root: this.root, agentType,
       env: { VIDEO_RUNNER_URL: this.url, VIDEO_RUNNER_TOKEN: token, VIDEO_THREAD_ID: job.id, VIDEO_AGENT_ID: agent.id, VIDEO_AGENT_ROLE: role,
-        VIDEO_TTS_PROVIDER: job.ttsProvider || 'kokoro', VIDEO_TTS_STATUS: path.join(this.root, job.scriptPath, 'tts-status.json') } });
+        VIDEO_TTS_PROVIDER: 'ming', VIDEO_TTS_STATUS: path.join(this.root, job.scriptPath, 'tts-status.json') } });
     this.store.event(job, { type: 'agent', text: `${agent.task || role} — ${role} ${agent.runs > 1 ? 'resumed' : 'started'}`, agentId: agent.id, role, model: agent.model || 'CLI default', brief: agent.brief || '', source: 'runner' });
     const child = this.spawn(command, options.args, { cwd: this.root, env: options.env, stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     // Every sub-agent hears the same boundary from the runner, whatever its CLI loads from AGENTS.md files.
@@ -557,35 +556,20 @@ export class Runner {
     if (changed) this.store.save(job);
   }
   async syncNarration(job) {
-    if (job.audioPath) return;
-    const file = await jobFile(this.root, job, `${job.scriptPath}/tts-status.json`).catch(() => null);
-    if (!file) return;
-    const status = await readJson(file.path).catch(() => null);
-    if (this.store.jobs.get(job.id) !== job) return;
-    if (!status || !['kokoro', 'ming', 'gemini'].includes(status.usedProvider) || !['queued', 'generating', 'complete', 'failed', 'cancelled'].includes(status.status)) return;
-    const modelFallback = status.requestedProvider === 'gemini' && ['quota', 'unavailable'].includes(status.modelFallback?.reason) &&
-      [status.modelFallback.from, status.modelFallback.to].every(value => typeof value === 'string' && /^[a-zA-Z0-9./-]{1,120}$/.test(value)) ? status.modelFallback : null;
-    const next = { requestedProvider: job.ttsProvider || 'kokoro', usedProvider: status.usedProvider, status: status.status,
-      queuePosition: Number.isInteger(status.queuePosition) && status.queuePosition >= 0 ? status.queuePosition : null,
-      phase: ['waiting-for-ming', 'loading-model', 'synthesizing'].includes(status.phase) ? status.phase : null,
-      phrase: Number.isInteger(status.phrase) && status.phrase > 0 ? status.phrase : null,
-      phrases: Number.isInteger(status.phrases) && status.phrases > 0 ? status.phrases : null,
-      model: typeof status.model === 'string' ? status.model.slice(0, 120) : null,
-      modelFallback: modelFallback ? { from: modelFallback.from, to: modelFallback.to, reason: modelFallback.reason } : null,
-      fallback: status.fallback?.reason === 'quota' && status.requestedProvider === 'gemini' ? { reason: 'quota', notice: QUOTA_NOTICE } : null };
-    if (JSON.stringify(job.ttsStatus) !== JSON.stringify(next)) { job.ttsStatus = next; this.store.save(job); }
-    if (next.modelFallback && job.ttsModelFallbackNotified !== next.modelFallback.to) {
-      job.ttsModelFallbackNotified = next.modelFallback.to;
-      const notice = modelFallbackNotice(next.modelFallback.from, next.modelFallback.to, next.modelFallback.reason);
-      this.store.message(job, 'narration', notice, '', { source: 'tts' });
-      this.store.event(job, { type: 'narration', text: notice, source: 'tts', provider: 'gemini', model: next.modelFallback.to, reason: next.modelFallback.reason });
-    }
-    if (next.fallback && !job.ttsFallbackNotified) {
-      job.ttsFallbackNotified = true;
-      this.store.message(job, 'narration', QUOTA_NOTICE, '', { source: 'tts' });
-      this.store.event(job, { type: 'narration', text: QUOTA_NOTICE, source: 'tts', provider: 'kokoro', reason: 'quota' });
-    }
+    if(job.audioPath) return;
+    const file=await jobFile(this.root,job,`${job.scriptPath}/tts-status.json`).catch(()=>null);
+    if(!file) return;
+    const status=await readJson(file.path).catch(()=>null);
+    if(this.store.jobs.get(job.id)!==job||status?.usedProvider!=='ming'||!['queued','generating','complete','failed','cancelled'].includes(status.status)) return;
+    const next={requestedProvider:'ming',usedProvider:'ming',status:status.status,
+      model:typeof status.model==='string'?status.model.slice(0,120):null,
+      queuePosition:Number.isInteger(status.queuePosition)&&status.queuePosition>=0?status.queuePosition:null,
+      phase:['waiting-for-ming','loading-model','synthesizing'].includes(status.phase)?status.phase:null,
+      phrase:Number.isInteger(status.phrase)&&status.phrase>0?status.phrase:null,
+      phrases:Number.isInteger(status.phrases)&&status.phrases>0?status.phrases:null};
+    if(JSON.stringify(next)!==JSON.stringify(job.ttsStatus)) {job.ttsStatus=next;this.store.save(job);}
   }
+
   async poll() {
     if (this.polling || this.closed) return;
     this.polling = true;
