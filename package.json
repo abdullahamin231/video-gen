@@ -16,19 +16,8 @@
     "test:ui:mobile": "node ui/tests/mobile-browser.mjs"
   },
   "dependencies": {
-    "@fontsource/archivo": "5.2.8",
-    "@fontsource/bebas-neue": "5.2.7",
-    "@fontsource/caveat": "5.2.8",
-    "@fontsource/dm-serif-display": "5.2.8",
-    "@fontsource/fraunces": "5.2.9",
-    "@fontsource/ibm-plex-mono": "5.2.7",
     "@fontsource/inter": "5.3.0",
-    "@fontsource/jetbrains-mono": "5.3.0",
-    "@fontsource/nunito": "5.2.7",
-    "@fontsource/source-serif-4": "5.3.1",
-    "@fontsource/space-grotesk": "5.2.10",
     "gsap": "3.15.0",
-    "hyperframes": "0.8.156",
-    "mathjax-full": "3.2.2"
+    "hyperframes": "0.8.156"
   }
 }

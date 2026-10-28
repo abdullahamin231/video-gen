@@ -13,13 +13,12 @@ import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbna
 import {compareNarration} from '../lib/audio-verification.mjs';
 import {audioEnv, audioPython} from '../lib/sfx.mjs';
 import {planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, jobProgress, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
-import {installKit} from '../lib/world.mjs';
+import {installRuntime} from '../lib/composition.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
-import {setupManim} from '../lib/manim.mjs';
-import {SpecError} from '../lib/spec.mjs';
+import {SpecError} from '../lib/composition.mjs';
 import {directorBrief, writeBrief} from '../lib/briefs.mjs';
-import {findVisualPlan, VISUALS_FILE} from '../lib/visuals.mjs';
-import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/channel.mjs';
+import {findVisualPlan, VISUALS_FILE} from '../lib/timing.mjs';
+import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/format.mjs';
 import {loadConfig, resolveSettings} from '../lib/format.mjs';
 import {PERSONALITIES, inferPersonality, loadPersonality, preparationPersonality, freezePersonality, assertRenderReady} from '../lib/personalities.mjs';
 import {transcribeNews, ingestNews, newsPlan, isNews, verifyNews} from '../lib/news.mjs';
@@ -178,7 +177,7 @@ async function prepare(opts) {
   // An app review's session was recorded before the script, so it travels into the job with its evidence.
   await carryCaptures(script, job);
   const productionProfile = await freezePersonality(job, personality);
-  await installKit(job);
+
   await writeFile(path.join(job, 'inputs/source-script.md'), sourceScript);
   // The writer's visual plan travels with the script; without one, `next` asks a writer for it before planning.
   const visuals = opts.visuals ? path.resolve(ROOT, opts.visuals) : await findVisualPlan(script);
@@ -222,7 +221,7 @@ async function finishPreparation(job, manifest, narration, {updateLatest = true}
   await save(path.join(job, 'alignment.json'), alignment);
   await writeFile(path.join(job, 'SCRIPT.md'), `# Recorded excerpt\n\n${words.map(w => w.text).join(' ')}\n`);
   await writeBrief(job, 'director.md', directorBrief(job, manifest, alignment));
-  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: ${manifest.workflow}\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nConsult docs/orchestrator.md, docs/agent-workflow.md and docs/independent-review.md.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nProduction is driven by the orchestrator alone: npm run video -- next --job jobs/${manifest.name}. An agent following a brief in briefs/ follows only that brief.\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
+  await writeFile(path.join(job, 'BRIEF.md'), `---\nworkflow: ${manifest.workflow}\nflow: autonomous\n---\n\n# ${manifest.name}\n\nUse the supplied ${actualDuration}s recording verbatim. Agent has full creative discretion.\nCanvas: ${manifest.width}×${manifest.height}; ${manifest.fps} fps.\nUse docs/composition.md for authoring and docs/orchestrator.md for transport.\nPreserve narration; skip TTS. Do internal sketches and asset preparation.\nProduction is driven by the orchestrator alone: npm run video -- next --job jobs/${manifest.name}. An agent following a brief in briefs/ follows only that brief.\nA draft render is not delivery: qualify the exact reviewed MP4 with the deliver command.\n`);
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
   manifest.status = 'prepared';
   await save(path.join(job, 'job.json'), manifest);
@@ -456,7 +455,6 @@ save --file <job file> --title ".." --tags "a,b" [--note ".." --id slug]  save s
 save-all                             save every job asset/component the library does not hold yet
 review-template --stage S --role R   write a pre-filled reviewer report
 alignment-approve --note "..."       record review of a low script match
-setup-manim                          install ManimCE locally for "manim" objects
 setup-audio                          check ffmpeg, install librosa (beat analysis for music)
 capture-ingest --run <reshoot run folder> --task <id> [--feature ".." --claim ".." --build ".." --dir capture/<task>]   turn a reshoot run
                                      (headless Chrome, cursor composited) into recording.mp4, actions.jsonl, shots/ and manifest.json;
@@ -549,7 +547,6 @@ try {
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
   else if (command === 'start') { await assertNoDelegation(ROOT, opts.name, command); await start(opts); }
-  else if (command === 'setup-manim') console.log(await setupManim());
   else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
   else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
   else if (command === 'ideas') await ideasCommand(opts);
@@ -673,7 +670,6 @@ try {
       console.log(`Next: npm run video -- build --job ${path.relative(ROOT, job)} --scene ${edits.scene}`);
     }
     else if (command === 'mix') await remixFilm(job, {verify});
-    else if (command === 'kit-update') { await installKit(job); console.log('Kit refreshed. Run build.'); }
     else if (command === 'alignment-approve') {
       if (!opts.note?.trim()) throw new Error('alignment-approve needs --note "<what differs and how it was handled>"');
       const file = path.join(job, 'alignment.json'), alignment = await json(file);
