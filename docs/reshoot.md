@@ -187,29 +187,10 @@ no synthetic cursor, writes no cursor asset, and reads `frameSize` for its magni
   Scope it and `preview` first.
 - **`recut` needs a successful run.** A failed edit means re-record, not repair.
 
-## Skills
-
-reshoot ships three skills, installed here so the repo's agents load them like any other:
-
-| skill | use |
-| --- | --- |
-| `reshoot-demo` | write a new demo from an app: story, storyboard, readability, GIF/README exports |
-| `reshoot-refresh` | re-record an existing demo after the app or a release changed |
-| `reshoot-review` | inspect a recording and its check report before sharing: failed actions, privacy, coverage, readability |
-
-They live in `.opencode/skills/reshoot-{demo,refresh,review}/` and are symlinked from `.claude/skills/`, matching how
-every other skill in this repo is shared. They are third-party files matched to the installed reshoot version, so do not
-hand-edit them; refresh them after an upgrade:
-
-```
-reshoot skills claude --directory .cache/reshoot-skills --replace
-cp -r .cache/reshoot-skills/.claude/skills/reshoot-* .opencode/skills/
-```
-
 ## Files
 
 - `lib/reshoot.mjs` — reads a run folder and writes the capture contract (`capture-ingest`).
 - `lib/capture-scene.mjs` — the compiler: click rings, the `frameSize`-based zoom budget, scene writing.
 - `tests/reshoot-ingest.test.mjs` — ingest mapping, refused runs, and a composited capture compiled with no cursor.
 - [capture.md](capture.md) — the capture contract, cuts, compile and review gates.
-- `personalities/app-review/TOOLS.md` — the evidence contract the recording must satisfy.
+- `personalities/app-review/PROFILE.md` — the evidence contract the recording must satisfy.

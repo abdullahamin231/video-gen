@@ -67,7 +67,7 @@ export function invocation(provider, { model = '', session = '', bridge, env = {
     if (bridge) config.mcp = { video_runner: { type: 'local', command: [node, bridge], enabled: true, timeout: 86400000 } };
     childEnv.OPENCODE_CONFIG_CONTENT = JSON.stringify(config);
   } else if (provider === 'Pi') {
-    // The prompt arrives on stdin. --approve loads this repository's skills (.agents/skills), which Pi
+    // The prompt arrives on stdin. --approve allows repository-local task tooling; canonical skills are in skills/. Pi
     // otherwise skips in a non-interactive run. Pi has no built-in sub-agent tool; extension ones are excluded.
     args = ['--mode', 'json', '--approve', '--tools', '+grep,+find,+ls', '--exclude-tools', 'subagent*,task', '-e', piExtension];
     if (agentType) args.push('--append-system-prompt', path.join(root, '.claude/agents', `${agentType}.md`));

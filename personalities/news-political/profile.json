@@ -1,7 +1,0 @@
-{
-  "id": "news-political",
-  "version": 4,
-  "name": "Political news and commentary",
-  "workflow": "news-edit",
-  "renderReady": true
-}

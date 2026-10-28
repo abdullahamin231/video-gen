@@ -12,10 +12,10 @@ I inspected the repository's saved sample of 18 Kai title/thumbnail pairs and bo
 
 Local evidence:
 
-- [Thumbnail study](kaiexplains-thumbnail-study.md), [source manifest](research/kaiexplains-2026-10-19/manifest.json) and [channel listing](research/kaiexplains-2026-10-19/channel-source.json).
-- [Contact sheet 1](research/kaiexplains-2026-10-19/contact-sheet-1.jpg) and [contact sheet 2](research/kaiexplains-2026-10-19/contact-sheet-2.jpg).
-- [Annotated reference transcript](<../inputs/scripts/Can 9 year old GPU beats today's latest GPUs？.md>), associated with [this video](https://www.youtube.com/watch?v=eckOsa0kBkY).
-- [Current pipeline contract](orchestrator.md), [workflow documentation](agent-workflow.md), [script-writing process](../.opencode/skills/script-writing/SKILL.md) and [storyboard format reference](../.opencode/skills/hyperframes/references/storyboard-format.md).
+- [Thumbnail study](kaiexplains-thumbnail-study.md), [source manifest](../research/kaiexplains-2026-10-19/manifest.json) and [channel listing](../research/kaiexplains-2026-10-19/channel-source.json).
+- [Contact sheet 1](../research/kaiexplains-2026-10-19/contact-sheet-1.jpg) and [contact sheet 2](../research/kaiexplains-2026-10-19/contact-sheet-2.jpg).
+- [Annotated reference transcript](../<../inputs/scripts/Can 9 year old GPU beats today's latest GPUs？.md>), associated with [this video](https://www.youtube.com/watch?v=eckOsa0kBkY).
+- [Current pipeline contract](../orchestrator.md), [workflow documentation](../agent-workflow.md), [script-writing process](../../.opencode/skills/script-writing/SKILL.md) and [storyboard format reference](../../.opencode/skills/hyperframes/references/storyboard-format.md).
 
 The saved listing has no per-video view counts, durations or publication dates. We have no channel impressions, CTR, retention, historical variants or controlled comparisons. The sample supports observations about editorial choices, not conclusions about what caused growth. Technical claims in its titles, thumbnails and transcript remain claims by the reference creator.
 
@@ -183,9 +183,9 @@ An independent editorial/factual review should challenge the promise, evidence, 
 
 ## 5. Fit with this repository
 
-The existing `start`/`next` production loop begins with audio and script. Its director plans visuals after word timing is available, and its prototype/final reviews qualify the rendered film. The script-writing skill already handles supplied-source research, drafting and independent review. These are useful foundations, but they do not constitute an automatic cross-domain discovery system or a human editorial checkpoint before recording. [Pipeline documentation](agent-workflow.md), [script-writing skill](../.opencode/skills/script-writing/SKILL.md).
+The existing `start`/`next` production loop begins with audio and script. Its director plans visuals after word timing is available, and its prototype/final reviews qualify the rendered film. The script-writing skill already handles supplied-source research, drafting and independent review. These are useful foundations, but they do not constitute an automatic cross-domain discovery system or a human editorial checkpoint before recording. [Pipeline documentation](../agent-workflow.md), [script-writing skill](../../.opencode/skills/script-writing/SKILL.md).
 
-The installed HyperFrames references describe a plan-layer storyboard with outline/built/animated states and a narrative strategy line. Those are useful conventions; their presence does not prove the repository's current CLI exposes this proposed review workflow. [Storyboard reference](../.opencode/skills/hyperframes/references/storyboard-format.md), [story spine](../.opencode/skills/hyperframes-creative/references/story-spine.md).
+The installed HyperFrames references describe a plan-layer storyboard with outline/built/animated states and a narrative strategy line. Those are useful conventions; their presence does not prove the repository's current CLI exposes this proposed review workflow. [Storyboard reference](../../.opencode/skills/hyperframes/references/storyboard-format.md), [story spine](../../.opencode/skills/hyperframes-creative/references/story-spine.md).
 
 Proposed flow:
 

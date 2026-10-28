@@ -8,11 +8,11 @@ The sample is the first 18 entries returned from the channel's videos tab. Title
 
 The numbered sheets show the actual downloaded thumbnails with their corresponding titles underneath. The added captions are reference labels, not part of the thumbnail.
 
-![Kai thumbnail and title pairs 1 through 9](research/kaiexplains-2026-10-19/contact-sheet-1.jpg)
+![Kai thumbnail and title pairs 1 through 9](../research/kaiexplains-2026-10-19/contact-sheet-1.jpg)
 
-![Kai thumbnail and title pairs 10 through 18](research/kaiexplains-2026-10-19/contact-sheet-2.jpg)
+![Kai thumbnail and title pairs 10 through 18](../research/kaiexplains-2026-10-19/contact-sheet-2.jpg)
 
-[Source manifest](research/kaiexplains-2026-10-19/manifest.json) records every video URL, exact title, served thumbnail URL, local image filename, dimensions and SHA-256. The [raw channel response](research/kaiexplains-2026-10-19/channel-source.json) preserves the listing used to select the sample. Each source image is saved beside the manifest. Images are research references, not cleared production assets.
+[Source manifest](../research/kaiexplains-2026-10-19/manifest.json) records every video URL, exact title, served thumbnail URL, local image filename, dimensions and SHA-256. The [raw channel response](../research/kaiexplains-2026-10-19/channel-source.json) preserves the listing used to select the sample. Each source image is saved beside the manifest. Images are research references, not cleared production assets.
 
 ## What the thumbnails look like
 

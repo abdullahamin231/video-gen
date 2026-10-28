@@ -17,12 +17,12 @@ Raw downloads and full-size frame sets are under `.cache/video-gen/reference-stu
 
 Selected sheets:
 
-- [Dog overview](../.cache/video-gen/reference-studies/bradikinin-dog-20261025/overview-sheet.jpg)
-- [Phone overview](../.cache/video-gen/reference-studies/bradikinin-phone-20261025/overview-sheet.jpg)
-- [Cat overview](../.cache/video-gen/reference-studies/bradikinin-cat-20261025/overview-sheet.jpg)
-- [Portrait overview](../.cache/video-gen/reference-studies/bradikinin-short-20261025/overview-sheet.jpg)
-- [Cat title/command transition](../.cache/video-gen/reference-studies/bradikinin-cat-20261025/title-transition-sheet.jpg)
-- [Portrait opening sequence](../.cache/video-gen/reference-studies/bradikinin-short-20261025/dense-opening-sheet.jpg)
+- [Dog overview](../../.cache/video-gen/reference-studies/bradikinin-dog-20261025/overview-sheet.jpg)
+- [Phone overview](../../.cache/video-gen/reference-studies/bradikinin-phone-20261025/overview-sheet.jpg)
+- [Cat overview](../../.cache/video-gen/reference-studies/bradikinin-cat-20261025/overview-sheet.jpg)
+- [Portrait overview](../../.cache/video-gen/reference-studies/bradikinin-short-20261025/overview-sheet.jpg)
+- [Cat title/command transition](../../.cache/video-gen/reference-studies/bradikinin-cat-20261025/title-transition-sheet.jpg)
+- [Portrait opening sequence](../../.cache/video-gen/reference-studies/bradikinin-short-20261025/dense-opening-sheet.jpg)
 
 ## What the old specification missed
 
@@ -45,7 +45,7 @@ Approximate portrait layout guides from the sampled frames: episode label at 10â
 
 ## Measurements
 
-[Measurements and source hashes](research/bradikinin-frames-2026-10-25/measurements.json) record the uniform-overview pixel analysis. Landscape median background RGB was [4,4,4]; the Short's was [0,0,0]. Median dark-pixel share (mean RGB below 20) was 91.14% for dog, 78.38% for phone, 81.68% for cat and 82.66% for the Short. This does not mean subjects should be small: filled white silhouettes and black interiors can create large readable subjects with few bright pixels.
+[Measurements and source hashes](../research/bradikinin-frames-2026-10-25/measurements.json) record the uniform-overview pixel analysis. Landscape median background RGB was [4,4,4]; the Short's was [0,0,0]. Median dark-pixel share (mean RGB below 20) was 91.14% for dog, 78.38% for phone, 81.68% for cat and 82.66% for the Short. This does not mean subjects should be small: filled white silhouettes and black interiors can create large readable subjects with few bright pixels.
 
 The existing frame-stats command produced the following *landscape* diagnostics at two-second sampling, excluding its first/last decoded frames:
 

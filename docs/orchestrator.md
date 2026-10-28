@@ -1,258 +1,66 @@
-# Orchestrator runbook: make the completed video
+# Production transport
 
-This is the shared production/state-machine runbook. First follow [AGENTS.md](../AGENTS.md) to infer the personality and read `personalities/<id>/ORCHESTRATOR.md`. That folder owns editorial, design, tools and review instructions; this file does not impose the explainer style on every genre. Resume with the saved `productionProfile`. New projects freeze the selected instructions and propagate them to delegated briefs. Never ask the user to type a personality ID.
+Agents make editorial and implementation decisions. The CLI tracks artifacts, evidence, requested
+checkpoints and delivery. Use `npm run video -- help` for commands, loading specialised docs as needed.
+Only start production when requested; brainstorming does not start a job.
 
-You are reading this because you are the orchestrator: the user asked you to make a video, write a script or make a
-thumbnail. Sub-agents following a brief never use this file.
+## Project and handoffs
 
-The user asks: **"Create a video given the audio `<audio path>` and script `<script path>`."**
-You deliver a finished, independently reviewed MP4, a finished thumbnail, and an **unlisted YouTube upload**. The user never runs commands or writes JSON.
-
-You are the **orchestrator**. The pipeline knows the state of the job and prints the single next step. Specialised
-sub-agents do the creative work from self-contained brief files. This works the same in any harness.
-
-## The loop
-
-1. From the repository root, create the job (quote paths; near-miss filenames are resolved automatically):
-
-   ```bash
-   npm run video -- start --audio "<audio path>" --script "<script path>" --profile <inferred-id>
-   ```
-
-   Add `--length 30` (and `--start <s>`) only when the user asks for an excerpt ("first 30 seconds" → `--length 30`).
-   Add `--format vertical` when the user asks for a reel, short, TikTok or vertical video, and `--format landscape` for
-   long-form when the defaults say otherwise. Defaults come from `video.config.json`; never edit it unless asked.
-   Add `--music "<track>"` when the user supplies a music track; otherwise the director brings in a licensed one
-   matching the visual plan's music section.
-   A `VISUALS.md` beside the script (the script writer's visual plan) is carried into the job automatically
-   (`--visuals <file>` names another one). Without one, `next` first has a `script-writer` write it.
-
-   The job is named after the script: its file name, else its `#` title, else its folder (`jobs/scripts/<slug>/SCRIPT.md`
-   becomes `<slug>`). Generic names such as `script` or `SCRIPT` are never used alone. Pass `--name <slug>` only when the
-   user asks for a particular name.
-
-2. Run:
-
-   ```bash
-   npm run video -- next --job jobs/<slug>
-   ```
-
-3. Do exactly what it prints, then run `next` again. Repeat until it prints `STATE: done`.
-4. Finish the thumbnail workflow below. After the thumbnail is selected and archived, upload the qualified MP4 to
-   YouTube as unlisted using the approved video title. The user request is complete when the MP4, thumbnail and
-   unlisted YouTube link are ready.
-
-`next` prints one of two kinds of step:
-
-- **`DO: run <command>`** — run that command yourself (build, render, review-pack, deliver).
-- **`DO: spawn ... sub-agent`** — start a fresh sub-agent with no conversation history whose entire prompt is the quoted
-  line `Read <brief file> and follow it exactly.` Use whatever your harness provides (a Task/Agent/subagent tool,
-  a new session). Several briefs may run in parallel. Wait for them to finish. Do not do their work yourself, do not edit
-  their files, and do not pass them your own opinions.
-  Reviewer sub-agents must be new agents that did not build anything.
-  The step names a role (`script-researcher`, `script-writer`, `video-director`, `video-builder`, `video-reviewer`). If your harness has an agent type with
-  that name, use it: it pins the role's model (see "Models per role" below). Otherwise use any fresh sub-agent.
-- **`STATE: human review of the final`** — the user asked to watch the whole film before its one render (`start
-  --human-review final`). In the video UI, call the runner's `checkpoint` tool with that kind; the user watches
-  the built film there and the UI records their decision. Elsewhere, ask them to run `npm run video -- play --job <job>`
-  (it plays the built HTML in the browser with a scene strip; nothing is rendered or changed), then record exactly what
-  they said with `human-review --decision approve` or `--decision revise --note "12.5: <their words>"`. Never decide for
-  them and never reword a note: `next` sends each note to the scene at its moment.
-
-When the user or supervisor requests Discord notifications for approval/question checkpoints, send one concise ping
-per pending request with the project, decision needed, and review/supervisor link:
+Save the agreed brief in `jobs/scripts/<slug>/BRIEF.md`, then create the project:
 
 ```bash
-node scripts/discord-notify.mjs --request-id <stable-request-id> --message "<project, decision needed, review/supervisor link>"
+npm run video -- project-new --name <slug> --profile <id> --format landscape --tts ming
+npm run video -- next --project <slug>
 ```
 
-The helper reads `DISCORD_WEBHOOK_URL` from `.env` without printing it, confirms the HTTP response, and records
-successful request IDs in `.cache/discord-approval-notified.json` to suppress duplicates. The orchestrator or a
-delegated agent assigned to notify may run it. Never expose the URL or treat a notification as approval; keep the
-decision in the normal review workflow. Report missing configuration or delivery failures without credentials.
+Optional flags include duration, supplied script/audio, review checkpoints and thumbnail count.
+Use the selected profile from `personalities/README.md`. A resume uses the saved profile and artifacts.
+Script outputs and evidence live in `jobs/scripts/<slug>/`; prepared video files live in `jobs/<slug>/`.
+`next --project` covers preparation and then the film. `next --job` is for an already prepared job.
+Use explicit names; do not restart an existing job or truncate a recording without a requested excerpt.
 
-Nothing is rendered until final review completes (passing or reaching its three-round creative review budget), and the user approves if they asked for final review: reviewers judge
-frames taken from the built HTML, and `next` then asks for one `render`.
+`next` derives the next task from files. Run command steps. For role briefs, give the named brief to an
+appropriate agent; independent review uses agents that did not produce the work. The host can reason about
+failures and inspect artifacts; it is not forbidden from reading the work. Close tracked chat delegations
+with `delegated --project <slug>` after they finish. Agents assigned briefs do not advance the host loop.
 
-When it prints `STATE: done`, complete the thumbnail workflow, upload the MP4 as unlisted, then give the user the
-MP4 and thumbnail paths, YouTube link, and a short verification note from `review/delivery.json`
-(its reviewDisposition, unresolvedFindings, limitations and advisory findings), the soundtrack's measurements (`soundtrack`: integrated LUFS and peaks,
-measured on the MP4) and the five `headphoneChecks` timestamps with what to listen for. Nobody in this pipeline can
-hear: never say the film sounds good, only what was measured. Do not run `preview` or open HyperFrames Studio: it rewrites job files and
-makes the delivered job look stale. The final MP4 is the deliverable.
-Creative review has a three-round budget per stage. After the third complete failed round, continue to render and delivery with unresolved findings disclosed in `review/delivery.json`; never describe this outcome as independently passed. Missing inspection/evidence and failed technical checks still block. If it prints `STATE: blocked`, report the actual reason.
-Only the person can stop review early, readability findings included: `review-waive --stage final --reason ".."` refuses to run inside any agent. It binds to the current film, and `delivery.json` then reports `reviewDisposition: waived-by-user` with the unresolved findings. Never suggest that a waived film passed review.
+Research retains evidence; the writer produces narration and concise visual intent. The director chooses
+and authors the actual picture. `VISUALS.md` is free-form intent, not a scene schema or binding design recipe.
+A supplied script can go directly to direction. `docs/composition.md` defines the native HTML interface.
+Use `docs/tts.md` only when narration is needed. Generate one complete narration invocation, keeping Ming's
+shared reference through the continuity adapter. Supplied recordings remain unchanged.
 
-## Thumbnail at the end of every video
+## Review and completion
 
-Every request to create a video also includes a thumbnail unless the user explicitly opts out. When `next` prints
-`STATE: done`, follow `npm run video -- thumbnails --job <job>` exactly as you follow `next` (the same DO and spawn
-steps) until it prints `STATE: done`:
+Build and inspect the real composition. `review-pack` freezes evidence of the full film before final render.
+Use `docs/independent-review.md` for report schemas. Review findings describe demonstrated defects and viewer
+impact; aesthetic preferences are advisory. Missing evidence or failed technical checks is not a creative pass.
+The configured review budget may end with disclosed findings; never call that an independently passed film.
 
-- It makes N variants in parallel (`thumbnails` in `video.config.json`, 3 by default; `start --thumbnails N`), one
-  `thumbnail-maker` per brief, each from a different angle (the visual plan's thumbnail as written, a warning, an
-  accusation, a big number, the surprising mechanism). The briefs carry the visual plan's "## Thumbnail" section and
-  point at [docs/kaiexplains-thumbnail-study.md](kaiexplains-thumbnail-study.md). Makers export with
-  `thumbnail-export`. Required output follows the video: vertical uses a 1080×1920 portrait thumbnail and
-  180×320 preview; landscape uses a 1920×1080 thumbnail and 320×180 preview. All variants, the selected image
-  and its archive must retain that orientation. Follow [the shared thumbnail format contract](video-click-psychology.md).
-  The exporter and validator use the saved video width and height for every personality, including square and custom frames.
-- One fresh `thumbnail-reviewer` (never a maker) judges every new or changed variant at full and feed size and records
-  `pass` or `blocked` with `thumbnail-verdict`, then ranks the passing ones. A blocked variant goes back to its maker
-  with the findings, up to three times; the others stay.
-- When the user asked to pick (`start --pick-thumbnail true`; the UI's "Let me pick the thumbnail"), it says "the
-  person picks": call the runner's `checkpoint {kind: "thumbnail"}`, or show them the PNGs and record exactly what
-  they say with `thumbnail-choose --variant <id> --by you` or `thumbnail-feedback --variant <id> --note "<their
-  words>"`. Feedback sends only that variant back to a maker, then to review. Otherwise it prints the
-  `thumbnail-choose` command for the reviewer's top-ranked variant.
-- `thumbnail-choose` copies the pick into `thumbnail/` (with its review as `thumbnail/REVIEW.json`) and archives the
-  whole folder, every variant included, to `library/thumbnails/<slug>/`; an earlier archive moves to `history/`.
+At requested human checkpoints, show the actual artifact and record the person's decision faithfully.
+The UI runner provides `checkpoint`; chat projects use the printed review/selection command and the user's
+verbatim quote. Requested Discord notifications use `scripts/discord-notify.mjs` and a stable request ID.
+Do not turn a notification or elapsed time into approval.
 
-Never pick for the user, never reword their feedback, and do not change a qualified film to make a still.
+After review and requested film approval, follow `next` through render and delivery. Report the qualified
+MP4 and limitations from `review/delivery.json`. Describe audio measurements as measurements; claim listening
+only when performed. A successful agent reply or draft render alone is not delivery.
 
-## Upload the completed video
+Run `thumbnails --job <job>` through generation, independent review and selection. Dimensions match the
+video. `docs/video-click-psychology.md` covers packaging and the format contract. If the person requested
+selection, show variants and preserve their choice. Obtain approved title/description for publishing.
+After selection, upload the qualified MP4 to abdupdates as unlisted unless the user opted out;
+`docs/youtube-upload.md` owns authentication and upload commands. Report the actual link or precise failure.
 
-After the thumbnail is selected and archived, upload the qualified MP4 using its approved title:
+## Useful references
 
-```bash
-npm run video -- youtube-upload --file jobs/<slug>/renders/video.mp4 \
-  --title "<approved video title>" --description "<approved short description>" --privacy unlisted
-```
+- Script outputs: `skills/script-writing/SKILL.md`.
+- Native authoring: `docs/composition.md`.
+- News edits/source speech: `docs/news.md`.
+- Browser recording: `docs/reshoot.md`, `docs/capture.md`.
+- Audio generation/mix: `docs/tts.md`, `docs/sound.md`.
+- Pipeline architecture and flowchart: `docs/agent-workflow.md`.
 
-At the thumbnail checkpoint, present the selected variant's title, headline and short description together, following
-[video-click-psychology.md](video-click-psychology.md). Retain an already approved title unless the person explicitly
-chooses a proposed change; thumbnail selection alone does not approve a changed title. Obtain their decision on the
-short description there. Use the approved copy; do not invent descriptions or tags at upload time. Include the resulting YouTube
-link with the local MP4 and thumbnail paths. If authorization needs refreshing or the upload fails, follow
-[docs/youtube-upload.md](youtube-upload.md) and report any failure without claiming the upload completed.
-
-## Rules for the orchestrator
-
-- Keep your own context small: every request re-sends all of it. Act on what `next` prints and what sub-agents reply;
-  do not read briefs, other docs, `film.json`, `shots/`, review reports or evidence yourself. Trim long command output
-  (`npm run -s video -- ... 2>&1 | tail -40`). Fetching sources belongs to the script researcher, not to you.
-- Wait for a sub-agent or a long command with one blocking call. Do not check on it again and again from separate turns;
-  each check costs a full request.
-- Never run `npx hyperframes`, `hyperframes upgrade`, or edit files in `node_modules`. Use only `npm run video -- ...`.
-  For generated narration use `npm run video -- tts`, following [docs/tts.md](tts.md); caches must stay in the repository `.cache/`.
-- Sound runs through the pipeline too: `npm run video -- setup-audio` (ffmpeg check, librosa), `music` and
-  `library-search` / `library-use` for existing sound effects. See [docs/sound.md](sound.md).
-- Never read `scripts/` or `lib/` to work out what to do; `next`, the briefs and `docs/SCENE_SPEC.md` are the interface.
-- Never edit `film.json`, `shots/`, reviewer reports, or evidence yourself. Repairs go through the briefs `next` writes.
-- Keep the supplied recording unchanged. Never use TTS for a supplied recording. Music and sound effects go under it;
-  the pipeline mixes them and never processes the narration beyond one master gain.
-- Keep every asset inside the repository, never in `/tmp` or a scratch directory. Agents bring images and fonts in with
-  `npm run video -- asset` (saved to the job's `assets/` and to `library/`) and save what they make with
-  `npm run video -- save`. Finished thumbnail sets are archived separately under `library/thumbnails/<slug>/`.
-  When `next` prints `save-all`, run it: it saves anything still missing from `library/`.
-- If a command fails with an error you cannot act on, run `npm run video -- help` once, then report the error.
-- If your harness truly cannot spawn sub-agents, you may follow director and builder briefs yourself in sequence,
-  but reviews must come from sub-agents; without them the film cannot be delivered.
-
-## What the roles produce
-
-| Role | Brief | Writes | Checked by |
-|---|---|---|---|
-| Script researcher (new script) | the user's request | `jobs/scripts/<slug>/sources/`, `SOURCES.md` | the writer and script reviewer |
-| Script writer (visual plan for a supplied script) | `briefs/visuals.md` | `inputs/visuals.md`: concept, theme, every scene's events at exact words, assets, thumbnail | `next` (required sections) |
-| Director and lead animator | `briefs/director.md`, `briefs/direct-<scene>.md`, `briefs/repair-director.md` | `film.json` transcribed from the visual plan (its theme, concept, scenes, who builds each) and the assets it needs, then every scene it owns, built in one context | `plan-check`, `build --scene` |
-| Scene builder (one per delegated scene) | `briefs/build-<scene>.md` | `shots/<scene>.json` (+ hook, components, Manim file) built from the visual plan's section for that scene (quoted in the brief); departures recorded in `notes` | `build --scene` (spec errors, browser checks, motion transcript) |
-| Repair builder | `briefs/repair-<scene>.md` | fixes to a delegated scene | same |
-| Reviewers ×3 | `briefs/review-<stage>-<role>.md` | `review/<stage>/incoming/<role>.json` | `review-submit` |
-
-Scenes are built in order, all before the one review. By default the director builds every scene itself, in the same
-context that planned them; it delegates a scene only by writing `"owner": "builder"` for it in film.json.
-
-Build errors mean the film is broken or untrue (invalid spec, no declared design theme, missing assets, unspoken cue
-words, conflicting or non-seek-safe motion, nondeterminism, unsourced numbers). Every film has exactly one design theme,
-chosen in the visual plan; no particular look is prescribed. Style guidance (sizes, colours or fonts outside the theme,
-frame use, stillness, intentional readable layering) produces warnings: agents may break it on purpose, and reviewers judge whether that
-served the film. Missing scenes never qualify for final review or delivery.
-
-## Models per role
-
-Only script writing and its review run on the strong model; gathering the sources does not. The script writer puts all of the film's creative thinking into the
-script and its visual plan (`VISUALS.md`: concept, design theme, every scene's stage and events at exact words, assets,
-thumbnail), so every later role carries out a written design instead of inventing one.
-
-| Role | Tier | Why |
-|---|---|---|
-| orchestrator (main session) | weak | `next` decides every step |
-| `script-researcher` | weak | fetches every source, follows it to primary evidence and saves the text; the writer reads only what it saved |
-| `script-writer`, `script-reviewer` | strong | the script and the visual plan are where creative thinking pays off; the reviewer checks both |
-| `video-director`, `video-builder`, thumbnail maker | weak | transcribe the visual plan into film.json and build it; `plan-check` and `build --scene` catch broken output |
-| `video-reviewer`, thumbnail reviewer | weak | check frames of the built film against the plan and the quality standard; raise one to strong if weak reviews pass weak films |
-
-Default models for each harness:
-
-| Harness | Strong | Weak |
-|---|---|---|
-| Claude Code | `claude-opus-5-5` | `claude-haiku-5-5` |
-| Pi | `anthropic/claude-opus-5-5` | `anthropic/claude-haiku-5-5` |
-| Codex | `gpt-6.1-sol` | `gpt-6-luna` |
-| OpenCode | `opencode/deepseek-v4.1-flash-free` | `opencode/glm-5.3-flash` |
-
-In Claude Code the agent types in `.claude/agents/` pin these (Pi reads the same pins); to change a role's model, edit
-`model:` in its file. Leave `CLAUDE_CODE_SUBAGENT_MODEL` unset; it overrides them. The job UI applies the table for
-every harness and lets you choose a different model for any role (`ui/shared/routing.mjs` holds the defaults).
-
-## Writing a script
-
-When the user asks for a script ("Write a 5-minute script from these links", or just "a video about X"), it comes from
-the sources they supply, at the duration they name if they name one. It takes two steps, in this order:
-
-1. **Gather the sources (weak model).** Spawn a fresh `script-researcher` sub-agent whose prompt gives the user's
-   request verbatim (links, files, topic, creator notes) and the folder `jobs/scripts/<slug>/`, and tells it to follow
-   the `script-writing` skill's `references/sourcing.md`. It fetches every source, follows articles to their primary
-   evidence, searches the web when the request names only a topic, and saves `sources/NN-*.md` and `SOURCES.md`.
-   Do not fetch or search anything yourself.
-2. **Write the script (strong model), only once the sources are saved.** Spawn a fresh `script-writer` sub-agent (or
-   any strong-model sub-agent) whose prompt names the folder, the duration if there is one, the format and any creator
-   notes, and tells it to follow the `script-writing` skill (`.opencode/skills/script-writing/SKILL.md`, linked into
-   `.claude/skills` and `.agents/skills`). It reads only the saved sources, never the web, and writes `SCRIPT.md`,
-   `research.md` and the visual plan `VISUALS.md` the film is built from. If it replies `NEEDS SOURCES` with a list,
-   send that list to a fresh `script-researcher` for the same folder, then resume the writer (once; after that it
-   works with what it has).
-
-Give the user the script, its word count and estimated
-duration and the speaking-rate assumption. Before delivery, commission a fresh `script-reviewer` (or strong-model reviewer)
-with the brief, script, visual plan, saved sources and research notes, following the skill's `references/review.md`. Have the writer address blockers
-and the reviewer check revisions (at most two rounds); unresolved work is a draft, never an independently passed script.
-A review marked `incomplete` for a missing source goes to the researcher first, then back to the reviewer.
-If the user names no duration, use a positive `length` from `video.config.json` (seconds); if it is null, do not ask:
-tell the writer no length was requested, and it chooses one that fits the material (the skill's *Choosing the length*)
-and records why. For a reel, short or vertical video (or `"format": "vertical"` in the config), tell the writer it is
-vertical short-form; a chosen length then stays within `verticalMaxSeconds`. Explicit user duration takes priority.
-
-## Generating narration (TTS)
-
-When the user has a script but no recording (a script the `script-writer` wrote, or "make a video from this script"),
-generate the narration with `npm run video -- tts <script> --narration` by following [docs/tts.md](tts.md) exactly.
-For Ming jobs, follow docs/tts.md to create ming-performance.json after script review: exact reviewed words, natural thought groups, subtle speed changes and purposeful pauses. Keep performance annotations out of SCRIPT.md. The required narration command loads this sidecar automatically and selects the built-in `US_James` voice through Ming's IP task for every segment. Choose from the full 14-cue catalog in [docs/tts.md](tts.md#complete-ming-inline-cue-catalog), not only these examples. Make an explicit expressive-cue pass: put supported inline bracketed cues such as `[Breathing]`, `[Surprise-oh]`, `[Sigh]` and `[Laughter] in segment text where a human narrator would naturally breathe or react. Aim for human-like conversational delivery; choose cues for the meaning without forcing reactions or a cue quota. Keep cues out of SCRIPT.md. Use text, speed and pauseAfter in each segment; voiceInstruction and instruction fields are rejected.
-
-Generate all Ming segments in one TTS invocation. The shared adapter holds one neutral `US_James` acoustic reference across internal fragments and performance segments; never synthesize segments separately. See [voice continuity and regeneration](tts.md#voice-continuity-and-the-former-voice-change-bug). Existing generated WAVs require explicit regeneration and alignment/rebuild; supplied recordings stay unchanged. Listen across joins before approval.
-
-Use the job's selected `--provider kokoro|ming|gemini` (Ming by default) and a speed chosen from the word count.
-Gemini receives the whole script in one request per model attempt. Kokoro generates paragraphs and joins them
-with short pauses. Both add 1.5 s of trailing silence. Gemini tries its backup model on quota exhaustion or persistent
-overload, then regenerates the entire narration with Kokoro if the backup also hits quota. Keep Kokoro's Python setup available as
-the fallback. Then run the loop above with `--audio jobs/scripts/<slug>/narration.wav` and the same
-script. Never use TTS when the user supplied a recording.
-
-## References
-
-- [docs/SCENE_SPEC.md](SCENE_SPEC.md) — the scene language (objects, verbs, cues, camera, components, hooks, Manim).
-- [docs/quality.md](quality.md) — the full creative and review standard (one design theme per film, chosen in the visual plan).
-- [docs/independent-review.md](independent-review.md) — review roles, evidence and report schema.
-- [docs/tts.md](tts.md) — generating narration with HyperFrames TTS when there is no recording.
-- [docs/sound.md](sound.md) — music, sound effects, the mix and its measurements; the sound library.
-- [docs/agent-workflow.md](agent-workflow.md) — what each pipeline stage does, for maintainers.
-- [docs/kaiexplains-thumbnail-study.md](kaiexplains-thumbnail-study.md) — thumbnail/title reference and visual evidence.
-- `npm run video -- help` — all commands. `npm test` — pipeline tests.
-
-Jobs live in `jobs/<slug>/` and scripts in `jobs/scripts/<slug>/` (script, research, sources, narration), both ignored by Git. Reusable work belongs in `library/` and the kit (`lib/kit/kit.js`).
-
-Readability is non-waivable: obscured, illegible or unintentionally overlapping text blocks delivery even after the configured creative review budget. Intentional layering needs an explicit reason and clearly readable text.
-
-
-For financial/political news, use the real-media adapter and mandatory subtitle/encoded acceptance contract in [news.md](news.md). Preserve frozen profiles and normal approvals. Missing source rights are actionable source prerequisites, not an unimplemented-news blocker.
+There is one canonical `skills/` folder. Configure harness skill discovery to use it; no per-harness
+skill copies or catalogs are required. Harness role files are transport/model adapters, not another
+source of creative instructions. Historical studies under `docs/research/` are optional evidence.

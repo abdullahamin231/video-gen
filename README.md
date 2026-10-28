@@ -1,15 +1,11 @@
-# Audio + script → animated video
+# Brief or recording → video
 
-An agent-assisted HyperFrames production repo. Give an AI agent a recording and
-script: it consults the installed skills, designs the visuals within the selected
-production personality, and delivers a narration-synchronized MP4. The pipeline makes timing,
-assets, assembly, and rendering reproducible; each personality owns its design standard.
+Agents research, write, design and author native HyperFrames compositions. The pipeline supplies measured
+narration timing, rendering, evidence-based review and verified delivery. Start with [AGENTS.md](AGENTS.md)
+and the three focused skills in `skills/`. Editorial profiles describe intent rather than a visual recipe.
 
-Video personalities are selected automatically from the request through [AGENTS.md](AGENTS.md).
-Their separate [instruction folders](personalities/README.md) cover the existing explainer, fixed Bradikinin-style
-storytelling, financial news, political news and hands-on app review. The user does not need to type an ID.
-Selection and instructions are frozen per project and carried into delegated briefs. Explainer and storytelling
-use their dedicated render paths. Financial/political news support real-media edits with required subtitles and source/rights ledgers; see [docs/news.md](docs/news.md). App capture remains an explicit prerequisite, recorded with reshoot and ingested into the film: [docs/reshoot.md](docs/reshoot.md), then [docs/capture.md](docs/capture.md) for the cuts and compile.
+[Pipeline flowchart](docs/agent-workflow.md) · [Authoring contract](docs/composition.md) ·
+[Production commands](docs/orchestrator.md) · [Context audit](docs/context-audit.md)
 
 ## Setup
 
@@ -144,20 +140,18 @@ orchestrator to [docs/orchestrator.md](docs/orchestrator.md) and keeps sub-agent
 job state from files and prints exactly one step: a command to run, or briefs to hand to fresh sub-agents (director,
 one builder per scene, three independent reviewers, repair builders).
 
-Each film has one design theme, declared in `film.json` and applied by the kit to every object. By default it is the
-channel theme ([channel/theme.json](channel/theme.json)), so every film looks like the same channel; a film may depart
-from it with a stated reason. Real things are drawn as SVG; the channel uses no photos. Scenes are written as JSON shot
-specs ([docs/SCENE_SPEC.md](docs/SCENE_SPEC.md)): the explainer vocabulary (hero numbers, source cards, spec sheets,
-hanging tags, verdict stamps, gauges, chips), shapes, text, SVG drawings and logos, counters, TeX, graphs, planes,
-particles, networks, a camera, verbs with physical character (drop, pop, stamp, swing, strike, type), custom
-components, hooks, and Manim clips. They compile into one seek-safe world (`lib/kit/kit.js`). Every build runs the
-scene in Chrome, fails on concrete defects (no design theme, missing assets, overlapping tweens, seek inconsistency,
-unsourced numbers), warns on style risks (tiny text, collisions, empty frame, stillness, colours or fonts outside the
-theme, narrow or hero-less frames, empty boxes, washed-out frames) and prints a motion transcript that reviewers can
-read without vision. `npm run video -- frame-stats --video <mp4>` measures how much of the frame any film uses
-([docs/kaiexplains-frame-study.md](docs/kaiexplains-frame-study.md)).
+Directors author HTML/CSS/JavaScript scenes, with their own assets and choreography. A small film.json
+manifest connects them to measured word timing. The pipeline assembles and inspects the actual HyperFrames
+player, including native HTML scenes, before independent review and final render. There is no required
+world model, composite vocabulary or visual library. Optional capture tooling can compile recorded browser
+cuts and overlays; actual-media news uses its dedicated edit adapter.
 
-Optional: `npm run video -- setup-manim` installs ManimCE 0.19 locally (conda-forge via micromamba; no sudo).
+Creative and review roles use the strong model tier by default; explicit role selections still win.
+The researcher uses the lightweight tier. Standing role instructions live in small `prompts/*.md` files;
+JavaScript supplies task metadata and artifact paths rather than another embedded creative rulebook.
+
+There is one canonical `skills/` folder. Point harness discovery to it, or follow its entry points from
+AGENTS.md. No copied or linked per-harness skill catalogs are maintained.
 
 ## Configuration
 

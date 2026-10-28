@@ -1,6 +1,6 @@
 # Financial and political news edits
 
-Both news personalities use the `news-edit` adapter. Use actual cleared footage with original commentary and brief supporting article/document or real-data inserts, following the selected DESIGN.md. Technical support for stills does not make a page/card slideshow an acceptable news treatment. Cartoons and invented documentary imagery are excluded. Source speech remains distinct from commentary. Both orientations require burned-in subtitles and an SRT sidecar. An actual cleared presenter recording can appear in a circular bottom-left inset; politics uses it when available, never invents one.
+Both news personalities use the `news-edit` adapter. Use actual cleared footage with original commentary and brief supporting article/document or real-data inserts, following the selected editorial profile. Technical support for stills does not make a page/card slideshow an acceptable news treatment. Cartoons and invented documentary imagery are excluded. Source speech remains distinct from commentary. Both orientations require burned-in subtitles and an SRT sidecar. An actual cleared presenter recording can appear in a circular bottom-left inset; politics uses it when available, never invents one.
 
 ## Inputs and source selection
 
@@ -70,7 +70,7 @@ Write `news.json`. All clocks are seconds; no speed changes. Example with a two-
 }
 ```
 
-An image scene omits `in`. Scenes must cover the edit exactly, in order, without gaps. Default `fit: "contain"` preserves context; `cover` requires `cropReason`. Optional `position: [50,50]` chooses crop focus in percent. Attribution/event context occupies a separate top rail. Use moving footage and meaningful cuts as the main picture; still/record inserts support one readable point under the selected DESIGN.md. Optional source-backed overlays/charts should be prepared as cleared original local visuals and cited; a generic animated explainer is not a fallback. `treatment` is descriptive and `position` is a fixed crop focus; neither executes animation. A correctly authored, cleared supporting video can carry a pre-rendered treatment.
+An image scene omits `in`. Scenes must cover the edit exactly, in order, without gaps. Default `fit: "contain"` preserves context; `cover` requires `cropReason`. Optional `position: [50,50]` chooses crop focus in percent. Attribution/event context occupies a separate top rail. Use moving footage and meaningful cuts as the main picture; still/record inserts support one readable point under the selected editorial profile. Optional source-backed overlays/charts should be prepared as cleared original local visuals and cited; a generic animated explainer is not a fallback. `treatment` is descriptive and `position` is a fixed crop focus; neither executes animation. A correctly authored, cleared supporting video can carry a pre-rendered treatment.
 
 Audio uses original source ranges. Commentary is the prepared `assets/narration.wav`; every aligned commentary word must appear exactly once. Originals are unchanged. `npm run video -- news-transcribe --job jobs/<slug> --source <id>` measures local ASR word times
 on the original source clock (optional `--model` and `--language`). It writes an unreviewed draft;

@@ -1,18 +1,17 @@
 // Which model each role runs on. Shared by the server and the browser so the form previews exactly what will run.
 // `tier` picks the provider default below; `legacy` is the shared field older threads used before each role had its own model.
 export const ROLES = [
-  { role: 'orchestrator', label: 'Orchestrator', hint: 'Follows the pipeline and starts every other role', tier: 'weak' },
+  { role: 'orchestrator', label: 'Orchestrator', hint: 'Follows the pipeline and starts every other role', tier: 'strong' },
   { role: 'script-researcher', label: 'Script researcher', hint: 'Fetches every source and its primary evidence before the writer starts', tier: 'weak', pin: 'script-researcher' },
   { role: 'script-writer', label: 'Script writer', hint: 'Narration script and visual plan, from the saved sources', tier: 'strong', legacy: 'directorModel', pin: 'script-writer' },
   { role: 'script-reviewer', label: 'Script reviewer', hint: 'Independent script review', tier: 'strong', legacy: 'reviewerModel', pin: 'script-reviewer' },
-  { role: 'director', label: 'Director', hint: 'Turns the visual plan into film.json; builds the scenes it owns', tier: 'weak', legacy: 'directorModel', pin: 'video-director' },
-  { role: 'builder', label: 'Scene builders', hint: 'Delegated scenes and their repairs', tier: 'weak', legacy: 'sub', pin: 'video-builder' },
-  { role: 'reviewer', label: 'Film reviewers', hint: 'The three independent film reviews', tier: 'weak', legacy: 'reviewerModel', pin: 'video-reviewer' },
-  { role: 'thumbnail-maker', label: 'Thumbnail maker', hint: 'Thumbnail brief and design', tier: 'weak', legacy: 'directorModel', pin: 'video-director' },
-  { role: 'thumbnail-reviewer', label: 'Thumbnail reviewer', hint: 'Independent thumbnail review', tier: 'weak', legacy: 'reviewerModel', pin: 'video-reviewer' },
+  { role: 'director', label: 'Director', hint: 'Designs and authors the film; builds the scenes it owns', tier: 'strong', legacy: 'directorModel', pin: 'video-director' },
+  { role: 'builder', label: 'Scene builders', hint: 'Delegated scenes and their repairs', tier: 'strong', legacy: 'sub', pin: 'video-builder' },
+  { role: 'reviewer', label: 'Film reviewers', hint: 'The three independent film reviews', tier: 'strong', legacy: 'reviewerModel', pin: 'video-reviewer' },
+  { role: 'thumbnail-maker', label: 'Thumbnail maker', hint: 'Thumbnail brief and design', tier: 'strong', legacy: 'directorModel', pin: 'video-director' },
+  { role: 'thumbnail-reviewer', label: 'Thumbnail reviewer', hint: 'Independent thumbnail review', tier: 'strong', legacy: 'reviewerModel', pin: 'video-reviewer' },
 ];
-// Only script writing and its review run on the strong model (the researcher fetches the sources first, on the weak one): the writer puts the film's creative thinking into the script and its
-// visual plan (VISUALS.md), and every later role carries that plan out on the weak model.
+// Creative and review work use the strong tier; explicit per-role selections still win.
 export const DEFAULT_MODELS = {
   Codex: { strong: 'gpt-6.1-sol', weak: 'gpt-6-luna' },
   Claude: { strong: 'claude-opus-5-5', weak: 'claude-haiku-5-5' },

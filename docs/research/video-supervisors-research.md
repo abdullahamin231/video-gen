@@ -3,8 +3,8 @@
 Research date: 23 October 2026. Research and proposed architecture only: no production, pipeline changes, model installation, footage downloads or recordings.
 
 **Design update (26 October 2026):** The presentation-style and document/photo formats proposed below are
-superseded by the footage-led [financial](../personalities/news-financial/DESIGN.md) and
-[political](../personalities/news-political/DESIGN.md) design instructions.
+superseded by the footage-led [financial](../../personalities/news-financial/DESIGN.md) and
+[political](../../personalities/news-political/DESIGN.md) design instructions.
 
 ## Recommendation
 

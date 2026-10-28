@@ -3,7 +3,7 @@
 Measured on 20 October 2026, so we know what "filled like Kai" means in numbers before changing the pipeline. Companion
 to [the thumbnail study](kaiexplains-thumbnail-study.md). This is research for people improving the pipeline; agents
 making a film never receive Kai's footage or these images (only the principles below, written into
-[quality.md](quality.md)).
+[quality.md](../quality.md)).
 
 Sample: four uploads from [Kai's channel](https://www.youtube.com/@kaiexplainsYT/videos), 17–22 minutes each, read at
 480p: [512 GB of VRAM](https://www.youtube.com/watch?v=6tihP50zlcE), [200 tok/s on Mac M5](https://www.youtube.com/watch?v=L7noXCBSObc),
@@ -25,7 +25,7 @@ The videos themselves are not kept in the repository; the contact sheets are res
 - **Spread**: the box spanned by rows and columns that hold content (specks ignored).
 - **Near-blank**: frames with under 1.5% ink.
 
-Raw output: [metrics.txt](research/kaiexplains-frames-2026-10-20/metrics.txt).
+Raw output: [metrics.txt](../research/kaiexplains-frames-2026-10-20/metrics.txt).
 
 **Kai does not put more on screen than we do.** His frames are mostly near-black. The thumbnails are packed, the video
 frames are not. What differs is where the content sits and what it is: his content reaches across most of the frame,
@@ -33,15 +33,15 @@ ours clusters in a third of it.
 
 ## What his frames are made of
 
-![20 frames sampled across "512 GB of VRAM"](research/kaiexplains-frames-2026-10-20/sheet-6tihP50zlcE.jpg)
+![20 frames sampled across "512 GB of VRAM"](../research/kaiexplains-frames-2026-10-20/sheet-6tihP50zlcE.jpg)
 
-![One stage over 32 seconds, a frame every 2 s](research/kaiexplains-frames-2026-10-20/sequence-6tihP50zlcE-300s.jpg)
+![One stage over 32 seconds, a frame every 2 s](../research/kaiexplains-frames-2026-10-20/sequence-6tihP50zlcE-300s.jpg)
 
-Other sheets: [Mac M5](research/kaiexplains-frames-2026-10-20/sheet-L7noXCBSObc.jpg),
-[Claude nerfed](research/kaiexplains-frames-2026-10-20/sheet-SxLUx8-hN1o.jpg),
-[Huawei](research/kaiexplains-frames-2026-10-20/sheet-uJcPjrEgppk.jpg),
-[Huawei, 32 s sequence](research/kaiexplains-frames-2026-10-20/sequence-uJcPjrEgppk-120s.jpg),
-[three Kai frames beside one of ours](research/kaiexplains-frames-2026-10-20/compare-kai-vs-ours.jpg) (bottom right).
+Other sheets: [Mac M5](../research/kaiexplains-frames-2026-10-20/sheet-L7noXCBSObc.jpg),
+[Claude nerfed](../research/kaiexplains-frames-2026-10-20/sheet-SxLUx8-hN1o.jpg),
+[Huawei](../research/kaiexplains-frames-2026-10-20/sheet-uJcPjrEgppk.jpg),
+[Huawei, 32 s sequence](../research/kaiexplains-frames-2026-10-20/sequence-uJcPjrEgppk-120s.jpg),
+[three Kai frames beside one of ours](../research/kaiexplains-frames-2026-10-20/compare-kai-vs-ours.jpg) (bottom right).
 
 1. **The whole frame is used, asymmetrically.** The main object sits on one side, a huge number in the opposite
    corner, a source card in another. Ours tends to be one object near the centre.
@@ -65,12 +65,12 @@ weak frames were half-faded leftovers, empty placeholder boxes and small, centre
 ## What we changed because of it
 
 - The kit gained the vocabulary as built-in objects: `card`, `tag`, `verdict`, `hero`, `gauge`, `sheet`, `chip`
-  ([SCENE_SPEC.md](SCENE_SPEC.md#composite-objects)).
+  ([SCENE_SPEC.md](../SCENE_SPEC.md#composite-objects)).
 - The composition guidance says "use the whole frame, one hero per beat" instead of "generous empty space"
-  ([quality.md](quality.md)).
+  ([quality.md](../quality.md)).
 - The build warns about narrow spread (under 40%), scenes without a hero, empty boxes and half-faded frames.
 - The script writer plans each scene's layout, hero and evidence in `VISUALS.md`.
-- A channel theme ([channel/theme.json](../channel/theme.json)) gives every film the same recognisable look by
+- A channel theme ([channel/theme.json](../../channel/theme.json)) gives every film the same recognisable look by
   default. Real things are drawn as SVG; the channel uses no photos.
 
 ## Limits

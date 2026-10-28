@@ -14,29 +14,29 @@ This report distinguishes repository observations, externally documented practic
 
 The repository already requires causal mechanisms, alternative concepts, continuing subject development, a demanding prototype, and review at normal speed. These are sound requirements. However, the production commands enforce mainly timing, file structure, selectors, determinism, and output validity.
 
-In [`scripts/video.mjs`](../scripts/video.mjs), `render` runs `audit`, HyperFrames `check`, encoding, and stream verification. It does not require a reviewed prototype, a completed creative review, or proof that known visual defects were repaired. `verify` checks duration, dimensions, frame rate, audio presence and volume; those checks cannot establish that a film is interesting or that the intended narration survived audibly intact.
+In [`scripts/video.mjs`](../../scripts/video.mjs), `render` runs `audit`, HyperFrames `check`, encoding, and stream verification. It does not require a reviewed prototype, a completed creative review, or proof that known visual defects were repaired. `verify` checks duration, dimensions, frame rate, audio presence and volume; those checks cannot establish that a film is interesting or that the intended narration survived audibly intact.
 
-In [`lib/timing.mjs`](../lib/timing.mjs), a scene with one recognized action such as `draw` or `flow` avoids the custom-action warning. The pacing heuristic measures declared beat intervals and warns about gaps greater than four seconds. It does not observe what those beats do. A long declared action can cover an inactive passage. This also differs from the stricter activity and stillness guidance in `AGENTS.md`.
+In [`lib/timing.mjs`](../../lib/timing.mjs), a scene with one recognized action such as `draw` or `flow` avoids the custom-action warning. The pacing heuristic measures declared beat intervals and warns about gaps greater than four seconds. It does not observe what those beats do. A long declared action can cover an inactive passage. This also differs from the stricter activity and stillness guidance in `AGENTS.md`.
 
 **An existing job documents the failure directly.**
 
-[`gpu-9yr-30s/review/REPORT.md`](../jobs/gpu-9yr-30s/review/REPORT.md) reports zero audit warnings and passing HyperFrames checks, while also stating:
+[`gpu-9yr-30s/review/REPORT.md`](../../jobs/gpu-9yr-30s/review/REPORT.md) reports zero audit warnings and passing HyperFrames checks, while also stating:
 
 - Labels are hard to read at 480 px width and were not enlarged.
 - The MP4 was not reviewed at full frame rate.
 - The price scene uses a fixed framing.
 
-Its [final-render contact sheet](../jobs/gpu-9yr-30s/review/contact-1fps-render.jpg) shows an opening tower glyph followed by a largely fixed log-price axis populated with labels and counters. The axis communicates magnitude, but most developments add information to a layout rather than make a subject operate. This is a useful example of technical success coexisting with the exact creative weakness you described.
+Its [final-render contact sheet](../../jobs/gpu-9yr-30s/review/contact-1fps-render.jpg) shows an opening tower glyph followed by a largely fixed log-price axis populated with labels and counters. The axis communicates magnitude, but most developments add information to a layout rather than make a subject operate. This is a useful example of technical success coexisting with the exact creative weakness you described.
 
 **More geometry helps, but is not sufficient.**
 
-[`silicon-time-machine`](../jobs/silicon-time-machine/review/REPORT.md) contains richer constructed hardware, mechanical interactions, and multiple scales. Its [saved contact sheet](../jobs/silicon-time-machine/review/full-stills/contact-sheet.jpg) shows that this environment can produce considerably more elaborate imagery. It also uses brighter illustrative treatment, and sampled counters show `$0` and intermediate amounts. These are not automatically improved explanations: they need checking against the house style and displayed-value rules. Richness, factual clarity, and restraint must be reviewed together.
+[`silicon-time-machine`](../../jobs/silicon-time-machine/review/REPORT.md) contains richer constructed hardware, mechanical interactions, and multiple scales. Its [saved contact sheet](../../jobs/silicon-time-machine/review/full-stills/contact-sheet.jpg) shows that this environment can produce considerably more elaborate imagery. It also uses brighter illustrative treatment, and sampled counters show `$0` and intermediate amounts. These are not automatically improved explanations: they need checking against the house style and displayed-value rules. Richness, factual clarity, and restraint must be reviewed together.
 
-[`latest-codex-6-1-med/STORYBOARD.md`](../jobs/latest-codex-6-1-med/STORYBOARD.md) has more ambitious mechanisms and continuity. However, much of the inspected market implementation still consists of drawing parts, moving packets, showing prices, and changing scale. Its storyboard records a minimum number of developing SVG leaves, but that metric cannot establish explanatory value. At inspection, its production report was still pending and no final `renders/video.mp4` was present; it should not be treated as a finished benchmark.
+[`latest-codex-6-1-med/STORYBOARD.md`](../../jobs/latest-codex-6-1-med/STORYBOARD.md) has more ambitious mechanisms and continuity. However, much of the inspected market implementation still consists of drawing parts, moving packets, showing prices, and changing scale. Its storyboard records a minimum number of developing SVG leaves, but that metric cannot establish explanatory value. At inspection, its production report was still pending and no final `renders/video.mp4` was present; it should not be treated as a finished benchmark.
 
 **The installed workflow contains conflicting defaults.**
 
-The local [faceless-explainer skill](../.agents/skills/faceless-explainer/SKILL.md) assumes invented visuals with no asset-staging stage, leaves asset candidates empty by default, adopts a shipped design preset, skips sketches in autonomous mode, and asks the agent to glance at midpoint snapshots and move on if nothing is obviously broken. It also contains script-restructuring, TTS, and approval instructions that do not fit supplied-audio production.
+The local [faceless-explainer skill](../../.agents/skills/faceless-explainer/SKILL.md) assumes invented visuals with no asset-staging stage, leaves asset candidates empty by default, adopts a shipped design preset, skips sketches in autonomous mode, and asks the agent to glance at midpoint snapshots and move on if nothing is obviously broken. It also contains script-restructuring, TTS, and approval instructions that do not fit supplied-audio production.
 
 Your repository instructions take precedence, but requiring the agent to reconcile these contradictions on every run is brittle. There is a particularly costly inversion here: autonomous mode removes some of the visual review that an autonomous agent needs to perform for itself.
 
