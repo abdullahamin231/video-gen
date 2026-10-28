@@ -43,7 +43,7 @@ test('CLI capture-ingest and capture-scene register runner producer identity bef
   await writeFile(path.join(job,'job.json'),JSON.stringify({review:{producerAgentIds:[],producerAgentRecords:[]}}));
   for(const [command,args,role,id] of [
     ['capture-ingest',['--run','.cache/does-not-exist','--task','screen'],'app-review-builder','runner-capture-ingest'],
-    ['capture-scene',['--capture','capture/missing','--scene','demo'],'app-review-builder'],
+    ['capture-scene',['--capture','capture/missing','--scene','demo'],'app-review-builder','runner-capture-scene'],
   ]){
     await assert.rejects(exec(process.execPath,['scripts/video.mjs',command,'--job',job,...args],{cwd:ROOT,env:{...process.env,VIDEO_AGENT_ROLE:role,VIDEO_AGENT_ID:id}}));
     const manifest=JSON.parse(await readFile(path.join(job,'job.json'),'utf8'));

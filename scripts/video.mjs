@@ -77,7 +77,7 @@ const hf = (args, opts) => run(process.execPath, [HF, ...args], opts);
 const probe = async file => JSON.parse(await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], {capture: true}));
 // Commands that change a film's sources, reviews or render. Once a job is delivered they would quietly send it back into
 // production (status → rendering/draft-rendered, stale reviews), so they need an explicit --reopen true.
-const PRODUCTION_COMMANDS = new Set(['transcribe', 'plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 
+const PRODUCTION_COMMANDS = new Set(['transcribe', 'plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix',
   'news-ingest', 'news-transcribe', 'alignment-approve', 'check', 'review-pack', 'human-review', 'review-submit', 'deliver', 'render', 'library-use']);
 const PRODUCER_COMMANDS = new Set(['plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'news-ingest', 'news-transcribe', 'alignment-approve', 'check', 'capture-ingest', 'capture-scene']);
 async function guardDelivered(job, command, opts) {

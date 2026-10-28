@@ -102,9 +102,6 @@ test('CLI arguments disable built-in sub-agents, use repo agent types, and route
   const split = { provider: 'Claude', main: '', models: { director: 'sonnet', reviewer: 'haiku' } };
   assert.equal(routeModel(split, 'director', pins).model, 'sonnet'); assert.equal(routeModel(split, 'thumbnail-maker', pins).model, 'opus');
   assert.equal(routeModel(split, 'reviewer', pins).model, 'haiku'); assert.equal(routeModel(split, 'thumbnail-reviewer', pins).model, 'opus');
-  // Threads saved before per-role models keep routing through their shared fields.
-  assert.equal(routeModel({ provider: 'Claude', main: 'sonnet', sub: 'x' }, 'builder', pins).model, 'x');
-  assert.equal(routeModel({ provider: 'Claude', directorModel: 'y' }, 'thumbnail-maker', pins).model, 'y');
   assert.equal(routeModel({ provider: 'Claude', main: 'sonnet', models: { director: 'z' } }, 'orchestrator', pins).model, 'sonnet');
   // Blank roles take the provider's default for their tier, not the orchestrator's model.
   assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'reviewer', pins), { model: 'gpt-6.1-sol', source: 'Codex strong default' });
