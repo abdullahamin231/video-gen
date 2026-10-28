@@ -22,7 +22,7 @@ const json = file => readFile(file, 'utf8').then(JSON.parse).catch(() => null);
 
 async function fixture(t) {
   const dir = await mkdtemp(path.join(root, '.cache/ming-process-test-'));
-  const home = path.join(dir, 'ming-benchmark');
+  const home = path.join(dir, 'ming');
   await Promise.all(['env/bin', 'source', 'model'].map(folder => mkdir(path.join(home, folder), { recursive: true })));
   await writeFile(path.join(home, 'model/config.json'), '{}');
   await writeFile(path.join(home, 'source/ming_tts.py'), '# Fixture only\n');

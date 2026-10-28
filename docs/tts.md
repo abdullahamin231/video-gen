@@ -10,7 +10,7 @@ npm run video -- tts --setup-ming
 ```
 
 Setup needs git, ffmpeg and Python 3.12 with venv support. It downloads the pinned model/runtime into
-`.cache/video-gen/ming-benchmark/`. Generation then runs offline. `MING_SETUP_PYTHON` selects the setup
+`.cache/video-gen/ming/`. Generation then runs offline. `MING_SETUP_PYTHON` selects the setup
 interpreter. All caches stay under the repository `.cache/`.
 
 Generate the entire recording in one invocation:

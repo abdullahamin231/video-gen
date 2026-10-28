@@ -22,9 +22,8 @@ Research assignments: `references/sourcing.md`. Independent review assignments: 
 Read only the reference relevant to your role. The writer can request missing evidence in
 `research.md` under `## Evidence requests` and reply `NEEDS SOURCES` for the host to resolve.
 
-Optional tools: `node skills/script-writing/scripts/fetch.mjs <url> <output.md>` saves source text;
-`node skills/script-writing/scripts/lint.mjs <SCRIPT.md> --minutes <target> --wpm <rate>` checks spoken
-format and duration estimates. Style counters are diagnostic, not quality targets or an AI detector.
+`node skills/script-writing/scripts/fetch.mjs <url> <output.md>` can retain source text. Estimate
+speaking duration from word count when useful, then measure the actual generated recording.
 
 The host commissions independent script review. Report what you produced, word count, duration estimate,
 review status and any unresolved evidence. A self-check is not independent review.

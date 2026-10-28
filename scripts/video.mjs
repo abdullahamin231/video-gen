@@ -77,9 +77,9 @@ const hf = (args, opts) => run(process.execPath, [HF, ...args], opts);
 const probe = async file => JSON.parse(await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file], {capture: true}));
 // Commands that change a film's sources, reviews or render. Once a job is delivered they would quietly send it back into
 // production (status → rendering/draft-rendered, stale reviews), so they need an explicit --reopen true.
-const PRODUCTION_COMMANDS = new Set(['transcribe', 'plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'kit-update',
+const PRODUCTION_COMMANDS = new Set(['transcribe', 'plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 
   'news-ingest', 'news-transcribe', 'alignment-approve', 'check', 'review-pack', 'human-review', 'review-submit', 'deliver', 'render', 'library-use']);
-const PRODUCER_COMMANDS = new Set(['plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'kit-update', 'news-ingest', 'news-transcribe', 'alignment-approve', 'check', 'capture-ingest', 'capture-scene']);
+const PRODUCER_COMMANDS = new Set(['plan-check', 'build', 'asset', 'save', 'save-all', 'music', 'mix', 'news-ingest', 'news-transcribe', 'alignment-approve', 'check', 'capture-ingest', 'capture-scene']);
 async function guardDelivered(job, command, opts) {
   if (!PRODUCTION_COMMANDS.has(command)) return;
   if (command === 'human-review' && opts.want !== undefined) return;
@@ -462,7 +462,6 @@ capture-ingest --run <reshoot run folder> --task <id> [--feature ".." --claim ".
 capture-scene --capture <dir> --scene <id> [--fit 0.9]   cut the recording per capture/<task>/edits.json and compile
                                      shots/<id>.json: click rings and camera push-in/pull-out over the recorded cursor (build it afterwards)
 music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
-kit-update                           refresh the job's frozen kit copy from lib/kit
 
 news-ingest --job <job> --source <id> --file <repository-local cleared file>\nnews-transcribe --job <job> --source <id> [--model small.en --language en]  original-file word times; review draft before use\nnews-check --job <job>               validate news sources, rights, claims, edit and required speech subtitles\nprepare --name <slug> --audio <file> --script <file> [--profile <id>] [--start 0 --length 30 --format landscape|vertical] [--review-depth fast|standard|deep]
         [--language en --model small.en --engine faster-whisper|hyperframes]
@@ -494,7 +493,7 @@ library-use --item <id@version> --job jobs/<slug>  freeze files and record hashe
 
 Chat projects (T3 Code; docs/t3-orchestrator.md): the whole video from an agreed brief, one step at a time
 profiles | profile-route --prompt "<request>" [--profile <id>]   inspect personalities / infer routing (read-only)
-project-new --name <slug> [--profile explainer|rules-story|news-financial|news-political|app-review] [--brief-file f] [--format landscape|vertical --duration <s> --tts kokoro|ming|gemini --audio f --script f --music f
+project-new --name <slug> [--profile explainer|rules-story|news-financial|news-political|app-review] [--brief-file f] [--format landscape|vertical --duration <s> --tts ming --audio f --script f --music f
             --review script,final,thumbnail|none --review-depth fast|standard|deep --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
 next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews on Tailscale)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
@@ -511,7 +510,6 @@ ideas [--focus "mac hardware" --count 6 --refresh true --json]   find new video 
 youtube-auth                         authorize the abdupdates YouTube channel (OAuth client JSON stays in .cache)
 youtube-upload --file <video.mp4> --title "Title" [--description "..."] [--privacy private|unlisted|public] [--tag "ai" ...]
                                      upload with resumable transfer; privacy defaults to unlisted. See docs/youtube-upload.md
-reference-study --url <YouTube video>|--video <repository file> --name <slug> [--every 15 --tag overview --start 0 --length 12]  reference-only downloads, frames and contact sheets
 frame-stats --video <a.mp4>[,<b.mp4>] [--every 2]   measure how much of the frame a film uses (ink, spread, near-blank), to compare films
 ideas --show new|saved|rejected|used|all [--json]   list ideas found so far
 ideas --set <id> --status new|saved|rejected|used [--reason ".."]   mark an idea
@@ -522,11 +520,9 @@ Creative design is performed by the agent; see docs/orchestrator.md and docs/age
 try {
   const [command = 'help', ...args] = process.argv.slice(2);
   if (command === 'tts') {
-    await run(process.execPath, [path.join(ROOT, 'scripts/tts.mjs'), ...args], {forwardSignals: true});
+    await (await import('../lib/tts.mjs')).ttsCommand(args);
     process.exit(0);
   }
-  if (['compile', 'assemble'].includes(command))
-    throw new Error(`The legacy ${command} command has been retired. Use build for film.json jobs; recreate older jobs from their saved script and recording with start.`);
   const opts = options(args);
   const reviewerRecordingVerdict = command === 'capture-visibility' && Boolean(opts.record) && ROLE === 'reviewer';
   if (ROLE_AGENT && !reviewerRecordingVerdict && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
@@ -543,17 +539,14 @@ try {
     if (!opts.project && command !== 'project-new' && command !== 'projects') throw new Error(`${command} needs --project <slug> (see \`npm run video -- projects\`).`);
     await projectCommand(command, opts);
   }
-  else if (command === 'help') console.log(HELP + '\ntts <file> [--provider kokoro|ming|gemini] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate narration; Gemini quota falls back to Kokoro (docs/tts.md)');
+  else if (command === 'help') console.log(HELP + '\ntts <file> [--provider ming] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate local Ming narration (docs/tts.md)');
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
   else if (command === 'start') { await assertNoDelegation(ROOT, opts.name, command); await start(opts); }
   else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
   else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
   else if (command === 'ideas') await ideasCommand(opts);
-  else if (command === 'reference-study') {
-    const {referenceStudy} = await import('./reference-study.mjs');
-    await referenceStudy(ROOT, opts);
-  }
+
   else if (command === 'frame-stats') {
     const {frameStats} = await import('../lib/pixels.mjs');
     const files = String(opts.video || '').split(',').map(v => v.trim()).filter(Boolean);

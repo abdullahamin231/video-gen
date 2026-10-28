@@ -4,7 +4,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { cacheDir } from '../lib/cache.mjs';
 export async function setupMing() {
-  const cache = cacheDir(), home = path.join(cache, 'ming-benchmark'), source = path.join(home, 'source');
+  const cache = cacheDir(), home = path.join(cache, 'ming'), source = path.join(home, 'source');
   await mkdir(path.join(home, 'tmp'), { recursive: true });
   const env = { ...process.env, TMPDIR: path.join(home, 'tmp'), PIP_CACHE_DIR: path.join(cache, 'pip'), HF_HOME: path.join(cache, 'huggingface'), XDG_CACHE_HOME: cache };
   delete env.HF_HUB_OFFLINE;
