@@ -116,7 +116,7 @@ for(const vertical of [false,true]) test(`thumbnail export and briefs preserve $
   const job=await setup(t,'news-financial',vertical),g=await thumbnailDimensions(job);
   await thumbnailStep(job);
   const brief=await readFile(path.join(job,'briefs/thumbnail-v1.md'),'utf8');
-  assert.ok(brief.includes(`${g.width}×${g.height}`));assert.ok(brief.includes(g.previewFile));
+  assert.equal(JSON.parse(/```json\n([\s\S]*?)\n```/.exec(brief)[1]).dimensions.width,g.width);assert.ok(brief.includes(g.previewFile));
   const dir=path.join(job,'thumbnail/variants/v1');await mkdir(dir,{recursive:true});
   await writeFile(path.join(dir,'BRIEF.md'),'Title: Test\nHeadline: Test\n');
   await writeFile(path.join(dir,'thumbnail.svg'),`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${g.width} ${g.height}"><rect width="100%" height="100%" fill="#123456"/></svg>`);

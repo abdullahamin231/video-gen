@@ -106,18 +106,13 @@ npm run video -- verify --job jobs/<slug>
 npm run video -- deliver --job jobs/<slug>
 ```
 
-Delivery still requires normal independent review disposition, production report and human checkpoints. SRT is written to `assets/subtitles.srt` and `renders/subtitles.srt` as a delivered local sidecar; captions are also burned into the MP4. Thumbnail generation/export/review/pick/archive follows the video orientation: vertical 1080×1920 and `preview-180x320.png`; landscape default 1920×1080 and `preview-320x180.png`. Exact saved video dimensions remain authoritative for legacy/custom frames, with an aspect-matched preview. No stretching or letterboxing a landscape design into portrait. Normal unlisted-upload policy applies only to an authorised production run, never to software fixtures.
+Delivery still requires normal independent review disposition, production report and human checkpoints. SRT is written to `assets/subtitles.srt` and `renders/subtitles.srt` as a delivered local sidecar; captions are also burned into the MP4. Thumbnail generation/export/review/pick/archive follows the video orientation: vertical 1080×1920 and `preview-180x320.png`; landscape default 1920×1080 and `preview-320x180.png`. Exact saved video dimensions remain authoritative for custom frames, with an aspect-matched preview. No stretching or letterboxing a landscape design into portrait. Normal unlisted-upload policy applies only to an authorised production run, never to software fixtures.
 
-## Resume an existing news project
+## Continue a project
 
-Do not edit or replace its frozen `production-profile.json`. The renderer recognises the existing `news-edit` capability while preserving the profile hash and creative identity. Catalog updates apply to new projects; explicit current user directions take precedence over old frozen prose. Resume in the checkout containing the implementation and project assets:
-
-```bash
-npm run video -- status --project <slug> --json
-npm run video -- next --project <slug>
-```
-
-The next step may need narration/preparation or a news editor to supply cleared sources and `news.json`. Missing media rights are real prerequisites. This software change does not authorize resuming a waiting film or acquiring commercial references. After code is integrated into its working checkout, its orchestrator can follow these commands normally without an unimplemented-news-adapter blocker.
+Use `status --project <slug> --json` and `next --project <slug>` to recover its current artifacts and tasks.
+Retain the selected editorial intent and follow current user direction. Missing source media or rights needs
+a precise prerequisite rather than substituted documentary imagery.
 
 ## Software verification
 

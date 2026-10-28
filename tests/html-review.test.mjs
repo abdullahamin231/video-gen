@@ -1,3 +1,4 @@
+import {nativeFixture} from './helpers/native-fixture.mjs';
 // Reviews of the built HTML (no render before the final review), the person's own review, and one render at the end.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,6 +25,7 @@ async function fixture(t, {human} = {}) {
   await writeFile(path.join(job, 'assets/narration.wav'), 'Synthetic narration fixture');
   for (const id of ['opening', 'comparison', 'ending'])
     await put(job, `shots/${id}.json`, {scene: id, objects: id === 'opening' ? [{id: 'subject', type: 'circle', at: [960, 540], r: 100}] : [], actions: []});
+  await nativeFixture(job,film);
   return job;
 }
 

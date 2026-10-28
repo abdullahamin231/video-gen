@@ -98,7 +98,7 @@ test('final app-review evidence must be sampled from the encoded MP4', {skip: !a
   manifest.productionProfile = metadata;
   await writeFile(jobFile, JSON.stringify(manifest));
   await freezePersonality(job, snapshot);
-  await writeFile(path.join(job,'assets/world.json'),JSON.stringify({objects:[],scenes:[]}));
+  await writeFile(path.join(job,'assets/media-plan.json'),JSON.stringify({objects:[],scenes:[]}));
   await writeFile(path.join(job, 'review/render-source.json'), JSON.stringify({version: 1,
     sourceHash: await sourceFingerprint(job), videoSha256: sha(await readFile(path.join(job, 'renders/video.mp4')))}));
   await writeFile(path.join(job, 'review/pixels.json'), JSON.stringify({ok: true, errors: [], captureVisibility: await verifyCaptureVisibility(job,path.join(job,'renders/video.mp4'),{objects:[],scenes:[]}),
@@ -119,7 +119,7 @@ test('final app-review pack requires current passing playback pixels', {skip: !a
   manifest.productionProfile = personalityMetadata(snapshot);
   await writeFile(jobFile, JSON.stringify(manifest));
   await freezePersonality(job, snapshot);
-  await writeFile(path.join(job,'assets/world.json'),JSON.stringify({objects:[],scenes:[]}));
+  await writeFile(path.join(job,'assets/media-plan.json'),JSON.stringify({objects:[],scenes:[]}));
   const videoSha256 = sha(await readFile(path.join(job, 'renders/video.mp4'))); let sourceHash = await sourceFingerprint(job);
   await writeFile(path.join(job, 'review/render-source.json'), JSON.stringify({version: 1, sourceHash, videoSha256}));
   await rm(path.join(job, 'review/pixels.json'), {force: true});
@@ -145,7 +145,7 @@ test('unverified app-review captures require current exact-interval PNG inspecti
   const source=path.join(job,'assets/app-review/source.mp4');
   await exec('ffmpeg',['-v','error','-f','lavfi','-i','smptebars=s=320x180:r=30:d=3','-c:v','libx264','-pix_fmt','yuv420p',source]);
   const world={width:320,height:180,scenes:[{id:'opening',start:0,end:1.5}],objects:[{id:capture.id,type:'video',scene:'opening',src:'assets/app-review/source.mp4',at:[160,90],size:[320,180],sourceStart:0,mediaStart:0,mediaDuration:1.5,transform:{x:1}}]};
-  await writeFile(path.join(job,'assets/world.json'),JSON.stringify(world));
+  await writeFile(path.join(job,'assets/media-plan.json'),JSON.stringify(world));
   pixels.captureVisibility=await verifyCaptureVisibility(job,path.join(job,'renders/video.mp4'),world);
   sourceHash=pixels.sourceHash=await sourceFingerprint(job); await writeFile(path.join(job,'review/pixels.json'),JSON.stringify(pixels));
   await writeFile(path.join(job,'review/render-source.json'),JSON.stringify({version:1,sourceHash:pixels.sourceHash,videoSha256}));
@@ -225,7 +225,7 @@ test('capture inspection generation creates interval scoped paired media frames'
   const source='assets/app-review/recording.mp4';
   await exec('ffmpeg',['-v','error','-f','lavfi','-i','smptebars=s=320x180:r=30:d=3','-c:v','libx264','-pix_fmt','yuv420p',path.join(job,source)]);
   const videoSha256=sha(await readFile(path.join(job,'renders/video.mp4')));
-  await writeFile(path.join(job,'assets/world.json'),JSON.stringify({scenes:[{id:'opening',start:0,end:1.5}],objects:[{id:'screen',type:'video',scene:'opening',src:source,sourceStart:0}]}));
+  await writeFile(path.join(job,'assets/media-plan.json'),JSON.stringify({scenes:[{id:'opening',start:0,end:1.5}],objects:[{id:'screen',type:'video',scene:'opening',src:source,sourceStart:0}]}));
   const sourceHash=await sourceFingerprint(job);
   await writeFile(path.join(job,'review/pixels.json'),JSON.stringify({sourceHash,videoSha256,captureVisibility:{captures:[{id:'screen',scene:'opening',status:'unverified',interval:{start:0,end:1.5}}]}}));
   const doc=await generateCaptureInspection(job); assert.equal(doc.dispositions[0].status,'pending-independent-inspection');

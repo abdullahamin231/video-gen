@@ -5,8 +5,6 @@ import path from 'node:path';
 import os from 'node:os';
 import {DEFAULT_CONFIG, loadConfig, resolveSettings, safeArea, frameGuide} from '../lib/format.mjs';
 import {directorBrief, builderBrief} from '../lib/briefs.mjs';
-import {installKit, writeWorld} from '../lib/world.mjs';
-import {inspectFilm, chromePath} from '../lib/inspect.mjs';
 
 const config = {...DEFAULT_CONFIG};
 const vertical = {width: 1080, height: 1920, duration: 4, status: 'prepared'};
@@ -68,41 +66,10 @@ test('video.config.json: missing file gives defaults, typos and bad values fail 
   await assert.rejects(loadConfig(dir), /not valid JSON/);
 });
 
-test('briefs state the job\'s frame; vertical briefs add the safe area and phone guidance', () => {
-  const alignment = {words: [{id: 'w0', text: 'hello', start: 0, end: 1}]};
-  const v = directorBrief('/job', {...vertical, duration: 4}, alignment);
-  assert.match(v, /1080×1920 \(vertical 9:16/);
-  assert.match(v, /default view centre is \[540,960\]/);
-  assert.match(v, /x 65–940, y 211–1536/);
-  assert.match(v, /"center": \[540, 960\]/);
-  assert.doesNotMatch(v, /960, 540|\[960,540\]/);
-  const l = directorBrief('/job', {width: 1920, height: 1080, duration: 4}, alignment);
-  assert.match(l, /1920×1080 \(landscape 16:9\)/);
-  assert.doesNotMatch(l, /safe area|phone apps/i);
-  const film = {concept: 'c', theme: {}, scenes: [{id: 'a', idea: 'i'}]};
-  const b = builderBrief('/job', vertical, film, {id: 'a', start: 0, end: 4}, alignment);
-  assert.match(b, /default view centre \[540,960\]/);
-  assert.match(b, /Stack, do not spread/);
-  assert.equal(safeArea({width: 1920, height: 1080}), null);
-  assert.match(frameGuide({width: 1080, height: 1080}), /square/);
-});
-
-test('real browser: a vertical world renders in a 1080×1920 frame; landscape positions and app chrome are flagged', async t => {
-  try { await chromePath(); } catch { return t.skip('Chrome unavailable'); }
-  const job = await tempDir(t, 'vertical-world-');
-  for (const dir of ['review', 'assets']) await mkdir(path.join(job, dir));
-  await installKit(job);
-  const text = (id, at, value) => ({id, type: 'text', at, text: value, size: 64, visible: true, scene: 'v'});
-  const world = {...vertical, theme: {}, scenes: [{id: 'v', start: 0, end: 4, cues: {}}],
-    objects: [text('inside', [540, 900], 'Inside'), text('landscape', [1700, 540], 'Landscape x'), text('caption', [540, 1800], 'Under the caption'),
-      {id: 'subject', type: 'circle', at: [540, 900], r: 300, scene: 'v'}],
-    actions: [{do: 'create', target: 'subject', t: 0, dur: 3.5, scene: 'v', order: 0}], hooks: [], componentSrc: [], media: []};
-  await writeWorld(job, world, vertical);
-  const result = await inspectFilm(job, vertical, {scenes: [{id: 'v', start: 0, end: 4, holds: []}]});
-  const about = id => result.warnings.filter(w => w.includes(`(${id})`));
-  assert.deepEqual(about('inside'), [], result.warnings.join('\n'));
-  assert.ok(about('landscape').some(w => /cut off by the frame edge/.test(w)), result.warnings.join('\n'));
-  assert.ok(about('caption').some(w => /leaves the vertical safe area/.test(w)), result.warnings.join('\n'));
-  assert.match(result.transcript, /1080×1920 frame/);
-  assert.deepEqual(result.errors, []);
+test('assignments carry saved canvas dimensions without a layout recipe',()=>{
+  const alignment={words:[{text:'hello',start:0,end:1}]};
+  const brief=directorBrief('/job',vertical,alignment);
+  const data=JSON.parse(/```json\n([\s\S]*?)\n```/.exec(brief)[1]);
+  assert.equal(data.width,1080);assert.equal(data.height,1920);
+  assert.equal(data.contract,'docs/composition.md');
 });

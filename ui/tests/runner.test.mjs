@@ -107,38 +107,28 @@ test('CLI arguments disable built-in sub-agents, use repo agent types, and route
   assert.equal(routeModel({ provider: 'Claude', directorModel: 'y' }, 'thumbnail-maker', pins).model, 'y');
   assert.equal(routeModel({ provider: 'Claude', main: 'sonnet', models: { director: 'z' } }, 'orchestrator', pins).model, 'sonnet');
   // Blank roles take the provider's default for their tier, not the orchestrator's model.
-  assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'reviewer', pins), { model: 'gpt-6-luna', source: 'Codex weak default' });
+  assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'reviewer', pins), { model: 'gpt-6.1-sol', source: 'Codex strong default' });
   assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'script-writer', pins), { model: 'gpt-6.1-sol', source: 'Codex strong default' });
   assert.equal(routeModel({ provider: 'Codex', main: 'gpt' }, 'orchestrator', pins).model, 'gpt');
-  assert.equal(routeModel({ provider: 'Codex', main: '' }, 'orchestrator', pins).model, 'gpt-6-luna');
-  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'director', pins).model, 'opencode/glm-5.3-flash');
+  assert.equal(routeModel({ provider: 'Codex', main: '' }, 'orchestrator', pins).model, 'gpt-6.1-sol');
+  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'director', pins).model, 'opencode/deepseek-v4.1-flash-free');
   assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'script-writer', pins).model, 'opencode/deepseek-v4.1-flash-free');
   assert.deepEqual(routeModel({ provider: 'Codex', main: 'gpt' }, 'script-researcher', pins), { model: 'gpt-6-luna', source: 'Codex weak default' });
   assert.equal(routeModel({ provider: 'Claude', main: '' }, 'script-researcher', { 'script-researcher': 'claude-haiku-5-5' }).model, 'claude-haiku-5-5');
-  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'builder', pins).model, 'opencode/glm-5.3-flash');
-  assert.equal(routeModel({ provider: 'Claude', main: '' }, 'orchestrator', pins).model, 'claude-haiku-5-5');
-  assert.equal(routeModel({ provider: 'Pi', main: '' }, 'orchestrator', pins).model, 'anthropic/claude-haiku-5-5');
+  assert.equal(routeModel({ provider: 'OpenCode', main: '' }, 'builder', pins).model, 'opencode/deepseek-v4.1-flash-free');
+  assert.equal(routeModel({ provider: 'Claude', main: '' }, 'orchestrator', pins).model, 'claude-opus-5-5');
+  assert.equal(routeModel({ provider: 'Pi', main: '' }, 'orchestrator', pins).model, 'anthropic/claude-opus-5-5');
 });
 
-test('fresh and resumed orchestrators bootstrap before next and discover deferred runner tools', () => {
-  const job = { id: 'abc', slug: 'my-video-abc123', jobPath: 'jobs/my-video-abc123', scriptPath: 'jobs/scripts/my-video-abc123', prompt: 'x', duration: 60, format: 'landscape' };
-  assert.match(orchestratorPrompt(job), /start --name my-video-abc123 /);
-  assert.match(orchestratorPrompt(job), /Requested target duration: 60 seconds/);
-  for (const resume of [false, true]) {
-    const prompt = orchestratorPrompt({ ...job, provider: 'Codex' }, { resume });
-    assert.match(prompt, /Check whether jobs\/my-video-abc123\/job\.json exists/);
-    assert.match(prompt, /do not run next before this manifest exists/);
-    assert.match(prompt, /first discover and call delegate with role="script-researcher"[\s\S]*then, once SOURCES\.md exists, delegate with role="script-writer"/);
-    assert.match(prompt, /Then commission a fresh script-reviewer/);
-    assert.match(prompt, /Only after the manifest exists, run npm run video -- next --job jobs\/my-video-abc123/);
-    assert.match(prompt, /Find video_runner tools in ALL_TOOLS/);
-    assert.match(prompt, /There is no runner next tool/);
-    assert.match(prompt, /USER BRIEF:\nx/);
+test('fresh and resumed host assignments carry user input and exact job settings',()=>{
+  const job={id:'abc',slug:'my-video',jobPath:'jobs/my-video',scriptPath:'jobs/scripts/my-video',prompt:'User brief',duration:60,format:'landscape'};
+  for(const resume of [false,true]) {
+    const data=JSON.parse(/```json\n([\s\S]*?)\n```/.exec(orchestratorPrompt(job,{resume}))[1]);
+    assert.equal(data.userBrief,job.prompt);assert.equal(data.duration,60);assert.equal(data.resume,resume);
+    assert.equal(data.contract,'docs/orchestrator.md');assert.match(data.startCommand,/start --name my-video /);
   }
-  const supplied = orchestratorPrompt({ ...job, inputScript: 'inputs/script.md', audioPath: 'inputs/take.wav' });
-  assert.match(supplied, /first copy the supplied script/);
-  assert.match(supplied, /Use the supplied recording/);
 });
+
 
 test('store keeps events out of snapshots, batches writes, and restores recent events from the log', async () => {
   const folder = await workspace(); const store = new Store(folder); const job = store.create(defaults);
@@ -331,7 +321,7 @@ test('API streams deltas, authorizes bridge tools, rejects cross-origin writes, 
   const tooLong = await post(url, '/api/jobs', { ...defaults, prompt: 'A two-hour fixture' }); assert.equal(tooLong.status, 400); assert.match((await tooLong.json()).error, /between/);
   const open = await post(url, '/api/jobs', { ...defaults, prompt: 'A test fixture with no length', duration: 60 }); assert.equal(open.status, 201);
   const openJob = app.store.get((await open.json()).id); assert.equal(openJob.duration, null);
-  assert.match(orchestratorPrompt(openJob), /No target duration was requested: the length is the script writer's call/);
+  assert.equal(JSON.parse(/```json\n([\s\S]*?)\n```/.exec(orchestratorPrompt(openJob))[1]).duration,null);
   await until(() => !['queued', 'running'].includes(openJob.status), 'the open-length job to settle'); await app.runner.remove(openJob);
   const response = await post(url, '/api/jobs', defaults); assert.equal(response.status, 201); const created = await response.json(); const job = app.store.get(created.id);
   assert.equal(job.duration, 60);

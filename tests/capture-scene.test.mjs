@@ -10,7 +10,7 @@ import {createHash} from 'node:crypto';
 import {execFile as execFileCallback} from 'node:child_process';
 import {promisify} from 'node:util';
 import {fileURLToPath} from 'node:url';
-import {validateEdits, clusterClicks, clusterFocus, compileCaptureScene} from '../lib/capture-scene.mjs';
+import {updateOmissionEvidence, validateEdits, clusterClicks, clusterFocus, compileCaptureScene} from '../lib/capture-scene.mjs';
 import {carryCaptures} from '../lib/project.mjs';
 import {buildFilm} from '../lib/film.mjs';
 import {reviewerBrief} from '../lib/briefs.mjs';
@@ -86,7 +86,7 @@ async function fixtureJob(root) {
     alternatives: [{concept: 'Screen on a light canvas', rejected: 'the app is light already'}, {concept: 'Stills only', rejected: 'the recording is the evidence'}],
     subjects: [{id: 'app', what: 'the application screen'}],
     scenes: [{
-      id: 'filters', start: {boundary: 'start'}, idea: 'Show the filter being created', mechanism: 'Click the button, type a name, save',
+      id: 'filters', kind:'html',file:'compositions/filters.html', start: {boundary: 'start'}, idea: 'Show the filter being created', mechanism: 'Click the button, type a name, save',
       states: ['empty form', 'filled form', 'filter listed'], payoff: 'The filter exists', camera: 'Push in on each control',
       handoff: 'Same app screen', why_not_basic: 'The evidence is the recording', alternatives: ['A slideshow of stills'], carry: [],
     }],
@@ -130,55 +130,15 @@ test('clicks far apart in time are separate things to look at, and their targets
   assert.deepEqual(clusterFocus([{x: 5, y: 6}]).center, [5, 6]);
 });
 
-test('a compiled scene cuts the source, follows the log and validates against the film schema', async t => {
-  const root = await tempRoot('capture-scene-');
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const capture = await fakeCapture(root);
-  const {job, film, alignment, manifest} = await fixtureJob(root);
-
-  const compiled = await compileCaptureScene(job, capture, EDITS, {width: 1920, height: 1080});
-  // A 1600 px capture cannot take a tight push-in without magnifying compression; the compiler says so instead of
-  // silently shipping a soft zoom.
-  assert.equal(compiled.warnings.length, 2);
-  for (const warning of compiled.warnings) assert.match(warning, /would magnify a 1600px capture past 1\.5×/);
-  assert.equal(compiled.report.length, 2);
-  assert.equal(compiled.report[0].clicks, 2);
-  assert.equal(compiled.report[0].interactionCounts.type, 1);
-  assert.equal(compiled.report[0].interactionCounts.scroll, 1, 'the recorded scroll stays inside its continuous source cut');
-
-  for (const edit of EDITS.edits) {
-    const clip = path.join(job, 'assets/app-review/F7-filters', `${edit.id}.mp4`);
-    assert.ok(await exists(clip), `${edit.id} was cut into assets/`);
-  }
-  assert.ok(!(await exists(path.join(job, 'assets/app-review/cursor.svg'))), 'reshoot composites the cursor; no second pointer asset is written');
-  assert.ok(await exists(path.join(capture, 'recording.mp4')), 'the source recording is kept unchanged');
-
-  const scene = JSON.parse(await readFile(path.join(job, 'shots/filters.json'), 'utf8'));
-  assert.equal(scene.scene, 'filters');
-  assert.deepEqual(Object.keys(scene.cues).sort(), ['open-dialog', 'save-it']);
-  assert.equal(scene.cues['open-dialog'].phrase, 'add a filter');
-
-  const videos = scene.objects.filter(o => o.type === 'video');
-  assert.equal(videos.length, 2);
-  for (const video of videos) {
-    assert.match(video.src, /^assets\/app-review\/F7-filters\//);
-    assert.ok(video.clipDuration > 0.4, 'the video carries its real length so it cannot play past the cut');
-  }
-  assert.equal(scene.objects.filter(o => o.id.startsWith('cursor-')).length, 0, 'the cursor is already in the footage');
-  const rings = scene.objects.filter(o => o.type === 'circle');
-  assert.equal(rings.length, 3);
-  for (const ring of rings) assert.equal(ring.layer, 'media');
-
-  const times = scene.actions.map(a => String(a.at ?? ''));
-  assert.ok(times.every(at => !/^\d/.test(at)), 'timing stays cue-relative, never absolute seconds');
-  assert.ok(!scene.actions.some(a => a.do === 'move'), 'nothing moves a pointer that is already recorded');
-  const cameras = scene.actions.filter(a => a.do === 'camera');
-  assert.ok(cameras.some(c => c.zoom > 1.1), 'a click cluster pushes the camera in');
-  assert.ok(cameras.some(c => c.zoom === 1), 'and the shot comes back out');
-  assert.ok(cameras.every(c => c.zoom <= 1.6), 'a 1600 px capture is not magnified past the sharpness budget');
-
-  const built = await buildFilm(job, {inspect: false, print: false});
-  assert.ok(built.ok, `the compiled scene must pass the shared schema: ${JSON.stringify(built.errors ?? [])}`);
+test('capture adapter emits native HTML with local cuts and source evidence',async t=>{
+  const root=await tempRoot('native-capture-');t.after(()=>rm(root,{recursive:true,force:true}));
+  const capture=await fakeCapture(root),{job}=await fixtureJob(root);
+  const result=await compileCaptureScene(job,capture,EDITS,{width:1920,height:1080});
+  assert.ok(result.file.endsWith('compositions/filters.html'));
+  assert.match(await readFile(result.file,'utf8'),/<video/);
+  const metadata=JSON.parse(await readFile(result.file.replace(/\.html$/,'.capture.json'),'utf8'));
+  assert.equal(metadata.objects.length,2);assert.equal(metadata.objects[0].type,'video');
+  assert.ok(await exists(path.join(capture,'recording.mp4')));
 });
 
 test('a capture without a composited pointer is refused instead of compiled without one', async t => {
@@ -219,75 +179,6 @@ test('meaningful actions with malformed timestamps cannot evade capture complete
   await writeFile(manifestFile, JSON.stringify(manifest));
   const {job} = await fixtureJob(root);
   await assert.rejects(compileCaptureScene(job, capture, EDITS), /action \d+ \(click\) has invalid timestamp/);
-});
-
-test('the real renderer composites and holds app capture pixels on a colored background', async t => {
-  let chrome = null;
-  try { chrome = await chromePath(); } catch {}
-  if (!chrome) return t.skip('no Chrome on this machine');
-  const root = path.join(ROOT, '.cache', `capture-scene-render-${process.pid}-${Date.now()}`);
-  await mkdir(root, {recursive: true});
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const capture = await fakeCapture(root, {duration: 3.2});
-  const {job} = await fixtureJob(root);
-  await ffmpeg(['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=13', '-c:a', 'pcm_s16le', path.join(job, 'assets/narration.wav')]);
-  // Make the test a valid app-review production and visibly non-black canvas.
-  const manifest = JSON.parse(await readFile(path.join(job, 'job.json'), 'utf8'));
-  manifest.duration = 13;
-  const filmFile = path.join(job, 'film.json');
-  const film = JSON.parse(await readFile(filmFile, 'utf8'));
-  film.theme.bg = '#d8b34a';
-  await writeFile(filmFile, JSON.stringify(film, null, 2));
-  const profile = loadPersonality('app-review');
-  manifest.productionProfile = personalityMetadata(profile);
-  await writeFile(path.join(job, 'job.json'), JSON.stringify(manifest));
-  await freezePersonality(job, profile);
-  const reviewInstructions = reviewerBrief(job, 'visual-mechanism', {stage: 'final', interval: {start: 0, end: 13}}, 'review/final/pack.json', '0'.repeat(64), 'Judge the app evidence.', manifest);
-  assert.match(reviewInstructions, /Play the supplied encoded MP4 clips at normal speed/);
-  assert.match(reviewInstructions, /Never imply that audio was heard when it was not/);
-  const edits = {...EDITS, edits: EDITS.edits.map(edit => ({...edit, hold: true}))};
-  await compileCaptureScene(job, capture, edits, {width: 1920, height: 1080});
-  const built = await buildFilm(job, {inspect: false, print: false});
-  assert.ok(built.ok, `build: ${(built.errors || []).join('; ')}`);
-  const worldFile = path.join(job, 'assets/world.json');
-  const world = JSON.parse(await readFile(worldFile, 'utf8'));
-  const video = world.objects.find(object => object.type === 'video' && object.id === 'screen-open-dialog');
-  assert.ok(video, 'compiled capture video exists in the renderer input');
-  const start = video.mediaStart, end = start + video.mediaDuration;
-  assert.ok(end + 0.4 < 5.5, 'test clip ends before the next narrated cut');
-  const hf = path.join(ROOT, 'node_modules/hyperframes/bin/hyperframes.mjs');
-  const render = async output => execFile(process.execPath, [hf, 'render', '--quality', 'draft', '--fps', '10', '--output', output, '--quiet'], {cwd: job, timeout: 180000});
-  await render('renders/with-capture.mp4');
-  // Counterfactual render through the same HyperFrames renderer, with only the capture layer absent.
-  const shotFile = path.join(job, 'shots/filters.json');
-  const shot = JSON.parse(await readFile(shotFile, 'utf8'));
-  shot.objects = shot.objects.filter(object => object.id !== 'screen-open-dialog');
-  shot.actions = shot.actions.filter(action => action.target !== 'screen-open-dialog');
-  await writeFile(shotFile, JSON.stringify(shot, null, 2));
-  const absentBuild = await buildFilm(job, {inspect: false, print: false});
-  assert.ok(absentBuild.ok, `counterfactual build: ${(absentBuild.errors || []).join('; ')}`);
-  await render('renders/without-capture.mp4');
-  const frame = async (file, time) => {
-    const {stdout} = await execFile('ffmpeg', ['-v', 'error', '-ss', time.toFixed(3), '-i', file, '-frames:v', '1', '-vf', 'scale=96:54,format=rgb24', '-f', 'rawvideo', 'pipe:1'], {encoding: 'buffer'});
-    return stdout;
-  };
-  const differs = (a, b) => {
-    assert.equal(a.length, b.length);
-    let sum = 0, changed = 0;
-    for (let i = 0; i < a.length; i += 3) {
-      const d = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
-      sum += d; if (d > 24) changed++;
-    }
-    return {mean: sum / a.length, changed: changed / (a.length / 3)};
-  };
-  const withFile = path.join(job, 'renders/with-capture.mp4'), withoutFile = path.join(job, 'renders/without-capture.mp4');
-  const before = differs(await frame(withFile, Math.max(0.1, start - 0.2)), await frame(withoutFile, Math.max(0.1, start - 0.2)));
-  assert.ok(before.mean < 2, `before playback should match the absent-layer render: ${JSON.stringify(before)}`);
-  for (const time of [start + 0.4, end + 0.2]) {
-    const delta = differs(await frame(withFile, time), await frame(withoutFile, time));
-    assert.ok(delta.mean > 4 && delta.changed > 0.08,
-      `captured frame/last-frame hold at ${time.toFixed(2)}s must appear in encoded MP4, delta ${JSON.stringify(delta)}`);
-  }
 });
 
 test('capture-scene refuses edits that do not match the recording', async t => {
@@ -336,7 +227,7 @@ test('omitted task actions require action-log-bound omission records and preserv
   const root = await tempRoot('capture-scene-omission-'), otherRoot = await tempRoot('capture-scene-omission-other-');
   t.after(() => Promise.all([rm(root, {recursive: true, force: true}), rm(otherRoot, {recursive: true, force: true})]));
   const capture = await fakeCapture(root), {job} = await fixtureJob(root);
-  const edits = {scene: 'filters', edits: [{id: 'open', phrase: 'open the dialog', source: [0.6, 1.05], feature: 'F7'}]};
+  const edits = {scene: 'filters', edits: [{id: 'open', phrase: 'add a filter', source: [0.6, 1.05], feature: 'F7'}]};
   await assert.rejects(compileCaptureScene(job, capture, edits), /need evidence-backed omissions/);
   const log = await readFile(path.join(capture, 'actions.jsonl'));
   const digest = createHash('sha256').update(log).digest('hex');
@@ -362,7 +253,7 @@ test('omitted task actions require action-log-bound omission records and preserv
   saved.records.push({scene: 'other-scene', actionIndex: 99, reason: 'kept', evidence: []});
   await writeFile(path.join(capture, 'omissions.json'), JSON.stringify(saved));
   await compileCaptureScene(job, capture, {scene: 'filters', edits: [
-    {id: 'all-actions', phrase: 'perform the complete task', source: [0.7, 3.1], feature: 'F7'},
+    {id: 'all-actions', phrase: 'add a filter', source: [0.7, 3.1], feature: 'F7'},
   ]});
   const refreshed = JSON.parse(await readFile(path.join(capture, 'omissions.json'), 'utf8'));
   assert.deepEqual(refreshed.records.map(record => record.scene), ['other-scene']);
@@ -373,7 +264,7 @@ test('omitted task actions require action-log-bound omission records and preserv
   await writeFile(path.join(capture, 'omissions.json'), JSON.stringify({version: 1, capture: 'F7-filters', actionsSha256: digest,
     records: [{scene: 'filters', actionIndex: 99, reason: 'stale', evidence: []}]}));
   await compileCaptureScene(job, capture, {scene: 'filters', edits: [
-    {id: 'all-actions-again', phrase: 'perform the complete task again', source: [0.7, 3.1], feature: 'F7'},
+    {id: 'all-actions-again', phrase: 'add a filter', source: [0.7, 3.1], feature: 'F7'},
   ]});
   const emptied = JSON.parse(await readFile(path.join(capture, 'omissions.json'), 'utf8'));
   assert.deepEqual(emptied.scenes.map(({scene,omissionCount})=>({scene,omissionCount})),[{scene:'filters',omissionCount:0}],
@@ -385,10 +276,11 @@ test('omitted task actions require action-log-bound omission records and preserv
 test('omission ledger flock recovers process death, serializes contenders, and preserves a live owner', async t => {
   const root = await tempRoot('capture-scene-omission-lock-'); t.after(() => rm(root, {recursive:true,force:true}));
   const capture = await fakeCapture(root), {job} = await fixtureJob(root);
+  const record=edit=>updateOmissionEvidence(capture,{scene:edit.scene,capture:'F7-filters',actionsSha256:'f'.repeat(64),records:[],ranges:[],expectedActionIndexes:[]});
   const edit = (scene, id, source) => ({scene, edits:[{id,phrase:'show the real task',source:[0.7,3.1],feature:'F7'}]});
   await Promise.all([
-    compileCaptureScene(job,capture,edit('filters','first',[0.7,1.1])),
-    compileCaptureScene(job,capture,edit('results','second',[1.4,2.1])),
+    record(edit('filters','first',[0.7,1.1])),
+    record(edit('results','second',[1.4,2.1])),
   ]);
   let ledger = JSON.parse(await readFile(path.join(capture,'omissions.json'),'utf8'));
   assert.deepEqual(new Set(ledger.scenes.map(x=>x.scene)),new Set(['filters','results']));
@@ -403,15 +295,15 @@ test('omission ledger flock recovers process death, serializes contenders, and p
   crashed.kill('SIGKILL');
   await crashedClosed;
   await Promise.all([
-    compileCaptureScene(job,capture,edit('third','after-crash',[0.7,2.9])),
-    compileCaptureScene(job,capture,edit('fourth','after-crash-two',[0.7,2.9])),
+    record(edit('third','after-crash',[0.7,2.9])),
+    record(edit('fourth','after-crash-two',[0.7,2.9])),
   ]);
   assert.equal(await exists(lock),true,'persistent lock inode remains available after owner death');
   assert.equal(await exists(path.join(capture,'.omissions.recovery')),false,'no separately crashable recovery lock exists');
   ledger = JSON.parse(await readFile(path.join(capture,'omissions.json'),'utf8'));
   assert.ok(['third','fourth'].every(scene=>ledger.scenes.some(item=>item.scene===scene)), 'competing stale-lock recoverers preserve both scene updates');
   const active=await acquire();
-  await assert.rejects(compileCaptureScene(job,capture,edit('blocked-active','blocked-active',[0.7,3.1])),/Timed out waiting.*owner is active/);
+  await assert.rejects(record(edit('blocked-active','blocked-active',[0.7,3.1])),/Timed out waiting.*owner is active/);
   assert.equal(active.exitCode,null,'live owner remains alive while a contender times out');
   active.kill('SIGTERM'); await new Promise(resolve=>active.once('close',resolve));
 });
@@ -419,8 +311,9 @@ test('omission ledger flock recovers process death, serializes contenders, and p
 test('killed ledger transaction owner cannot write after lock release while a compiler contends', async t => {
   const root=await tempRoot('capture-scene-omission-owner-death-'); t.after(()=>rm(root,{recursive:true,force:true}));
   const capture=await fakeCapture(root), {job}=await fixtureJob(root);
+  const record=edit=>updateOmissionEvidence(capture,{scene:edit.scene,capture:'F7-filters',actionsSha256:'f'.repeat(64),records:[],ranges:[],expectedActionIndexes:[]});
   const edit=(scene,id)=>({scene,edits:[{id,phrase:'show the real task',source:[0.7,3.1],feature:'F7'}]});
-  await compileCaptureScene(job,capture,edit('durable','durable'));
+  await record(edit('durable','durable'));
   const ledgerFile=path.join(capture,'omissions.json'), before=await readFile(ledgerFile,'utf8');
   const lock=path.join(capture,'.omissions.lock'), marker=path.join(root,'owner-paused');
   const helper=path.join(ROOT,'scripts/omission-lock-holder.mjs');
@@ -429,7 +322,7 @@ test('killed ledger transaction owner cannot write after lock release while a co
   child.stdin.end(JSON.stringify({captureDir:capture,update:{scene:'crashing',capture:'F7-filters',actionsSha256:'f'.repeat(64),records:[],ranges:[],expectedActionIndexes:[]}}));
   for(let i=0;i<100&&!await exists(marker);i++) await new Promise(resolve=>setTimeout(resolve,20));
   assert.equal(await exists(marker),true,'transaction reached its read phase while holding flock');
-  const contender=compileCaptureScene(job,capture,edit('contender','contender'));
+  const contender=record(edit('contender','contender'));
   child.kill('SIGKILL'); await ownerClosed;
   await contender;
   const after=JSON.parse(await readFile(ledgerFile,'utf8'));

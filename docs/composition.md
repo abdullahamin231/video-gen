@@ -92,5 +92,5 @@ compares repeated timestamps after backward seeking. It also runs HyperFrames li
 frames and playback: sample checks do not establish contrast, occlusion, narrative clarity or smooth motion.
 Independent review precedes final render and delivery. The orchestrator runs those stages.
 
-For recorded browser scenes, capture tooling can generate shot specs; [capture.md](capture.md) and
-[SCENE_SPEC.md](SCENE_SPEC.md) describe that optional adapter. It is not required for native authoring.
+For browser scenes, [capture.md](capture.md) describes ingest, source cuts and evidence. The adapter emits
+native HTML and media metadata. Optional graphics and camera moves are agent-authored.

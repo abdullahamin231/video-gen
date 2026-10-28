@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, access} from 'node:fs/promises';
 import path from 'node:path';
-import {spawnSync} from 'node:child_process';
+import {spawnSync,execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {buildFilm, filmAudit, nextStep} from '../lib/film.mjs';
 import {openNativeInspector} from '../lib/native.mjs';
 import {createReviewPack} from '../lib/review-pack.mjs';
@@ -48,6 +49,13 @@ test('native film builds without a world runtime and captures the actual second 
   const saved=JSON.parse(await readFile(path.join(job,'review/final/pack.json')));
   assert.equal(saved.scenes.length,2);
   assert.ok(saved.evidence.some(e=>e.kind==='frames'&&e.start>=2));
+  const run=promisify(execFile);
+  await run(process.execPath,[path.resolve('scripts/video.mjs'),'render','--job',job,'--reuse-build','true','--workers','1'],{maxBuffer:2*1024*1024});
+  for(const [time,expected] of [[1,[255,0,0]],[3,[0,255,255]]]) {
+    const {stdout}=await run('ffmpeg',['-v','error','-ss',String(time),'-i',path.join(job,'renders/video.mp4'),'-frames:v','1','-vf','crop=2:2:280:150,scale=1:1,format=rgb24','-f','rawvideo','pipe:1'],{encoding:'buffer'});
+    assert.equal(stdout.length,3);expected.forEach((channel,index)=>assert.ok(Math.abs(stdout[index]-channel)<15));
+  }
+
 });
 
 test('native missing scene fails build and routes to its author rather than review', async t=>{

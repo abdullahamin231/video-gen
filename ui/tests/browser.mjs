@@ -29,8 +29,7 @@ try {
   const page = await browser.newPage(); page.on('pageerror', e => errors.push(e.message)); await page.setViewport({ width: 1440, height: 1000 });
   await page.goto(url, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('.welcome');
   await click(page, '.new-job');
-  assert.equal(await page.$eval('select[name=ttsProvider]', node => node.value), 'kokoro', 'local narration is the default');
-  await page.select('select[name=ttsProvider]', 'gemini');
+  assert.equal(await page.$eval('input[name=ttsProvider]', node => node.value), 'ming', 'local narration is the default');
   await page.screenshot({ path: path.join(shots, 'narration-picker.png') });
   await page.select('select[name=format]', 'vertical'); await page.type('#new-prompt', 'A test fixture video about power grids.'); assert(/agent will choose a length/.test(await page.$eval('#duration-hint', node => node.textContent)), 'a prompt without a length leaves it to the agent'); await page.type('#new-prompt', ' Make it 2 minutes.'); assert((await page.$eval('#duration-hint', node => node.textContent)).includes('2 min'), 'the hint shows the length read from the prompt'); await page.type('input[name=title]', 'Browser integration fixture');
   await page.type('input[name=main]', 'fixture-main'); await page.type('input[name="model:builder"]', 'fixture-builder');
@@ -49,10 +48,9 @@ try {
   await click(page, '#new-job-form button[type=submit]');
   await page.waitForSelector('.status-badge.needs_attention', { timeout: 20000 });
   const job = app.store.all()[0]; assert.equal(job.main, 'fixture-main'); assert.equal(job.models.builder, 'fixture-builder'); assert.equal(job.models.director, ''); assert.equal(job.format, 'vertical');
-  assert.equal(job.ttsProvider, 'gemini', 'new-job form submits the narration provider');
-  await writeFile(path.join(root, job.scriptPath, 'tts-status.json'), JSON.stringify({ requestedProvider: 'gemini', usedProvider: 'kokoro', status: 'complete', fallback: { reason: 'quota' } }));
+  assert.equal(job.ttsProvider, 'ming', 'new-job form submits the narration provider');
+  await writeFile(path.join(root,job.scriptPath,'tts-status.json'),JSON.stringify({requestedProvider:'ming',usedProvider:'ming',status:'generating'}));
   await app.runner.syncNarration(job);
-  await page.waitForFunction(() => document.querySelector('.thread-content')?.textContent.includes('Gemini’s usage limit was reached'));
   assert.equal(job.agents.filter(agent => agent.role === 'builder').length, 2);
   await page.screenshot({ path: path.join(shots, 'thread.png') });
 

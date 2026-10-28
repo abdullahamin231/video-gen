@@ -112,25 +112,16 @@ test('a preview, a failed run or an unsupported take schema is refused rather th
   await assert.rejects(readReshootRun(run), /schema_version 2 is not supported/);
 });
 
-test('a composited-pointer capture compiles without a synthetic cursor, and its 2x frames allow a real push-in', async t => {
-  const root = await tempRoot('reshoot-compile-');
-  t.after(() => rm(root, {recursive: true, force: true}));
-  const run = await fakeReshootRun(root);
-  const job = path.join(root, 'job');
-  const capture = path.join(job, 'capture', 'ui-workspace');
-  await ingestReshootRun(run, capture, {task: 'ui-workspace'});
-
-  const compiled = await compileCaptureScene(job, capture, EDITS, {width: 1920, height: 1080});
-  const scene = JSON.parse(await readFile(path.join(job, 'shots/ui-review.json'), 'utf8'));
-  const objects = scene.objects || [];
-  assert.equal(objects.filter(object => String(object.id).startsWith('cursor-')).length, 0,
-    'the footage already carries the cursor, so nothing draws a second one');
-  assert.ok(objects.some(object => object.type === 'circle'), 'click rings still mark what was clicked');
-  assert.ok(objects.some(object => object.type === 'video'));
-  assert.ok(!(await exists(path.join(job, 'assets/app-review/cursor.svg'))), 'no cursor asset is written');
-  assert.ok(Math.max(...scene.actions.filter(action => action.do === 'camera').map(action => action.zoom)) > 1.5,
-    'a 2x recording may be pushed in past the 1.5x budget of a CSS-resolution screencast');
-  assert.ok(compiled.warnings.some(warning => /past 3×/.test(warning)),
-    'the magnification budget follows the frame size, so a 2x capture is allowed 3x');
-  assert.ok(await exists(path.join(capture, 'recording.mp4')), 'the source recording is kept unchanged');
+test('ingested capture compiles to native HTML with its recorded pointer intact',async t=>{
+  const root=await tempRoot('reshoot-native-');t.after(()=>rm(root,{recursive:true,force:true}));
+  const run=await fakeReshootRun(root),job=path.join(root,'job'),capture=path.join(job,'capture','ui-workspace');
+  await ingestReshootRun(run,capture,{task:'ui-workspace'});
+  await put(job,'job.json',{duration:6,width:1920,height:1080});
+  const words='sign in to the workspace open the delivered video'.split(' ').map((text,index)=>({text,start:index*.5,end:index*.5+.3}));
+  await put(job,'alignment.json',{words});
+  await put(job,'film.json',{version:2,title:'Capture',concept:'Actual task',scenes:[{id:'ui-review',idea:'Recorded task',kind:'html',file:'compositions/ui-review.html'}]});
+  const result=await compileCaptureScene(job,capture,EDITS);
+  assert.match(await readFile(result.file,'utf8'),/<video/);
+  assert.ok(!(await exists(path.join(job,'assets/app-review/cursor.svg'))));
+  assert.ok(await exists(path.join(capture,'recording.mp4')));
 });

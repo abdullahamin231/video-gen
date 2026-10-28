@@ -63,4 +63,26 @@ After selection, upload the qualified MP4 to abdupdates as unlisted unless the u
 
 There is one canonical `skills/` folder. Configure harness skill discovery to use it; no per-harness
 skill copies or catalogs are required. Harness role files are transport/model adapters, not another
-source of creative instructions. Historical studies under `docs/research/` are optional evidence.
+source of creative instructions.
+
+## Assignment data
+
+Generated briefs contain data only: role, project/job, input paths, expected outputs, relevant technical
+reference and findings. The agent reads the artifacts it needs and chooses its approach. There is no
+separate prompt-file catalog or embedded creative instruction package.
+
+| Assignment | Output / reference |
+|---|---|
+| Research | sources/ and SOURCES.md; script-writing sourcing reference |
+| Script writing/revision | SCRIPT.md, research.md and concise VISUALS.md; script-writing skill |
+| Script review | review.md with disposition; script-writing review reference |
+| Direction | film.json and native scene files; composition.md |
+| Scene build/repair | assigned native HTML and assets; composition.md |
+| Film review | actual evidence inspection and submitted report; independent-review.md |
+| Thumbnail maker/reviewer | images, packaging copy, verdict/ranking; video-click-psychology.md |
+
+Assignments with ownsPlan can revise film.json; scene authors coordinate shared changes. Role agents do
+not advance host-only lifecycle commands. In the local UI use video_runner delegate/delegate_parallel for
+tracked work, feedback for new direction, checkpoint for requested human decisions and complete after
+qualified delivery. A supplied recording bypasses generated narration. New UI tasks are production-authorized;
+read their task metadata for paths, format, duration and requested checkpoints.

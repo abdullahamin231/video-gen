@@ -1,9 +1,10 @@
+import {nativeFixture} from './helpers/native-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {compileFilm} from '../lib/spec.mjs';
+import {compileFilm} from '../lib/composition.mjs';
 import {decodeWav, soundInfo, placeSound} from '../lib/sfx.mjs';
 import {mixBuses, loudness, speechMask} from '../lib/mix.mjs';
 import {pickListening} from '../lib/sound-check.mjs';
@@ -41,10 +42,11 @@ async function job() {
   await writeFile(path.join(dir, 'assets/sfx/whoosh.wav'), wav(0.6, whoosh));
   await writeFile(path.join(dir, 'shots/one.json'), JSON.stringify({scene: 'one', cues: {two: {phrase: 'two'}},
     objects: [{id: 'card', type: 'rect', at: [960, 540], size: [400, 300]}], actions: [{do: 'drop', target: 'card', at: 'two'}]}));
+  await nativeFixture(dir,film);
+  film.sounds=[];
   return dir;
 }
-const shot = (dir, sounds, extra = {}) => writeFile(path.join(dir, 'shots/two.json'), JSON.stringify({scene: 'two', cues: {seven: {phrase: 'seven'}, nine: {phrase: 'nine'}},
-  objects: [{id: 'title', type: 'text', at: [960, 300], text: 'Hello', size: 80}], actions: [{do: 'pop', target: 'title', at: 'seven'}, {do: 'camera', zoom: 1.2, at: 'nine', dur: 1}], sounds, ...extra}));
+const shot=async(dir,sounds)=>{film.sounds=sounds.map(sound=>({...sound,at:{phrase:sound.at}}));};
 
 test('WAV decoding, loudest moment and alignment', () => {
   const d = decodeWav(wav(0.6, whoosh), 'w.wav'), info = soundInfo(d);
@@ -56,43 +58,22 @@ test('WAV decoding, loudest moment and alignment', () => {
   assert.throws(() => decodeWav(Buffer.from('not a wav file at all, definitely not one'), 'x.wav'), /not a WAV/);
 });
 
-test('shot sounds: errors for broken sounds, placement and warnings for the voice', async () => {
-  const dir = await job();
-  await shot(dir, [{src: 'assets/sfx/missing.wav', at: 'seven'}, {src: 'assets/sfx/whoosh.wav', at: 'nope'},
-    {src: 'assets/sfx/whoosh.wav', at: 'seven', volume: 2}, {src: 'assets/sfx/whoosh.wav', at: 'seven', align: 'middle'}, {src: 'sfx/whoosh.mp3', at: 'seven'}]);
-  await assert.rejects(compileFilm(dir, film, alignment, manifest), e =>
-    e.errors.some(m => /missing\.wav does not exist/.test(m)) && e.errors.some(m => /unknown cue "nope"/.test(m)) &&
-    e.errors.some(m => /"volume" must be/.test(m)) && e.errors.some(m => /"align" must be/.test(m)) && e.errors.some(m => /\.wav file under assets/.test(m)));
-  // loud whoosh while the voice speaks (seven = 5.0 s? no: speaking 6.5–9.5; nine = 6.5 s) → masking warning with a fix
-  await shot(dir, [{src: 'assets/sfx/whoosh.wav', at: 'nine', align: 'peak', volume: 1}]);
-  const loud = await compileFilm(dir, film, alignment, manifest);
-  const s = loud.world.sounds[0];
-  assert.equal(s.start, Number((6.5 - s.peakTime).toFixed(3)));
-  assert.ok(s.masking && s.masking.maxVolume < 1, 'masking measured');
-  assert.ok(loud.warnings.some(w => /Lower "volume" to/.test(w)));
-  assert.ok(loud.warnings.some(w => /add "why"/.test(w)));
-  // big moves without a sound are listed: the drop in scene one, the title pop at seven
-  assert.ok(loud.warnings.some(w => /cuts and big moves have no sound effect/.test(w) && /drop card/.test(w) && /pop title/.test(w)));
-  // quiet, in a pause, with a reason → no voice warning
-  await shot(dir, [{src: 'assets/sfx/whoosh.wav', at: 'seven', volume: 0.05, why: 'the title pops in'}]);
-  const quiet = await compileFilm(dir, film, alignment, manifest);
-  assert.ok(!quiet.warnings.some(w => /sounds\[0\].*narration/.test(w)), quiet.warnings.join('\n'));
+test('native sound cues resolve measured words and preserve silence as a choice',async()=>{
+  const dir=await job();
+  await shot(dir,[{src:'assets/sfx/whoosh.wav',at:'nine',volume:1,align:'peak'}]);
+  const loud=await compileFilm(dir,film,alignment,manifest);
+  assert.equal(loud.world.sounds.length,1);assert.ok(loud.world.sounds[0].masking);
+  assert.ok(loud.warnings.some(w=>/Lower "volume"/.test(w)));
+  await shot(dir,[]);const silent=await compileFilm(dir,film,alignment,manifest);
+  assert.equal(silent.world.sounds.length,0);assert.equal(silent.warnings.length,0);
 });
 
-test('music needs a licence and a beat grid; the build suggests the trackStart that lands the cuts', async () => {
-  const dir = await job();
-  await shot(dir, []);
-  await writeFile(path.join(dir, 'assets/music/track.wav'), wav(12, t => 0.2 * Math.sin(2 * Math.PI * 60 * t)));
-  await assert.rejects(compileFilm(dir, {...film, music: {src: 'assets/music/track.wav'}}, alignment, manifest), e =>
-    e.errors.some(m => /music\.source: required/.test(m)) && e.errors.some(m => /music\.license: required/.test(m)));
-  await assert.rejects(compileFilm(dir, {...film, music: {src: 'assets/music/track.wav', source: 'x', license: 'CC BY-NC 4.0'}}, alignment, manifest), e => e.errors.some(m => /does not allow/.test(m)));
-  const ok = {src: 'assets/music/track.wav', source: 'https://example.com/track', license: 'CC0'};
-  await assert.rejects(compileFilm(dir, {...film, music: ok}, alignment, manifest), e => e.errors.some(m => /no beat grid/.test(m)));
-  // beats every 0.5 s starting at 0.2 s: the cut at 5.0 s (phrase "seven") is 0.2 s off; trackStart 0.2 puts it on
-  await writeFile(path.join(dir, 'assets/music/track.beats.json'), JSON.stringify({tempo: 120, period: 0.5, beats: Array.from({length: 24}, (_, i) => 0.2 + i * 0.5)}));
-  const r = await compileFilm(dir, {...film, music: ok}, alignment, manifest);
-  assert.equal(r.world.music.tempo, 120);
-  assert.ok(r.warnings.some(w => /Setting "trackStart" to 0\.2/.test(w)), r.warnings.filter(w => /music/.test(w)).join('\n'));
+test('native music records provenance without imposing a beat grid',async()=>{
+  const dir=await job();await writeFile(path.join(dir,'assets/music/track.wav'),wav(12,t=>.2*Math.sin(2*Math.PI*60*t)));
+  const music={src:'assets/music/track.wav'};
+  await assert.rejects(compileFilm(dir,{...film,music},alignment,manifest),/source and licence/);
+  const result=await compileFilm(dir,{...film,music:{...music,source:'Owned test signal',license:'CC0'}},alignment,manifest);
+  assert.equal(result.world.music.src,music.src);
 });
 
 test('the mix keeps the narration untouched and ducks the music under speech', async () => {

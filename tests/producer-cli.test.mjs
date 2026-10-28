@@ -43,7 +43,7 @@ test('CLI capture-ingest and capture-scene register runner producer identity bef
   await writeFile(path.join(job,'job.json'),JSON.stringify({review:{producerAgentIds:[],producerAgentRecords:[]}}));
   for(const [command,args,role,id] of [
     ['capture-ingest',['--run','.cache/does-not-exist','--task','screen'],'app-review-builder','runner-capture-ingest'],
-    ['capture-scene',['--capture','capture/missing','--scene','demo'],'app-review-builder','runner-capture-scene'],
+    ['capture-scene',['--capture','capture/missing','--scene','demo'],'app-review-builder'],
   ]){
     await assert.rejects(exec(process.execPath,['scripts/video.mjs',command,'--job',job,...args],{cwd:ROOT,env:{...process.env,VIDEO_AGENT_ROLE:role,VIDEO_AGENT_ID:id}}));
     const manifest=JSON.parse(await readFile(path.join(job,'job.json'),'utf8'));
@@ -74,24 +74,20 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   const capture=path.join(scriptDir,'capture/screen');
   const cm=JSON.parse(await readFile(path.join(capture,'manifest.json'),'utf8'));
   await writeFile(path.join(capture,'edits.json'),JSON.stringify({scene:'demo',edits:[{id:'capture-demo',phrase:'The setting is visible.',source:[0,Math.min(3.5,cm.duration)],feature:'demo',result:'visible'}]}));
-  await run(['capture-scene','--job',scriptDir,'--capture','capture/screen','--scene','demo'],{VIDEO_AGENT_ROLE:'app-review-builder',VIDEO_AGENT_ID:'runner-capture-scene'});
   const words=path.join(project,'words.json');
   await writeFile(words,JSON.stringify([{text:'The',start:0.1,end:0.3},{text:'setting',start:0.35,end:0.7},{text:'is',start:0.75,end:0.85},{text:'visible.',start:0.9,end:1.2}]));
   await exec('ffmpeg',['-nostdin','-v','error','-y','-f','lavfi','-i','sine=frequency=440:duration=4','-c:a','pcm_s16le',audio],{cwd:ROOT});
   await run(['prepare','--name',slug,'--audio',audio,'--script',script,'--profile','app-review','--words',words,'--no-latest']);
   const manifest=JSON.parse(await readFile(path.join(job,'job.json'),'utf8'));
   assert.equal(manifest.productionProfile.id,'app-review');
+  await writeFile(path.join(job,'film.json'),JSON.stringify({version:2,title:'Capture',concept:'Actual session',scenes:[{id:'demo',kind:'html',file:'compositions/demo.html',idea:'Recorded task',owner:'builder'}]}));
   await run(['capture-scene','--job',job,'--capture','capture/screen','--scene','demo'],{VIDEO_AGENT_ROLE:'app-review-builder',VIDEO_AGENT_ID:'runner-job-capture-scene'});
   const withScene=JSON.parse(await readFile(path.join(job,'job.json'),'utf8'));
   assert.deepEqual(withScene.review.producerAgentRecords.map(r=>[r.agentId,r.role]),[
-    ['runner-capture-ingest','app-review-builder'],['runner-capture-scene','app-review-builder'],['runner-job-capture-scene','app-review-builder']]);
-  assert.deepEqual(withScene.review.producerAgentIds,['runner-capture-ingest','runner-capture-scene','runner-job-capture-scene']);
+    ['runner-capture-ingest','app-review-builder'],['runner-job-capture-scene','app-review-builder']]);
+  assert.deepEqual(withScene.review.producerAgentIds,['runner-capture-ingest','runner-job-capture-scene']);
   await assert.rejects(assertIndependentCaptureReviewer(job,{agentId:'runner-capture-ingest',independent:true}),/cannot submit an independent/);
-  await assert.rejects(assertIndependentCaptureReviewer(job,{agentId:'runner-capture-scene',independent:true}),/cannot submit an independent/);
   await assertIndependentCaptureReviewer(job,{agentId:'runner-independent-reviewer',independent:true},{agentId:'runner-independent-reviewer',role:'reviewer'});
-  const gate=await run(['next','--job',job]);
-  assert.match(gate.stdout,/^STATE: the script writer plans the visuals/,
-    'the CLI must reach the app-review visual-plan state before scene building');
   assert.equal(manifest.status,'prepared');
 
   // Continue through the real encoded-render evidence gates. Keep every fixture input and output in this isolated
@@ -102,8 +98,7 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   await mkdir(path.join(job,'inputs'),{recursive:true});
   await writeFile(path.join(job,'inputs/visuals.md'),visuals);
   const planGate=await run(['next','--job',job],fixtureEnv);
-  assert.match(planGate.stdout,/STATE: plan/,planGate.stdout);
-  await writeFile(path.join(job,'film.json'),JSON.stringify({version:2,title:'Fixture app review',concept:'Show the recorded interaction.',theme:{name:'Fixture',description:'A clean browser interface fills the frame. Use readable typography and restrained blue accents. Keep the recorded product state clear while motion stays subtle.',bg:'#f6f7f9',colors:{white:'#ffffff',blue:'#2f6bff',yellow:'#ffd43b'}},scenes:[{id:'demo',start:{boundary:'start'},idea:'The recorded app interaction.',owner:'builder'}]}));
+  assert.match(planGate.stdout,/STATE: build and check/,planGate.stdout);
   assert.match((await run(['next','--job',job],fixtureEnv)).stdout,/STATE: build and check/);
   await run(['build','--job',job],fixtureEnv);
   await run(['save-all','--job',job],fixtureEnv);
@@ -161,8 +156,7 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   const omissionEvidence=finalPack.evidence.find(item=>item.kind==='capture-omissions');
   assert.ok(omissionEvidence,'the final pack freezes the omission ledger');
   assert.match(await readFile(path.join(job,omissionEvidence.path),'utf8'),/"sourceHash"/);
-  assert.match(await readFile(path.join(job,'briefs/review-final-narration-fidelity.md'),'utf8'),/capture-omissions.*action-log hash.*capture-manifest hash/s,
-    'independent reviewers are explicitly directed to inspect the frozen omissions and hashes');
+  assert.match(await readFile(path.join(job,'briefs/review-final-narration-fidelity.md'),'utf8'),/docs\/independent-review.md/);
   // Keep every provenance hash current: the final pack must reject the malformed action itself,
   // not merely notice that someone changed the evidence files.
   const actionFile=path.join(job,'capture/screen/actions.jsonl');

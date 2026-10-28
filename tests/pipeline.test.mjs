@@ -33,13 +33,6 @@ async function fixture(t) {
   return {job, film};
 }
 const buildFixture = job => buildFilm(job, {inspect: false, print: false});
-test('retired commands explain the supported film workflow', () => {
-  for (const command of ['compile', 'assemble']) {
-    const result = run(command, 'jobs/none');
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /has been retired.*Use build for film.json/);
-  }
-});
 test('film assembly preserves supplied audio, kit scripts and timed hosts', async t => {
   const {job} = await fixture(t), result = await buildFixture(job);
   assert.equal(result.ok, true, result.errors.join('\n'));
@@ -109,7 +102,7 @@ test('CLI qualifies real encoded media only after the independent final review r
     const dispatch=JSON.parse(packResult.stdout);
     assert.equal(dispatch.briefs.length,3);
     assert.equal(dispatch.packSha256,await fileHash(path.join(job,`review/${stage}/pack.json`)));
-    assert.match(await readFile(dispatch.briefs[0].path,'utf8'),/Blind first pass: BEFORE reading/);
+    assert.match(await readFile(dispatch.briefs[0].path,'utf8'),/docs\/independent-review.md/);
     const context=await loadReviewPack(job,stage);
     for(const role of REVIEW_ROLES) {
       const report={version:1,stage,role,reviewer:{agentId:`/fixture/${role}`,independent:true},
@@ -143,7 +136,7 @@ test('CLI qualifies real encoded media only after the independent final review r
 });
 
 test('role agents cannot advance the pipeline, and every brief opens with the sub-agent boundary', async () => {
-  const {writeBrief, ROLE_BOUNDARY} = await import('../lib/briefs.mjs');
+  const {writeBrief} = await import('../lib/briefs.mjs');
   const {mkdtemp, readFile, rm} = await import('node:fs/promises');
   for (const [command, extra] of [['next', []], ['render', []], ['review-pack', []], ['deliver', []], ['save-all', []], ['build', []]]) {
     const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/video.mjs'), command, '--job', 'jobs/none', ...extra], {encoding: 'utf8', env: {...process.env, VIDEO_AGENT_ROLE: 'reviewer'}});
@@ -157,7 +150,7 @@ test('role agents cannot advance the pipeline, and every brief opens with the su
   const job = await mkdtemp(path.join(testCache, 'video-brief-'));
   try {
     const text = await readFile(await writeBrief(job, 'review-x.md', '# Role: reviewer\n\nBody.\n'), 'utf8');
-    assert(text.startsWith('# Role: reviewer\n\n' + ROLE_BOUNDARY));
+    assert.equal(text, '# Role: reviewer\n\nBody.\n');
     assert.match(text, /Body\.\n$/);
   } finally { await rm(job, {recursive: true, force: true}); }
 });

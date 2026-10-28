@@ -18,10 +18,10 @@ in `~/.cache` or `/tmp`, and never edit `video.config.json` while setting up.
 
 | Need | Version | Used for | Check |
 |---|---|---|---|
-| Linux x86-64 (Ubuntu/Debian commands below) | | Manim and the render browser are installed for linux-64 | `uname -m` |
+| Linux x86-64 (Ubuntu/Debian commands below) | | The render browser is installed for linux-64 | `uname -m` |
 | 4+ CPU cores, 8 GB RAM, 20 GB free disk | recommended | rendering, Whisper, Chrome | `nproc; free -g; df -h .` |
 | Node.js + npm | 22 or newer | pipeline, UI, HyperFrames | `node -v` |
-| git, curl, bzip2 | any | clone, downloads, Manim's micromamba | `git --version; curl --version; bzip2 --help` |
+| git, curl, bzip2 | any | clone and downloads | `git --version; curl --version; bzip2 --help` |
 | FFmpeg + FFprobe | any recent | audio, mixing, checks | `ffmpeg -version; ffprobe -version` |
 | Python 3 with `venv` | 3.11–3.13 | TTS voice and music beat analysis environments | `python3 -m venv --help` |
 | [uv](https://docs.astral.sh/uv/) | any | runs the pinned faster-whisper transcriber (`scripts/transcribe.py.lock`) | `uv --version` |
@@ -69,11 +69,6 @@ YouTube uploads use OAuth, with a separate client and refresh token under `.cach
    npm run video -- setup-audio
    # Ming, the default narrator for UI and T3 Code jobs (docs/tts.md):
    npm run video -- tts --setup-ming
-   # Kokoro, optional alternative and Gemini quota fallback:
-   [ -x .cache/video-gen/tts-env/bin/python ] || { python3 -m venv .cache/video-gen/tts-env \
-     && .cache/video-gen/tts-env/bin/pip install -q --no-cache-dir kokoro-onnx soundfile; }
-   # Optional, only for scenes with Manim clips (a few minutes, ~1 GB):
-   npm run video -- setup-manim
    ```
 
    The faster-whisper transcriber needs no step: `uv` installs its pinned packages and downloads the model on the
@@ -97,7 +92,7 @@ YouTube uploads use OAuth, with a separate client and refresh token under `.cach
 
    ```bash
    npm test && npm run test:ui
-   npx --no-install hyperframes doctor   # Node, FFmpeg, FFprobe and Chrome must show ✓; Kokoro/MusicGen lines may show ✗
+   npx --no-install hyperframes doctor   # Node, FFmpeg, FFprobe and Chrome must show ✓; unused optional services may show ✗
    npm run video -- help
    ```
 
@@ -121,10 +116,10 @@ YouTube uploads use OAuth, with a separate client and refresh token under `.cach
 
 Without T3 or the UI, give an agent a job directly (below).
 
-Ming narration and benchmarks share a fixed acoustic reference across all text fragments and performance
+Ming narration uses a fixed acoustic reference across all text fragments and performance
 segments, preventing the previous unconditioned voice resets. Generate the full narration in one TTS command.
 Existing WAVs require explicit regeneration; model reinstallation is unnecessary. See
-[voice continuity, regeneration and listening checks](docs/tts.md#voice-continuity-and-the-former-voice-change-bug).
+[voice continuity, regeneration and listening checks](docs/tts.md).
 
 ## Give the agent a job
 
@@ -147,8 +142,8 @@ world model, composite vocabulary or visual library. Optional capture tooling ca
 cuts and overlays; actual-media news uses its dedicated edit adapter.
 
 Creative and review roles use the strong model tier by default; explicit role selections still win.
-The researcher uses the lightweight tier. Standing role instructions live in small `prompts/*.md` files;
-JavaScript supplies task metadata and artifact paths rather than another embedded creative rulebook.
+The researcher uses the lightweight tier. Assignments contain task data and artifact paths. Shared contracts live in AGENTS.md and the short runbook;
+there is no separate role-coaching catalog or injected creative rulebook.
 
 There is one canonical `skills/` folder. Point harness discovery to it, or follow its entry points from
 AGENTS.md. No copied or linked per-harness skill catalogs are maintained.
@@ -176,11 +171,7 @@ becomes `--length 30`. Keys starting with `_` are comments; unknown keys are rej
 |---|---|---|
 | `VG_ALLOW_WEB_IMAGES` | unset | Unset: `asset --src <url>` accepts only `.svg` files from the web. Set to `1` (or `true`/`yes`) to also let agents download `.png`, `.jpg`, `.jpeg`, `.webp` and `.gif` images from URLs. Local files and fonts are unaffected. |
 | `VG_LIBRARY` | `library/` | Shared library location. |
-| `VG_CACHE` | `.cache/video-gen` (in the repository) | Where the TTS, audio and Manim environments live. Overrides must stay inside the repository `.cache/`. TTS uses `npm run video -- tts` to keep model downloads there too. |
-| `GEMINI_API_KEY` | unset | API key for optional Gemini narration; server environment or ignored `.env`. `GOOGLE_API_KEY` is also accepted. See [docs/tts.md](docs/tts.md). |
-| `GEMINI_TTS_MODEL` / `GEMINI_TTS_VOICE` | `gemini-3.8-flash-tts` / `Charon` | Primary Gemini narration model and voice. New UI and T3 Code jobs default to Ming; Kokoro and Gemini remain selectable. |
-| `GEMINI_TTS_FALLBACK_MODEL` | `gemini-3.8-flash-lite-tts` | Backup Gemini model for quota exhaustion or persistent service overload. If the backup also hits quota, use Kokoro. |
-| `VG_MANIM_ENV` | `.cache/video-gen/manim-env` | ManimCE environment. |
+| `VG_CACHE` | `.cache/video-gen` (in the repository) | Where the TTS and audio environments live. Overrides must stay inside the repository `.cache/`. TTS uses `npm run video -- tts` to keep model downloads there too. |
 
 Agents run in the same shell as you, so setting the variable in your environment is what enables raster downloads for
 their `asset` calls. Leave it unset to keep web imports to SVG.
@@ -195,13 +186,12 @@ jobs/<name>/
   alignment.json          script reconciliation and discrepancies
   SCRIPT.md               actual recorded excerpt
   BRIEF.md                scope and creative authority
-  film.json               director's plan (concept, subjects, scenes, mechanisms)
+  film.json               small native scene manifest
   STORYBOARD.md           generated from film.json
-  shots/<scene>.json      builders' scene specs (+ hooks, components/, manim/)
   briefs/                 role briefs written by the pipeline
   timing.json             resolved absolute and scene-local times
   assets/                 frozen media, generated cues, local helpers
-  compositions/world.html compiled world composition
+  compositions/*.html     agent-authored native compositions
   index.html              assembled root with original narration
   review/                 audit, frozen evidence, independent reports, verification
   renders/video.mp4       rendered draft; qualified by deliver (local)

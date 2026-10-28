@@ -70,7 +70,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   assert.equal(s.state, 'gather the sources');
   assert.match(s.text, /"role":"research"/);
   assertAutoPolicy(s.text, 'script-researcher', 'weak');
-  assert.match(await readFile(S(r, 'briefs/research.md'), 'utf8'), /> Why SSDs slow down when full\./);
+  assert.match(await readFile(S(r, 'briefs/research.md'), 'utf8'), /jobs\/scripts\/demo\/BRIEF.md/);
   // While the task runs, next waits and pipeline commands refuse.
   assert.equal((await projectStep(r, 'demo')).state, 'delegated');
   await assert.rejects(assertNoDelegation(r, 'demo', 'render'), /delegated work is open/);
@@ -86,7 +86,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   await put(r, 'SOURCES.md', '# Sources\n## Follow-up');
   s = await step(r);
   assert.equal(s.state, 'write the script and its visual plan');
-  assert.match(await readFile(S(r, 'briefs/write.md'), 'utf8'), /evidence round is done/);
+  assert.match(await readFile(S(r, 'briefs/write.md'), 'utf8'), /"evidenceRoundAvailable": false/);
 
   await put(r, 'SCRIPT.md', '# SSDs\n\nWhen an SSD fills up, it slows down.');
   await put(r, 'VISUALS.md', '# Visuals');
@@ -108,7 +108,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   s = await step(r);
   assert.equal(s.state, 'revise the script with your notes');
   const brief = (await readdir(S(r, 'briefs'))).find(f => f.endsWith('-you.md'));
-  assert.match(await readFile(S(r, 'briefs', brief), 'utf8'), /> Open with the benchmark\./);
+  assert.match(await readFile(S(r, 'briefs', brief), 'utf8'), /Open with the benchmark\./);
   await put(r, 'SCRIPT.md', '# SSDs\n\nThe benchmark first. When an SSD fills up, it slows down.');
   assert.match((await step(r)).state, /independent script review/);
   await put(r, 'review.md', 'Disposition: pass');
