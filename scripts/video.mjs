@@ -4,7 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {extractNarration, normalizeWords, reconcile, jobNameFor} from '../lib/timing.mjs';
+import {extractNarration, normalizeWords, reconcile} from '../lib/timing.mjs';
 import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, saveToLibrary, saveAll} from '../lib/assets.mjs';
 import {fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile, registerProducer, parseReviewDepth} from '../lib/review.mjs';
 import {createReviewPack, generateCaptureInspection, assertIndependentCaptureReviewer} from '../lib/review-pack.mjs';
@@ -12,19 +12,17 @@ import {parseStages, parseNote, recordHumanReview} from '../lib/review.mjs';
 import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail, MAX_THUMBNAILS} from '../lib/thumbnails.mjs';
 import {compareNarration} from '../lib/audio.mjs';
 import {audioEnv, audioPython} from '../lib/audio.mjs';
-import {planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, jobProgress, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
+import {planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, jobProgress, reviewAssignments, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
 import {installRuntime} from '../lib/composition.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {SpecError} from '../lib/composition.mjs';
-import {directorBrief, writeBrief, taskPrompt} from '../lib/briefs.mjs';
 import {findVisualPlan, VISUALS_FILE} from '../lib/timing.mjs';
 import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/media.mjs';
 import {loadConfig, resolveSettings} from '../lib/media.mjs';
-import {PERSONALITIES, inferPersonality, loadPersonality, preparationPersonality, freezePersonality, assertRenderReady} from '../lib/personalities.mjs';
+import {PERSONALITIES, loadPersonality, preparationPersonality, freezePersonality, assertRenderReady} from '../lib/personalities.mjs';
 import {transcribeNews, ingestNews, newsPlan, isNews, verifyNews} from '../lib/news.mjs';
 import {readPersonality} from '../lib/personalities.mjs';
 import {readdir} from 'node:fs/promises';
-import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
 import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation, carryCaptures,
   assertNoDelegation, projectOfJob, requireQuote, logDecision} from '../lib/project.mjs';
 import {setHumanStages} from '../lib/review.mjs';
@@ -166,14 +164,14 @@ async function prepare(opts) {
   await mkdir(path.dirname(job), {recursive: true});
   await hf(['init', job, '--non-interactive', '--resolution', format === 'vertical' ? 'portrait' : format], {capture: true, env: {HYPERFRAMES_SKIP_SKILLS: '1'}});
   const pointer = `# Job ${opts.name}\n\nThis is a pipeline job. Do not run hyperframes or npx commands here and never upgrade HyperFrames.\n\n` +
-    `If you were given a brief (a file in briefs/), follow only that brief: do not run \`next\`, \`render\`, \`review-pack\` or \`deliver\`, ` +
+    `If you were given an assignment, follow only that assignment: do not run \`next\`, \`render\`, \`review-pack\` or \`deliver\`, ` +
     `do not start sub-agents, and reply when the brief is done.\n\n` +
     `Only the orchestrator, with no brief, advances the job: from the repository root it runs ` +
     `npm run video -- next --job jobs/${opts.name} and does what it prints.\n`;
   for (const f of ['AGENTS.md', 'CLAUDE.md']) await writeFile(path.join(job, f), pointer);
   await writeFile(path.join(job, 'package.json'), JSON.stringify({name: opts.name, private: true, type: 'module',
     scripts: {next: `npm --prefix ../.. run video -- next --job jobs/${opts.name}`}}, null, 2) + '\n');
-  for (const dir of ['inputs', 'assets', 'compositions', 'review', 'renders', 'shots', 'components', 'briefs']) await mkdir(path.join(job, dir), {recursive: true});
+  for (const dir of ['inputs', 'assets', 'compositions', 'review', 'renders', 'shots', 'components']) await mkdir(path.join(job, dir), {recursive: true});
   // An app review's session was recorded before the script, so it travels into the job with its evidence.
   await carryCaptures(script, job);
   const productionProfile = await freezePersonality(job, personality);
@@ -224,8 +222,6 @@ async function finishPreparation(job, manifest, narration, {updateLatest = true}
   const alignment = reconcile(words, narration);
   await save(path.join(job, 'alignment.json'), alignment);
   await writeFile(path.join(job, 'SCRIPT.md'), `# Recorded excerpt\n\n${words.map(w => w.text).join(' ')}\n`);
-  await writeBrief(job, 'director.md', directorBrief(job, manifest, alignment));
-  await writeFile(path.join(job,'BRIEF.md'),taskPrompt('film',{name:manifest.name,contract:'docs/composition.md',recording:'assets/narration.wav',script:'inputs/source-script.md',userBrief:manifest.brief?.path||null,duration:manifest.duration,width:manifest.width,height:manifest.height}));
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
   manifest.status = 'prepared';
   await save(path.join(job, 'job.json'), manifest);
@@ -263,10 +259,8 @@ function thumbnailSettings({count, pick}) {
 async function start(opts) {
   const audio = await resolveInput(opts.audio || '', 'Audio'), script = await resolveInput(opts.script || '', 'Script');
   if (opts.visuals) opts = {...opts, visuals: path.relative(ROOT, await resolveInput(opts.visuals, 'Visual plan'))};
-  let name = opts.name || jobNameFor(script, await readFile(script, 'utf8'));
-  if (!/^[a-z0-9]/.test(name)) name = 'film-' + name;
-  let candidate = name, i = 2;
-  while (await exists(path.join(ROOT, 'jobs', candidate))) candidate = `${name}-${i++}`;
+  if (!opts.name) throw new Error('start needs --name <slug>. Choose an explicit project name.');
+  const candidate = opts.name;
   const {music, 'human-review': humanReview, thumbnails, 'pick-thumbnail': pick, ...rest} = opts;
   // Checked before any work.
   const stages = humanReview === undefined ? null : parseStages(humanReview);
@@ -284,7 +278,6 @@ async function start(opts) {
     const job = path.join(ROOT, 'jobs', candidate), manifest = await json(path.join(job, 'job.json'));
     manifest.music = `assets/music/${path.basename(track).toLowerCase().replace(/[^a-z0-9._-]+/g, '-')}`;
     await save(path.join(job, 'job.json'), manifest);
-    await writeBrief(job, 'director.md', directorBrief(job, manifest, await json(path.join(job, 'alignment.json'))));
   }
 }
 
@@ -354,36 +347,10 @@ async function musicImport(job, opts) {
   console.log(`Then set film.json "music": {"src": "${a.path}", "source": ${JSON.stringify(opts.source)}, "license": ${JSON.stringify(opts.license)}, "trackStart": 0, "filmStart": 0} and run plan-check; the build reports which cuts land on the beat.`);
 }
 
-function printIdea(c, i) {
-  console.log(`\n${i + 1}. ${c.title}   [${c.id} · ${c.form} · score ${c.score.toFixed(2)}${c.status !== 'new' ? ` · ${c.status}` : ''}]`);
-  console.log(`   ${c.promise}`);
-  for (const r of c.reasons) console.log(`   + ${r}`);
-  for (const s of c.sources) console.log(`   - ${s.label}: ${s.title}${s.metric ? ` (${s.metric})` : ''}\n     ${s.url}`);
-}
-async function ideasCommand(opts) {
-  if (opts.set) {
-    const c = await setIdeaStatus(ROOT, opts.set, opts.status, opts.reason);
-    return console.log(opts.json ? JSON.stringify(c) : `Marked ${c.id} as ${c.status}: ${c.title}`);
-  }
-  if (opts.show) {
-    if (![...STATUSES, 'all'].includes(opts.show)) throw new Error(`--show must be one of: ${[...STATUSES, 'all'].join(', ')}`);
-    const cards = newestFirst((await loadIdeas(ROOT)).cards).filter(c => opts.show === 'all' || c.status === opts.show);
-    if (opts.json) return console.log(JSON.stringify(cards));
-    if (!cards.length) return console.log(`No ${opts.show === 'all' ? '' : opts.show + ' '}ideas yet. Run: npm run video -- ideas`);
-    return cards.forEach(printIdea);
-  }
-  const {run, cards} = await findIdeas(ROOT, {focus: opts.focus || '', count: numeric(opts.count, 0, 'count') || undefined, refresh: opts.refresh === 'true'});
-  if (opts.json) return console.log(JSON.stringify({run, cards}));
-  for (const s of run.sources) console.log(`${s.ok ? '✓' : '✗'} ${s.name}: ${s.ok ? `${s.count} item(s)${s.cached ? ' (cached)' : ''}` : s.error}`);
-  if (!cards.length) console.log(`\nNo new ideas${run.focus ? ` matching “${run.focus}”` : ''}. Try --refresh true later, or a different --focus.`);
-  else { console.log(`\n${cards.length} new idea(s)${run.focus ? ` for “${run.focus}”` : ''}:`); cards.forEach(printIdea); }
-  console.log('\nRun again for more. Mark one with: npm run video -- ideas --set <id> --status saved|rejected');
-}
-// ------------------------------------------------------------------ chat projects (T3 Code; docs/orchestrator.md)
 async function projectCommand(command, opts) {
   const slug = opts.project;
   if (command === 'project-new') {
-    const project = await createProject(ROOT, opts, {resolveInput, setIdeaStatus});
+    const project = await createProject(ROOT, opts, {resolveInput});
     console.log(`Created project ${project.slug} (jobs/scripts/${project.slug}/). Personality: ${project.productionProfile.id}. Checkpoints: ${project.review.join(', ') || 'none'}.\nNext: npm run video -- next --project ${project.slug}`);
   } else if (command === 'projects') {
     const list = await listProjects(ROOT);
@@ -445,9 +412,9 @@ const HELP = `Narration-driven HyperFrames pipeline
 
 Agents: run \`next\` and do exactly what it prints, until it says done.
 
-start --audio <file> --script <file> [--profile <id>] [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review final --review-depth fast|standard|deep]   create a job (a VISUALS.md beside the script is picked up automatically)
+start --audio <file> --script <file> --profile <id> [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review final --review-depth fast|standard|deep]   create a job (a VISUALS.md beside the script is picked up automatically)
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
-                                     the job is named from the script file, else its folder or title (e.g. jobs/scripts/<slug>/SCRIPT.md → <slug>); --name overrides
+                                     supply --name <slug>; existing jobs are never silently renamed
 next [--job jobs/<slug>]             print the single next step (state machine)
 status [--job jobs/<slug>] [--json]  read-only progress of every step, scene and review (writes nothing)
 plan-check                          validate film.json (director output)
@@ -467,7 +434,7 @@ capture-scene --capture <dir> --scene <id> [--fit 0.9]   cut the recording per c
                                      shots/<id>.json: click rings and camera push-in/pull-out over the recorded cursor (build it afterwards)
 music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
 
-news-ingest --job <job> --source <id> --file <repository-local cleared file>\nnews-transcribe --job <job> --source <id> [--model small.en --language en]  original-file word times; review draft before use\nnews-check --job <job>               validate news sources, rights, claims, edit and required speech subtitles\nprepare --name <slug> --audio <file> --script <file> [--profile <id>] [--start 0 --length 30 --format landscape|vertical] [--review-depth fast|standard|deep]
+news-ingest --job <job> --source <id> --file <repository-local cleared file>\nnews-transcribe --job <job> --source <id> [--model small.en --language en]  original-file word times; review draft before use\nnews-check --job <job>               validate news sources, rights, claims, edit and required speech subtitles\nprepare --name <slug> --audio <file> --script <file> --profile <id> [--start 0 --length 30 --format landscape|vertical] [--review-depth fast|standard|deep]
         [--language en --model small.en --engine faster-whisper|hyperframes]
         [--words measured-words.json --fps 30]
 transcribe [--job jobs/<slug>]       resume a failed transcription/preparation
@@ -496,9 +463,9 @@ library-add --source <bundle-dir>   publish a new immutable artifact version
 library-use --item <id@version> --job jobs/<slug>  freeze files and record hashes
 
 Chat projects (T3 Code; docs/orchestrator.md): the whole video from an agreed brief, one step at a time
-profiles | profile-route --prompt "<request>" [--profile <id>]   inspect personalities / infer routing (read-only)
+profiles                              list available personalities; the agent chooses --profile
 project-new --name <slug> [--profile explainer|rules-story|news-financial|news-political|app-review] [--brief-file f] [--format landscape|vertical --duration <s> --tts ming --audio f --script f --music f
-            --review script,final,thumbnail|none --review-depth fast|standard|deep --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
+            --review script,final,thumbnail|none --review-depth fast|standard|deep --thumbnails 1-6 --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
 next --project <slug>               the single next step of the whole video (T3 delegated tasks, your review checkpoints)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
 stage-bar --project <slug>          the stage bar as one HTML page, for T3 html_render (read-only)
@@ -509,14 +476,10 @@ project-set --project <slug> [--review ..] [--review-depth fast|standard|deep] [
 project-delete --project <slug> --confirm <slug>
 (human-review, thumbnail-choose --by you, thumbnail-feedback and review-waive on a project's job also need --quote "<their message>")
 
-ideas [--focus "mac hardware" --count 6 --refresh true --json]   find new video ideas (never repeats one already shown)
-                                     feeds and reference channels come from ideas.config.json; YOUTUBE_API_KEY is optional
 youtube-auth                         authorize the abdupdates YouTube channel (OAuth client JSON stays in .cache)
 youtube-upload --file <video.mp4> --title "Title" [--description "..."] [--privacy private|unlisted|public] [--tag "ai" ...]
                                      upload with resumable transfer; privacy defaults to unlisted. See docs/publishing.md
 frame-stats --video <a.mp4>[,<b.mp4>] [--every 2]   measure how much of the frame a film uses (ink, spread, near-blank), to compare films
-ideas --show new|saved|rejected|used|all [--json]   list ideas found so far
-ideas --set <id> --status new|saved|rejected|used [--reason ".."]   mark an idea
 
 The latest prepared job is used when --job is omitted.
 Creative design is performed by the agent; see docs/orchestrator.md.
@@ -532,11 +495,6 @@ try {
   if (ROLE_AGENT && !reviewerRecordingVerdict && (ORCHESTRATOR_ONLY.has(command) || (command === 'build' && !opts.scene)))
     throw new Error(`\`${command}${command === 'build' ? ' without --scene' : ''}\` advances the pipeline, which is the orchestrator's job. You are the ${ROLE}: finish the brief you were given and reply with its result. Do not start sub-agents.`);
   if (command === 'profiles') console.log(JSON.stringify(PERSONALITIES.map(id => loadPersonality(id).profile), null, 2));
-  else if (command === 'profile-route') {
-    const prompt = opts.prompt || (opts['brief-file'] ? await readFile(path.resolve(ROOT, opts['brief-file']), 'utf8') : '');
-    if (!prompt.trim()) throw new Error('profile-route needs --prompt <request> or --brief-file <file>.');
-    console.log(JSON.stringify(inferPersonality(prompt, opts.profile), null, 2));
-  }
   else if (command === 'youtube-auth') await youtubeAuth(ROOT);
   else if (command === 'youtube-upload') await youtubeUpload(ROOT, opts);
   else if (PROJECT_COMMANDS.has(command) || (['next', 'status'].includes(command) && opts.project)) {
@@ -549,7 +507,6 @@ try {
   else if (command === 'start') { await assertNoDelegation(ROOT, opts.name, command); await start(opts); }
   else if (command === 'library-search') console.log(JSON.stringify(await searchLibrary(LIBRARY, opts.query, numeric(opts.limit, 8, 'limit')), null, 2));
   else if (command === 'library-info') console.log(JSON.stringify(await inspectBundle(itemPath(LIBRARY, opts.item)), null, 2));
-  else if (command === 'ideas') await ideasCommand(opts);
 
   else if (command === 'frame-stats') {
     const {frameStats} = await import('../lib/pixels.mjs');
@@ -679,8 +636,8 @@ try {
       const start = numeric(opts.start,0,'start'), end = opts.end === undefined ? undefined : numeric(opts.end,0,'end');
       const pack = await createReviewPack(job, {stage:opts.stage || 'final', start, end, from: opts.from || 'html'});
       const packPath = path.join(job,pack.packPath), packSha256 = await fileHash(packPath);
-      const written = await writeReviewerBriefs(job, pack, packPath, packSha256);
-      console.log(JSON.stringify({stage:pack.stage,packPath,packSha256,sourceHash:pack.sourceHash,videoSha256:pack.videoSha256,interval:pack.interval,evidenceCount:pack.evidence.length,briefs:written,
+      const written = await reviewAssignments(job, pack, packPath, packSha256);
+      console.log(JSON.stringify({stage:pack.stage,packPath,packSha256,sourceHash:pack.sourceHash,videoSha256:pack.videoSha256,interval:pack.interval,evidenceCount:pack.evidence.length,assignments:written,
         next:`npm run video -- next --job ${path.relative(ROOT, job)}`},null,2));
     } else if (command === 'capture-visibility') {
       if (opts.generate === true || opts.generate === 'true') {

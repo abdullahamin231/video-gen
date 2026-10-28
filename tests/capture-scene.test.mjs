@@ -13,7 +13,6 @@ import {fileURLToPath} from 'node:url';
 import {updateOmissionEvidence, validateEdits, clusterClicks, clusterFocus, compileCaptureScene} from '../lib/capture-scene.mjs';
 import {carryCaptures} from '../lib/project.mjs';
 import {buildFilm} from '../lib/film.mjs';
-import {reviewerBrief} from '../lib/briefs.mjs';
 import {chromePath} from '../lib/native.mjs';
 import {loadPersonality, personalityMetadata, freezePersonality} from '../lib/personalities.mjs';
 

@@ -11,6 +11,8 @@ The CLI tracks production state: `npm run video -- help`, `status`, and `next --
 and user decisions determine what remains; avoid regenerating completed work without a reason.
 `docs/orchestrator.md` describes the command and handoff contract.
 
+Choose an explicit project slug and pass `--name <slug>`. Select the treatment yourself and pass
+`--profile <id>` for new productions; the CLI does not infer treatment or rename collisions.
 Choose the appropriate profile from `personalities/README.md`; load only that profile.
 A profile describes editorial intent, not an implementation recipe. Agents may improve the visual approach
 as they build. Preserve the requested treatment, factual meaning, recording and measured timing.
@@ -31,3 +33,8 @@ checkpoints truthful. Report unresolved findings and unavailable inspection capa
 Specialised inputs: `docs/news.md` for actual-media news edits and source speech;
 `docs/capture.md` and `docs/capture.md` for browser recordings. Missing media or rights require a
 specific blocker rather than invented footage. Finish the thumbnail and publishing steps in the runbook.
+
+The CLI returns assignment facts inline; the host writes any delegation prompt itself. Include the
+job/project folder, saved profile, relevant contract, scope, inputs, expected outputs and findings.
+For review, include the role, frozen pack path and hash, prior decisions, and independence requirement.
+Research video ideas directly with evidence; retain any idea ledger in the project folder.

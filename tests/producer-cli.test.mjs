@@ -145,7 +145,7 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   await refreshReviewSourceHash();
   const finalStep=await run(['next','--job',job],fixtureEnv);
   assert.match(finalStep.stdout,/STATE: freeze final review evidence from the encoded render/);
-  await run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv);
+  const packOutput = await run(['review-pack','--job',job,'--stage','final','--from','render'],fixtureEnv);
     const final=await loadReviewPack(job,'final');
   for(const role of REVIEW_ROLES) await submitReview(job,{version:1,stage:'final',role,sourceHash:final.pack.sourceHash,
     videoSha256:final.pack.videoSha256,packSha256:final.packSha256,reviewer:{agentId:`fixture-reviewer-${role}`,independent:true},
@@ -158,7 +158,7 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   const omissionEvidence=finalPack.evidence.find(item=>item.kind==='capture-omissions');
   assert.ok(omissionEvidence,'the final pack freezes the omission ledger');
   assert.match(await readFile(path.join(job,omissionEvidence.path),'utf8'),/"sourceHash"/);
-  assert.match(await readFile(path.join(job,'briefs/review-final-narration-fidelity.md'),'utf8'),/docs\/review.md/);
+  assert.equal(JSON.parse(packOutput.stdout).assignments.find(task => task.reviewRole === 'narration-fidelity').contract, 'docs/review.md');
   // Keep every provenance hash current: the final pack must reject the malformed action itself,
   // not merely notice that someone changed the evidence files.
   const actionFile=path.join(job,'capture/screen/actions.jsonl');

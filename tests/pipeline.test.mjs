@@ -100,9 +100,9 @@ test('CLI qualifies real encoded media only after the independent final review r
     const packResult=spawnSync(process.execPath,[path.join(ROOT,'scripts/video.mjs'),'review-pack','--job',job,'--stage',stage,'--from','render'],{encoding:'utf8'});
     assert.equal(packResult.status,0,packResult.error?.message || packResult.stderr);
     const dispatch=JSON.parse(packResult.stdout);
-    assert.equal(dispatch.briefs.length,3);
+    assert.equal(dispatch.assignments.length,3);
     assert.equal(dispatch.packSha256,await fileHash(path.join(job,`review/${stage}/pack.json`)));
-    assert.match(await readFile(dispatch.briefs[0].path,'utf8'),/docs\/review.md/);
+    assert.equal(dispatch.assignments[0].contract, 'docs/review.md');
     const context=await loadReviewPack(job,stage);
     for(const role of REVIEW_ROLES) {
       const report={version:1,stage,role,reviewer:{agentId:`/fixture/${role}`,independent:true},
@@ -136,7 +136,6 @@ test('CLI qualifies real encoded media only after the independent final review r
 });
 
 test('role agents cannot advance the pipeline, and every brief opens with the sub-agent boundary', async () => {
-  const {writeBrief} = await import('../lib/briefs.mjs');
   const {mkdtemp, readFile, rm} = await import('node:fs/promises');
   for (const [command, extra] of [['next', []], ['render', []], ['review-pack', []], ['deliver', []], ['save-all', []], ['build', []]]) {
     const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/video.mjs'), command, '--job', 'jobs/none', ...extra], {encoding: 'utf8', env: {...process.env, VIDEO_AGENT_ROLE: 'reviewer'}});
@@ -146,11 +145,4 @@ test('role agents cannot advance the pipeline, and every brief opens with the su
   // A scene build is the builder's own work; it fails here only because the job does not exist.
   const scene = spawnSync(process.execPath, [path.join(ROOT, 'scripts/video.mjs'), 'build', '--job', 'jobs/none', '--scene', 'a'], {encoding: 'utf8', env: {...process.env, VIDEO_AGENT_ROLE: 'builder'}});
   assert.doesNotMatch(scene.stderr, /orchestrator's job/);
-  await mkdir(testCache, {recursive: true});
-  const job = await mkdtemp(path.join(testCache, 'video-brief-'));
-  try {
-    const text = await readFile(await writeBrief(job, 'review-x.md', '# Role: reviewer\n\nBody.\n'), 'utf8');
-    assert.equal(text, '# Role: reviewer\n\nBody.\n');
-    assert.match(text, /Body\.\n$/);
-  } finally { await rm(job, {recursive: true, force: true}); }
 });

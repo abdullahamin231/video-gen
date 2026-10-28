@@ -4,7 +4,6 @@ import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {DEFAULT_CONFIG, loadConfig, resolveSettings, safeArea, frameGuide} from '../lib/media.mjs';
-import {directorBrief, builderBrief} from '../lib/briefs.mjs';
 
 const config = {...DEFAULT_CONFIG};
 const vertical = {width: 1080, height: 1920, duration: 4, status: 'prepared'};
@@ -64,12 +63,4 @@ test('video.config.json: missing file gives defaults, typos and bad values fail 
   await assert.rejects(loadConfig(dir), /"length" must be/);
   await writeFile(file, '{not json');
   await assert.rejects(loadConfig(dir), /not valid JSON/);
-});
-
-test('assignments carry saved canvas dimensions without a layout recipe',()=>{
-  const alignment={words:[{text:'hello',start:0,end:1}]};
-  const brief=directorBrief('/job',vertical,alignment);
-  const data=JSON.parse(/```json\n([\s\S]*?)\n```/.exec(brief)[1]);
-  assert.equal(data.width,1080);assert.equal(data.height,1920);
-  assert.equal(data.contract,'docs/composition.md');
 });

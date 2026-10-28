@@ -42,19 +42,19 @@ function assertAutoPolicy(text, role, tier) {
 
 test('a project needs an agreed brief and a free name', async t => {
   const r = await root(t);
-  await assert.rejects(createProject(r, {name: 'demo'}), /BRIEF\.md/);
-  await assert.rejects(createProject(r, {name: 'Bad Name'}), /lowercase/);
-  const p = await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', format: 'vertical', duration: '60'});
+  await assert.rejects(createProject(r, {profile: 'explainer', name: 'demo'}), /BRIEF\.md/);
+  await assert.rejects(createProject(r, {profile: 'explainer', name: 'Bad Name'}), /lowercase/);
+  const p = await createProject(r, {profile: 'explainer', name: 'demo', brief: 'Why SSDs slow down when full.', format: 'vertical', duration: '60'});
   assert.deepEqual(p.review, ['script', 'final', 'thumbnail']);
   assert.equal(p.duration, 60);
   assert.equal(p.tts, 'ming');
-  await assert.rejects(createProject(r, {name: 'demo', brief: 'x'}), /exists/);
+  await assert.rejects(createProject(r, {profile: 'explainer', name: 'demo', brief: 'x'}), /exists/);
 });
 
 test('review depth is chosen per project and can be changed before the job freezes it', async t => {
   const r = await root(t);
-  await assert.rejects(createProject(r, {name: 'demo', brief: 'b', 'review-depth': 'cinematic'}), /--review-depth is fast, standard, deep/);
-  const created = await createProject(r, {name: 'demo', brief: 'b', 'review-depth': 'fast'});
+  await assert.rejects(createProject(r, {profile: 'explainer', name: 'demo', brief: 'b', 'review-depth': 'cinematic'}), /--review-depth is fast, standard, deep/);
+  const created = await createProject(r, {profile: 'explainer', name: 'demo', brief: 'b', 'review-depth': 'fast'});
   assert.equal(created.reviewDepth, 'fast');
   assert.equal((await loadProject(r, 'demo')).reviewDepth, 'fast');
   await updateProject(r, 'demo', {'review-depth': 'deep'});
@@ -63,12 +63,12 @@ test('review depth is chosen per project and can be changed before the job freez
 
 test('the script stage: sources, writer, review rounds, the person approves, narration, start', async t => {
   const r = await root(t);
-  await createProject(r, {name: 'demo', brief: 'Why SSDs slow down when full.', duration: '90', tts: 'ming'});
+  await createProject(r, {profile: 'explainer', name: 'demo', brief: 'Why SSDs slow down when full.', duration: '90', tts: 'ming'});
   let s = await projectStep(r, 'demo');
   assert.equal(s.state, 'gather the sources');
   assert.match(s.text, /"role":"research"/);
   assertAutoPolicy(s.text, 'script-researcher', 'weak');
-  assert.match(await readFile(S(r, 'briefs/research.md'), 'utf8'), /jobs\/scripts\/demo\/BRIEF.md/);
+  assert.match(JSON.stringify((await loadProject(r, 'demo')).delegation.tasks[0].assignment, null, 2), /jobs\/scripts\/demo\/BRIEF.md/);
   // While the task runs, next waits and pipeline commands refuse.
   assert.equal((await projectStep(r, 'demo')).state, 'delegated');
   await assert.rejects(assertNoDelegation(r, 'demo', 'render'), /delegated work is open/);
@@ -84,7 +84,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   await put(r, 'SOURCES.md', '# Sources\n## Follow-up');
   s = await step(r);
   assert.equal(s.state, 'write the script and its visual plan');
-  assert.match(await readFile(S(r, 'briefs/write.md'), 'utf8'), /"evidenceRoundAvailable": false/);
+  assert.match(s.text, /evidenceRoundAvailable[^a-z]+false/);
 
   await put(r, 'SCRIPT.md', '# SSDs\n\nWhen an SSD fills up, it slows down.');
   await put(r, 'VISUALS.md', '# Visuals');
@@ -105,8 +105,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
   await recordScriptReview(r, 'demo', {decision: 'revise', notes: ['Open with the benchmark.'], quote: 'open with the benchmark'});
   s = await step(r);
   assert.equal(s.state, 'revise the script with your notes');
-  const brief = (await readdir(S(r, 'briefs'))).find(f => f.endsWith('-you.md'));
-  assert.match(await readFile(S(r, 'briefs', brief), 'utf8'), /Open with the benchmark\./);
+  assert.match(s.text, /Open with the benchmark\./);
   await put(r, 'SCRIPT.md', '# SSDs\n\nThe benchmark first. When an SSD fills up, it slows down.');
   assert.match((await step(r)).state, /independent script review/);
   await put(r, 'review.md', 'Disposition: pass');
@@ -126,7 +125,7 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
 
 test('an approval belongs to the script the person read', async t => {
   const r = await root(t);
-  await createProject(r, {name: 'demo', brief: 'b', review: 'script'});
+  await createProject(r, {profile: 'explainer', name: 'demo', brief: 'b', review: 'script'});
   await put(r, 'SOURCES.md', 's'); await put(r, 'SCRIPT.md', 'one'); await put(r, 'VISUALS.md', 'v'); await put(r, 'review.md', 'Disposition: pass');
   await recordScriptReview(r, 'demo', {decision: 'approve', quote: 'ok'});
   await put(r, 'SCRIPT.md', 'two');
@@ -135,7 +134,7 @@ test('an approval belongs to the script the person read', async t => {
 
 test('three failed reviews go to the person; without a script checkpoint a pass goes straight on', async t => {
   const r = await root(t);
-  await createProject(r, {name: 'demo', brief: 'b', review: 'none'});
+  await createProject(r, {profile: 'explainer', name: 'demo', brief: 'b', review: 'none'});
   await put(r, 'SOURCES.md', 's'); await put(r, 'SCRIPT.md', 'one'); await put(r, 'VISUALS.md', 'v');
   for (let i = 0; i < 2; i++) { await put(r, 'review.md', 'Disposition: revise'); await step(r); await put(r, 'SCRIPT.md', `v${i}`); await step(r); }
   await put(r, 'review.md', 'Disposition: revise');
@@ -150,7 +149,7 @@ test('a supplied script and recording skip writing and narration', async t => {
   const r = await root(t);
   await mkdir(path.join(r, 'in'));
   await writeFile(path.join(r, 'in/my.md'), 'My words.'); await writeFile(path.join(r, 'in/VISUALS.md'), 'plan'); await writeFile(path.join(r, 'in/take.wav'), 'RIFF');
-  await createProject(r, {name: 'demo', script: 'in/my.md', audio: 'in/take.wav', review: 'final'});
+  await createProject(r, {profile: 'explainer', name: 'demo', script: 'in/my.md', audio: 'in/take.wav', review: 'final'});
   assert.equal(await readFile(S(r, 'VISUALS.md'), 'utf8'), 'plan');
   const s = await step(r);
   assert.equal(s.state, 'start');
@@ -159,18 +158,16 @@ test('a supplied script and recording skip writing and narration', async t => {
 
 test('film steps become T3 tasks and external Tailscale reviews', async t => {
   const r = await root(t);
-  await createProject(r, {name: 'demo', brief: 'b'});
+  await createProject(r, {profile: 'explainer', name: 'demo', brief: 'b'});
   const project = await loadProject(r, 'demo');
-  const spawn = {state: 'review final', text: [`STATE: independent final review (a, b)`, `DO: spawn 2 fresh sub-agents...`,
-    `      video-reviewer: "Read jobs/demo/briefs/review-final-a.md and follow it exactly."`,
-    `      video-reviewer: "Read jobs/demo/briefs/review-final-b.md and follow it exactly."`, `THEN: npm run video -- next --job jobs/demo`,
-    `    Reviewers must be new sub-agents that did not build any scene.`].join('\n')};
+  const spawn = {state: 'review final', text: 'STATE: independent final review\nASSIGNMENTS: ' + JSON.stringify([
+    {role: 'reviewer', job: 'jobs/demo', reviewRole: 'a'}, {role: 'reviewer', job: 'jobs/demo', reviewRole: 'b'}])};
   const text = await adaptStep(r, project, spawn, DEFAULT_CHAT_CONFIG);
   assert.equal(text.split('\n').filter(l => l.startsWith('  {')).length, 2);
-  assert.match(text, /\.claude\/agents\/video-reviewer\.md/);
-  assert.match(text, /VIDEO_AGENT_ROLE=reviewer VIDEO_AGENT_ID=t3-reviewer-/);
+  assert.match(text, /reviewRole/);
+  assert.match(text, /t3-reviewer-/);
   assert.match(text, /delegated --project demo/);
-  assert.match(text, /Reviewers must be new/);
+
   assert.equal((await loadProject(r, 'demo')).delegation.tasks.length, 2);
   await closeDelegation(r, 'demo');
   const gate = await adaptStep(r, project, {state: 'human review', text: 'STATE: human review of the prototype (x)\nDO: ...'}, DEFAULT_CHAT_CONFIG);
@@ -190,7 +187,7 @@ test('film steps become T3 tasks and external Tailscale reviews', async t => {
 
 test('models: tier defaults, chat.config roles and project overrides', async t => {
   const r = await root(t);
-  await createProject(r, {name: 'demo', brief: 'b'});
+  await createProject(r, {profile: 'explainer', name: 'demo', brief: 'b'});
   const config = {...DEFAULT_CHAT_CONFIG, roles: {builder: {providerInstanceId: 'codex', model: 'gpt-6-luna', options: {reasoningEffort: 'high'}}}};
   assert.equal(roleTarget(config, {}, 'script-writer'), null); // resolved against T3's live catalog
   const legacy = {...config, provider: 'pi', strong: {model: 'anthropic/claude-opus-5-5'}};
@@ -204,7 +201,7 @@ test('models: tier defaults, chat.config roles and project overrides', async t =
 
 test('listing and deleting projects', async t => {
   const r = await root(t);
-  await createProject(r, {name: 'demo', brief: 'b'});
+  await createProject(r, {profile: 'explainer', name: 'demo', brief: 'b'});
   assert.deepEqual((await listProjects(r)).map(p => [p.slug, p.phase]), [['demo', 'gathering sources']]);
   await assert.rejects(deleteProject(r, 'demo', 'nope'), /--confirm demo/);
   await deleteProject(r, 'demo', 'demo');

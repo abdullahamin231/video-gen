@@ -19,10 +19,9 @@ Script outputs and evidence live in `jobs/scripts/<slug>/`; prepared video files
 `next --project` covers preparation and then the film. `next --job` is for an already prepared job.
 Use explicit names; do not restart an existing job or truncate a recording without a requested excerpt.
 
-`next` derives the next task from files. Run command steps. For role briefs, give the named brief to an
-appropriate agent; independent review uses agents that did not produce the work. The host can reason about
-failures and inspect artifacts; it is not forbidden from reading the work. Close tracked chat delegations
-with `delegated --project <slug>` after they finish. Agents assigned briefs do not advance the host loop.
+`next` derives the next task from files. Run command steps. For task data, write a focused assignment using the supplied artifact paths, scope and findings; independent review uses agents that did not produce the work. The host can reason about
+failures and inspect artifacts; it is not forbidden from reading the work. The host may perform production work itself where appropriate; commission independent reviewers for review. Close tracked chat delegations
+with `delegated --project <slug>` after they finish. Agents assigned tasks do not advance the host loop.
 
 Research retains evidence; the writer produces narration and concise visual intent. The director chooses
 and authors the actual picture. `VISUALS.md` is free-form intent, not a scene schema or binding design recipe.
@@ -66,8 +65,8 @@ source of creative instructions.
 
 ## Assignment data
 
-Generated briefs contain data only: role, project/job, input paths, expected outputs, relevant technical
-reference and findings. The agent reads the artifacts it needs and chooses its approach. There is no
+The CLI returns inline assignment data: role, project/job, input paths, expected outputs, relevant technical
+reference and findings. The host writes the assignment itself. Include the saved profile, canvas and measured timing, expected outputs, relevant findings, and the role boundary from AGENTS.md. Give independent reviewers their review role, frozen pack path and hash, and prior-decision history. The assigned agent reads the artifacts it needs and chooses its approach. There is no
 separate prompt-file catalog or embedded creative instruction package.
 
 | Assignment | Output / reference |
@@ -120,3 +119,5 @@ flowchart TD
     S --> T[Approved publishing copy]
     T --> U[Unlisted upload unless opted out]
 ```
+
+Idea discovery belongs to the host agent: research current sources, retain links and evidence, and record selected or rejected ideas in a project-local ledger when needed. There is no built-in feed collector or ranking command. Existing `.video/ideas/` records remain historical data.

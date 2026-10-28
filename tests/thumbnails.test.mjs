@@ -1,4 +1,5 @@
-const assignment=text=>JSON.parse(/```json\n([\s\S]*?)\n```/.exec(text)[1]);
+const assignments = text => JSON.parse(/^ASSIGNMENTS: (.+)$/m.exec(text)[1]);
+const assignment = text => assignments(text)[0];
 // N thumbnail variants: made from different angles, reviewed, picked (by the person or the reviewer's ranking),
 // any one regenerated with feedback, and archived.
 import {test, after} from 'node:test';
@@ -40,22 +41,22 @@ test('variants are made from different angles, reviewed, and a blocked one goes 
   const job = await fixture(t);
   const first = await thumbnailStep(job);
   assert.equal(first.state, 'thumbnail variants');
-  assert.match(first.text, /thumbnail-maker: "Read .*thumbnail-v1\.md/); assert.match(first.text, /thumbnail-v2\.md/);
-  const brief1 = await readFile(path.join(job, 'briefs/thumbnail-v1.md'), 'utf8'), brief2 = await readFile(path.join(job, 'briefs/thumbnail-v2.md'), 'utf8');
+  assert.deepEqual(assignments(first.text).map(task => task.variant), ['v1', 'v2']);
+  const brief1 = 'ASSIGNMENTS: ' + JSON.stringify([assignments(first.text)[0]]), brief2 = 'ASSIGNMENTS: ' + JSON.stringify([assignments(first.text)[1]]);
   assert.match(brief1, /IT'S NOT THE CHIP/); assert.equal(assignment(brief1).variant,'v1'); assert.equal(assignment(brief2).variant,'v2');
   assert.equal(assignment(brief1).contract,'docs/publishing.md');
   await make(job, 'v1'); await make(job, 'v2');
   const review = await thumbnailStep(job);
-  assert.equal(review.state, 'thumbnail review'); assert.match(review.text, /thumbnail-reviewer: "Read .*thumbnail-review\.md/);
+  assert.equal(review.state, 'thumbnail review'); assert.match(review.text, /thumbnail-reviewer/);
   await assert.rejects(verdict(job, 'v2', 'blocked'), /at least one --finding/);
   await verdict(job, 'v1', 'pass'); await verdict(job, 'v2', 'blocked', ['The number on it is not in the research.']);
   const again = await thumbnailStep(job);
   assert.equal(again.state, 'thumbnail variants'); assert.match(again.text, /thumbnail v2 again/); assert.doesNotMatch(again.text, /thumbnail-v1\.md/);
-  assert.match(await readFile(path.join(job, 'briefs/thumbnail-v2.md'), 'utf8'), /not in the research/);
+  assert.match(again.text, /not in the research/);
   await make(job, 'v2', {colour: '#445566'});
   const second = await thumbnailStep(job);
-  assert.equal(second.state, 'thumbnail review'); assert.deepEqual(assignment(await readFile(path.join(job,'briefs/thumbnail-review.md'),'utf8')).variants.map(v=>v.id),['v2']);
-  assert.doesNotMatch(await readFile(path.join(job, 'briefs/thumbnail-review.md'), 'utf8'), /- v1:/);
+  assert.equal(second.state, 'thumbnail review'); assert.deepEqual(assignment(second.text).variants.map(v=>v.id),['v2']);
+  assert.doesNotMatch((await thumbnailStep(job)).text, /- v1:/);
   await verdict(job, 'v2', 'pass'); await recordRanking(job, ['v2', 'v1']);
   const pick = await thumbnailStep(job);
   assert.equal(pick.state, 'pick thumbnail'); assert.match(pick.text, /--variant v2/);
@@ -82,7 +83,7 @@ test('when the person picks, the reviewer ranking is not enough; their feedback 
   assert.equal(status.chosen, null);
   const redo = await thumbnailStep(job);
   assert.match(redo.text, /thumbnail v1 again/);
-  const brief = await readFile(path.join(job, 'briefs/thumbnail-v1.md'), 'utf8');
+  const brief = (await thumbnailStep(job)).text;
   assert.match(brief, /Make the headline red and bigger/);
   await assert.rejects(chooseThumbnail(job, {variant: 'v1', by: 'you'}), /not passed|feedback/);
   await make(job, 'v1', {colour: '#990000'});
@@ -126,7 +127,7 @@ for (const profile of PERSONALITIES) for (const [format, [width, height]] of Obj
     await freezePersonality(job, loadPersonality(profile));
     const dims = await thumbnailDimensions(job);
     await thumbnailStep(job);
-    const maker = await readFile(path.join(job, 'briefs/thumbnail-v1.md'), 'utf8');
+    const maker = (await thumbnailStep(job)).text;
     assert.equal(assignment(maker).dimensions.width,width);assert.equal(assignment(maker).dimensions.height,height);
     assert.ok(maker.includes(dims.previewFile));
     // A landscape image on a differently sized video cannot be reviewed or chosen.
@@ -137,7 +138,7 @@ for (const profile of PERSONALITIES) for (const [format, [width, height]] of Obj
     await assert.rejects(verdict(job, 'v1', 'pass'), /expected/);
     await make(job, 'v1');
     assert.equal((await thumbnailStep(job)).state, 'thumbnail review');
-    const review = await readFile(path.join(job, 'briefs/thumbnail-review.md'), 'utf8');
+    const review = (await thumbnailStep(job)).text;
     assert.equal(assignment(review).dimensions.width,width);assert.equal(assignment(review).dimensions.height,height);
     assert.ok(review.includes(dims.previewFile));
     await verdict(job, 'v1', 'pass');

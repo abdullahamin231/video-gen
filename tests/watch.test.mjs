@@ -11,7 +11,7 @@ test('T3 review serves the script and film read-only without starting the old UI
   await mkdir(cache, {recursive: true});
   const root = await mkdtemp(path.join(cache, 'watch-'));
   t.after(() => rm(root, {recursive: true, force: true}));
-  await createProject(root, {name: 'demo', brief: 'A fixture film'});
+  await createProject(root, {profile: 'explainer', name: 'demo', brief: 'A fixture film'});
   const script = path.join(root, 'jobs/scripts/demo');
   await writeFile(path.join(script, 'SCRIPT.md'), '# Fixture script\nRead this in your browser.');
   await writeFile(path.join(script, 'review.md'), 'Disposition: pass');

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import {nextStep, buildFilm, jobProgress, writeReviewerBriefs} from '../lib/film.mjs';
+import {nextStep, buildFilm, jobProgress, reviewAssignments} from '../lib/film.mjs';
 import {sourceFingerprint, fileHash, loadReviewPack, submitReview, qualifyDelivery, REVIEW_ROLES} from '../lib/review.mjs';
 import {recordHumanReview, humanDecision, humanFindings, parseNote, parseStages} from '../lib/review.mjs';
 
@@ -106,9 +106,9 @@ test('the person reviews after the reviewers pass; their notes become repairs wo
   assert.equal(record.notes[0].start, 3, 'a note on the introduction keeps its moment');
   assert.equal(record.packSha256, pack.packSha256);
   const repair = await nextStep(job);
-  assert.equal(repair.state, 'repair'); assert.match(repair.text, /from your review/);
-  const brief = await readFile(path.join(job, 'briefs/repair-director.md'), 'utf8');
-  assert.match(brief, /### opening[\s\S]*The bar should be red, not blue/); assert.match(brief, /Slower overall/);
+  assert.equal(repair.state, 'repair'); assert.match(repair.text, /your review/);
+  const brief = repair.text;
+  assert.match(brief, /The bar should be red, not blue/); assert.match(brief, /Slower overall/);
   // The repaired film is a new pack: the old decision no longer counts.
   await writeFile(path.join(job, 'shots/comparison.json'), JSON.stringify({scene: 'comparison', objects: [], actions: [], notes: 'repaired'}));
   await buildFilm(job, {inspect: false, print: false});
@@ -144,7 +144,7 @@ test('a complete third failed round advances to render; partial rounds never tri
   report.findings = [{id:'F1',severity:'blocking',start:6,end:7,scope:'scene',sceneIds:['comparison'],
     subject:'Motion personality',requirement:'Expressive motion',observed:'Movement feels flat.',repair:'Add character.',evidence:[context.pack.evidence[0].path]}];
   await submitReview(job,report);
-  await writeReviewerBriefs(job,context.pack,path.join(job,'review/final/pack.json'),context.packSha256);
+  await reviewAssignments(job,context.pack,path.join(job,'review/final/pack.json'),context.packSha256);
   await rm(path.join(job,'review/final/reviews/continuity-legibility.json'));
   assert.equal((await nextStep(job)).state,'review final');
   assert.equal((await read(job,'job.json')).reviewRounds,undefined);

@@ -2,9 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, readFile, writeFile, rm, cp} from 'node:fs/promises';
 import path from 'node:path';
-import {PERSONALITIES, PROFILE_FILE, inferPersonality, loadPersonality, freezePersonality, readPersonality, assertRenderReady, preparationPersonality} from '../lib/personalities.mjs';
+import {PERSONALITIES, PROFILE_FILE, requirePersonality, loadPersonality, freezePersonality, readPersonality, assertRenderReady, preparationPersonality} from '../lib/personalities.mjs';
 import {createProject, loadProject, projectStep, closeDelegation, updateProject, inspect, projectStatus, listProjects} from '../lib/project.mjs';
-import {directorBrief, builderBrief, writeBrief} from '../lib/briefs.mjs';
 import {sourceFingerprint} from '../lib/review.mjs';
 import {nextStep, renderFilm} from '../lib/film.mjs';
 
@@ -16,22 +15,10 @@ async function fixture(t) {
   return root;
 }
 
-test('normal requests route by treatment, with storytelling fixed and ambiguous news unresolved', () => {
-  for (const [prompt, id] of [
-    ['Explain quantum tunnelling', 'explainer'],
-    ['Explain how elections work', 'explainer'],
-    ['Explain the latest scientific discovery', 'explainer'],
-    ['Create a story about an elevator stopping on an impossible floor', 'rules-story'],
-    ['Make a Bradikinin-style video', 'rules-story'],
-    ['Cover today\'s stock market and earnings news', 'news-financial'],
-    ['Cover the latest election results', 'news-political'],
-    ['Review T3 Code entirely', 'app-review'],
-    ['Test and review this finance app', 'app-review'],
-  ]) assert.equal(inferPersonality(prompt).id, id, prompt);
-  assert.equal(inferPersonality('Make a news video').id, null);
-  assert.equal(inferPersonality('Cover today\'s election and stock market news').id, null);
-  assert.equal(inferPersonality('Explain atoms', 'rules-story').id, 'rules-story');
-  assert.throws(() => inferPersonality('x', '../../other'), /Unknown personality/);
+test('new production requires an explicit profile', () => {
+  assert.throws(() => requirePersonality(), /pass --profile/);
+  assert.throws(() => requirePersonality('auto'), /pass --profile/);
+  assert.equal(requirePersonality('rules-story'), 'rules-story');
 });
 
 test('each personality has its own complete package, with truthful renderer readiness', () => {
@@ -71,46 +58,30 @@ test('frozen instructions survive catalog edits and reject missing, changed or m
 
 test('automatic project routing persists through research and revision without asking for an ID', async t => {
   const root = await fixture(t);
-  const p = await createProject(root, {name: 'story', brief: 'Make a horror story about an elevator.'});
+  const p = await createProject(root, {name: 'story', profile: 'rules-story', brief: 'Make a horror story about an elevator.'});
   assert.equal(p.productionProfile.id, 'rules-story');
   const dir = path.join(root, 'jobs/scripts/story');
   assert.equal((await loadProject(root, 'story')).productionProfile.sha256, readPersonality(dir).sha256);
   await projectStep(root, 'story');
-  const research = await readFile(path.join(dir, 'briefs/research.md'), 'utf8');
+  const research = JSON.stringify((await loadProject(root, 'story')).delegation.tasks[0].assignment);
   assert.match(research, /production-profile.json/);
   await closeDelegation(root, 'story');
   await writeFile(path.join(dir, 'SOURCES.md'), '# Original premise and factual background');
   await projectStep(root, 'story');
-  const writer = await readFile(path.join(dir, 'briefs/write.md'), 'utf8');
+  const writer = JSON.stringify((await loadProject(root, 'story')).delegation.tasks[0].assignment);
   assert.match(writer, /production-profile.json/);
   await assert.rejects(updateProject(root, 'story', {profile: 'explainer'}), /frozen/);
 });
 
-test('story direction/build briefs exclude explainer design and retain the fixed narrative grammar', async t => {
-  const dir = await fixture(t);
-  await freezePersonality(dir, loadPersonality('rules-story'));
-  const manifest = {duration: 12, width: 1920, height: 1080};
-  const alignment = {words: [{text: 'Listen', start: 0, end: 1}]};
-  const director = directorBrief(dir, manifest, alignment);
-  assert.match(director, /docs\/composition.md/);
-  assert.doesNotMatch(director, /Show the real thing, drawn|Everything else you draw as SVG|Invent at least 2 genuinely different whole-film concepts/);
-  const film = {concept: 'Rules', scenes: [{id: 'opening', idea: 'Rule one', carry: [], start: {boundary: 'start'}}]};
-  const builder = builderBrief(dir, manifest, film, {id: 'opening', start: 0, end: 12}, alignment);
-  assert.match(builder, /opening/);
-  assert.doesNotMatch(builder, /every object arrives with motion/);
-  const file = await writeBrief(dir, 'build-opening.md', builder);
-  assert.match(await readFile(file, 'utf8'), /production-profile.json/);
-});
-
 test('news uses its own source rubric and app review records the session before it writes', async t => {
   const root = await fixture(t);
-  await createProject(root, {name: 'news', brief: 'Cover today\'s financial news.'});
+  await createProject(root, {name: 'news', profile: 'news-financial', brief: 'Cover today\'s financial news.'});
   await projectStep(root, 'news');
-  const news = await readFile(path.join(root, 'jobs/scripts/news/briefs/research.md'), 'utf8');
+  const news = JSON.stringify((await loadProject(root, 'news')).delegation.tasks[0].assignment);
   assert.match(news, /production-profile.json/);
   assert.doesNotMatch(news, /Show the real thing, drawn/);
 
-  await createProject(root, {name: 'app', brief: 'Review T3 Code entirely.'});
+  await createProject(root, {name: 'app', profile: 'app-review', brief: 'Review T3 Code entirely.'});
   const S = path.join(root, 'jobs/scripts/app');
   let step = await projectStep(root, 'app');
   assert.equal(step.state, 'record the session');
@@ -131,7 +102,7 @@ test('news uses its own source rubric and app review records the session before 
   await writeFile(path.join(S, 'SOURCES.md'), '# Sources');
   step = await projectStep(root, 'app');
   assert.equal(step.state, 'write the script and its visual plan');
-  const brief = await readFile(path.join(S, 'briefs/write.md'), 'utf8');
+  const brief = JSON.stringify((await loadProject(root, 'app')).delegation.tasks[0].assignment);
   assert.match(brief, /capture\/F1\/manifest.json/);
   assert.match(brief, /capture\/F1\/manifest\.json/);
 
@@ -141,7 +112,7 @@ test('legacy jobs retain the explainer while unknown explicit and ambiguous new 
   const root = await fixture(t);
   assert.equal(readPersonality(root).profile.id, 'explainer');
   await assert.rejects(createProject(root, {name: 'bad', brief: 'Explain atoms', profile: 'unknown'}), /Unknown personality/);
-  await assert.rejects(createProject(root, {name: 'ambiguous', brief: 'Make a news video'}), /routing question/);
+  await assert.rejects(createProject(root, {name: 'ambiguous', brief: 'Make a news video'}), /pass --profile/);
 });
 
 test('preparation inherits the frozen personality rather than reclassifying the script or accepting an override', async t => {
@@ -159,7 +130,7 @@ test('preparation inherits the frozen personality rather than reclassifying the 
 
 test('prepared personality projects support inspection, status and listing while rejecting a mismatched film', async t => {
   const root = await fixture(t);
-  const project = await createProject(root, {name: 'story', brief: 'Create a horror story about an intercom.'});
+  const project = await createProject(root, {name: 'story', profile: 'rules-story', brief: 'Create a horror story about an intercom.'});
   const scriptDir = path.join(root, 'jobs/scripts/story'), job = path.join(root, 'jobs/story');
   await freezePersonality(job, readPersonality(scriptDir));
   await writeFile(path.join(job, 'job.json'), JSON.stringify({
