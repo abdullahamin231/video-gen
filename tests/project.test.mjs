@@ -2,7 +2,6 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, utimes, readdir} from 'node:fs/promises';
 import path from 'node:path';
-import {REVIEW_URL} from '../lib/review-location.mjs';
 import {createProject, projectStep, closeDelegation, assertNoDelegation, recordScriptReview, adaptStep, roleTarget, updateProject,
   loadProject, DEFAULT_CHAT_CONFIG, scriptDisposition, listProjects, deleteProject} from '../lib/project.mjs';
 
@@ -24,9 +23,8 @@ async function put(r, name, body) { // each write is visibly newer than the last
 async function step(r) { const s = await projectStep(r, 'demo'); await closeDelegation(r, 'demo'); return s; }
 
 function assertExternalReview(text) {
-  assert.ok(text.includes(REVIEW_URL));
   assert.match(text, /watch --project demo/);
-  assert.match(text, /tailscale serve status/);
+  assert.match(text,/printed review URL/);
   assert.match(text, /own browser/);
   assert.doesNotMatch(text, /preview_open|ready in the preview panel/);
 }
@@ -221,7 +219,7 @@ test('script review verdicts', () => {
 
 test('pipeline stages mark the step the video is on', async () => {
   const {pipelineStages} = await import('../lib/project.mjs');
-  const {renderStageBar} = await import('../lib/stagebar.mjs');
+  const {renderStageBar} = await import('../lib/project.mjs');
   const project = {review: ['script', 'final', 'thumbnail'], tts: 'ming'};
   const at = status => { const s = pipelineStages({project, ...status}); return s.current && `${s.current.group}/${s.current.step}`; };
   assert.equal(at({phase: 'gathering sources'}), 'Script/Sources');

@@ -2,7 +2,7 @@
 
 The host commissions reviewers who did not produce the work. Review evidence is frozen and hash-bound
 so findings and approval refer to the actual film. A plan, transcript or lint result cannot replace
-inspection of images and, when available, playback. [quality.md](quality.md) gives the editorial standard.
+inspection of images and, when available, playback. The editorial standard below applies.
 
 `review-pack --job <job> --stage final` captures the full built composition. Render-source packs also
 include encoded clips. A successful full build is required; missing scenes/evidence prevent review.
@@ -44,3 +44,22 @@ with sourceHash, findingId, resolved/unresolved/disputed disposition and evidenc
 A new blocker needs current evidence, not a new aesthetic preference. Readability, broken evidence and
 technical failures cannot be cleared by exhausting the creative review budget. Delivery records whether
 review passed, reached its configured limit with unresolved findings, or was explicitly waived by the user.
+
+## Editorial judgment
+
+Judge the finished experience against the user's purpose and intended audience. The agent chooses the
+structure, media, visual language and pacing. There is no mandatory opening, number of concepts, continuous
+world, visual primitive, camera move, hold length or sound-effect quota.
+
+A useful picture helps the viewer understand, feel or evaluate what the narration means. Depending on the
+material, that can be a demonstration, real footage, a diagram, typography, a comparison or a deliberate hold.
+An unusual choice needs evidence of a problem before it becomes a blocking finding.
+
+Concrete defects include a misleading claim or illustration, unreadable presented text, missing relevant
+source context, a broken transition, missing media, or a picture that materially contradicts the spoken
+meaning or requested treatment. Explain the timestamp, observed defect and effect on the viewer.
+Suggestions based on taste are advisory. Coherence matters; a prescribed palette or library does not.
+
+Inspect actual images or playback. Automated measurements and written plans are diagnostics, not proof of
+quality. Disclose inspection limits. Still images do not establish motion quality; signal checks do not
+establish that audio was heard. 

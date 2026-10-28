@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateSpeech, readTtsStatus } from '../lib/tts.mjs';
-import { mingPlan } from '../lib/ming.mjs';
+import { generateSpeech, readTtsStatus } from '../lib/narration.mjs';
+import { mingPlan } from '../lib/narration.mjs';
 
 test('Ming IP plans preserve text and pacing and reject free-form instructions', () => {
   const plan = mingPlan('First thought. Second thought.', {
@@ -30,7 +30,7 @@ test('Ming IP plans preserve text and pacing and reject free-form instructions',
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 test('Ming accepts the complete documented inline cue catalog', async () => {
-  const guide = await readFile(path.join(root, 'docs/tts.md'), 'utf8');
+  const guide = await readFile(path.join(root, 'docs/audio.md'), 'utf8');
   const cues = [...guide.matchAll(/`\[([^\]]+)\]`/g)].map(match => match[1]);
   assert.equal(cues.length, 14, 'the complete pinned upstream catalog is documented');
   for (const cue of cues) {

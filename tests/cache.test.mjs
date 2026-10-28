@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {cacheDir} from '../lib/cache.mjs';
+import {cacheDir} from '../lib/media.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 test('tool caches stay beneath the repository .cache', () => {

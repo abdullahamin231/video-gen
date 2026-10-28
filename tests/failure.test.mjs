@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {classifyFailure} from '../lib/failure.mjs';
+import {classifyFailure} from '../lib/film.mjs';
 
 test('tooling and environment failures are infrastructure, not film defects', () => {
   for (const error of [

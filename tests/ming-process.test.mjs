@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, writeFile, readFile, rm, access } from 'node:fs/promise
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { generateSpeech } from '../lib/tts.mjs';
+import { generateSpeech } from '../lib/narration.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 async function until(predicate) {
@@ -72,7 +72,7 @@ test('stopping a launcher cancels its worker, preserves output and lets the next
   const output = path.join(dir, 'original.wav'), statusFile = path.join(dir, 'cancel.json');
   await writeFile(output, 'previous recording');
   const child = spawn(process.execPath, ['--input-type=module', '-e', `
-    import { generateSpeech } from ${JSON.stringify(new URL('../lib/tts.mjs', import.meta.url).href)};
+    import { generateSpeech } from ${JSON.stringify(new URL('../lib/narration.mjs', import.meta.url).href)};
     try { await generateSpeech(${JSON.stringify({ text: 'Fixture narration.', provider: 'ming', output, statusFile, env })}); }
     catch { process.exitCode = 1; }
   `], { cwd: root, stdio: 'ignore' });
@@ -92,7 +92,7 @@ test('forcibly killing the launcher makes its model worker exit and frees the sl
   const { dir, env } = await fixture(t);
   const statusFile = path.join(dir, 'killed.json');
   const child = spawn(process.execPath, ['--input-type=module', '-e', `
-    import { generateSpeech } from ${JSON.stringify(new URL('../lib/tts.mjs', import.meta.url).href)};
+    import { generateSpeech } from ${JSON.stringify(new URL('../lib/narration.mjs', import.meta.url).href)};
     await generateSpeech(${JSON.stringify({ text: 'Fixture narration.', provider: 'ming', output: path.join(dir, 'killed.wav'), statusFile, env })});
   `], { cwd: root, stdio: 'ignore' });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, symlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
-import {inspectBundle, itemPath, publishBundle, searchLibrary, useBundle, verifyLibraryCopies, unsavedFiles, saveToLibrary, saveAll} from '../lib/library.mjs';
+import {inspectBundle, itemPath, publishBundle, searchLibrary, useBundle, verifyLibraryCopies, unsavedFiles, saveToLibrary, saveAll} from '../lib/assets.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'video-library-'));

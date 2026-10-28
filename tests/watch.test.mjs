@@ -4,7 +4,7 @@ import {mkdir, mkdtemp, writeFile, readFile, rm} from 'node:fs/promises';
 import path from 'node:path';
 import {createProject} from '../lib/project.mjs';
 import {serveWatch} from '../lib/watch.mjs';
-import {REVIEW_URL, watchInstructions} from '../lib/review-location.mjs';
+import {watchInstructions} from '../lib/watch.mjs';
 
 test('T3 review serves the script and film read-only without starting the old UI', async t => {
   const cache = path.resolve('.cache/tests');
@@ -24,9 +24,9 @@ test('T3 review serves the script and film read-only without starting the old UI
   t.after(() => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
 
   const instructions = watchInstructions(url, 'demo', false);
-  assert.ok(instructions.includes(`tailscale serve --bg --https=8443 ${url}`));
-  assert.ok(instructions.includes(`Review: ${REVIEW_URL}`));
-  assert.match(instructions, /only change the review route on 8443/);
+  assert.ok(instructions.includes(`tailscale serve --bg ${url}`));
+  assert.ok(instructions.includes(`Review: ${url}`));
+  assert.doesNotMatch(instructions,/4310|existing video UI/);
   assert.doesNotMatch(instructions, /preview_open/);
 
   const overview = await fetch(url).then(r => r.text());

@@ -5,21 +5,21 @@ import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {extractNarration, normalizeWords, reconcile, jobNameFor} from '../lib/timing.mjs';
-import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, saveToLibrary, saveAll} from '../lib/library.mjs';
+import {itemPath, inspectBundle, searchLibrary, publishBundle, useBundle, saveToLibrary, saveAll} from '../lib/assets.mjs';
 import {fileHash, submitReview, reviewStatus, waiveReview, qualifyDelivery, writeReviewFile, localFile, registerProducer, parseReviewDepth} from '../lib/review.mjs';
 import {createReviewPack, generateCaptureInspection, assertIndependentCaptureReviewer} from '../lib/review-pack.mjs';
-import {parseStages, parseNote, recordHumanReview} from '../lib/human.mjs';
+import {parseStages, parseNote, recordHumanReview} from '../lib/review.mjs';
 import {thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail, MAX_THUMBNAILS} from '../lib/thumbnails.mjs';
-import {compareNarration} from '../lib/audio-verification.mjs';
-import {audioEnv, audioPython} from '../lib/sfx.mjs';
+import {compareNarration} from '../lib/audio.mjs';
+import {audioEnv, audioPython} from '../lib/audio.mjs';
 import {planCheck, buildFilm, snapshot, filmAudit, renderFilm, remixFilm, nextStep, jobProgress, writeReviewerBriefs, reviewTemplate, writeProductionReport, printSpecError} from '../lib/film.mjs';
 import {installRuntime} from '../lib/composition.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {SpecError} from '../lib/composition.mjs';
 import {directorBrief, writeBrief, taskPrompt} from '../lib/briefs.mjs';
 import {findVisualPlan, VISUALS_FILE} from '../lib/timing.mjs';
-import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/format.mjs';
-import {loadConfig, resolveSettings} from '../lib/format.mjs';
+import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/media.mjs';
+import {loadConfig, resolveSettings} from '../lib/media.mjs';
 import {PERSONALITIES, inferPersonality, loadPersonality, preparationPersonality, freezePersonality, assertRenderReady} from '../lib/personalities.mjs';
 import {transcribeNews, ingestNews, newsPlan, isNews, verifyNews} from '../lib/news.mjs';
 import {readPersonality} from '../lib/personalities.mjs';
@@ -27,9 +27,9 @@ import {readdir} from 'node:fs/promises';
 import {findIdeas, loadIdeas, setIdeaStatus, newestFirst, STATUSES} from '../lib/ideas.mjs';
 import {createProject, updateProject, listProjects, deleteProject, projectStep, projectStatus, printStatus, recordScriptReview, closeDelegation, carryCaptures,
   assertNoDelegation, projectOfJob, requireQuote, logDecision} from '../lib/project.mjs';
-import {setHumanStages} from '../lib/human.mjs';
-import {renderStageBar} from '../lib/stagebar.mjs';
-import {watchInstructions} from '../lib/review-location.mjs';
+import {setHumanStages} from '../lib/review.mjs';
+import {renderStageBar} from '../lib/project.mjs';
+import {watchInstructions} from '../lib/watch.mjs';
 import {youtubeAuth, youtubeUpload} from '../lib/youtube-upload.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,7 +39,7 @@ const json = async file => JSON.parse(await readFile(file, 'utf8'));
 const save = (file, data) => writeFile(file, JSON.stringify(data, null, 2) + '\n');
 const exists = async file => {try {await access(file); return true;} catch {return false;}};
 const digest = async file => createHash('sha256').update(await readFile(file)).digest('hex');
-// The UI runner starts every agent with VIDEO_AGENT_ROLE. Role agents (director, builder, reviewer, ...) follow their
+// The harness identifies role agents with VIDEO_AGENT_ROLE. Role agents (director, builder, reviewer, ...) follow their
 // brief; advancing the pipeline belongs to the orchestrator alone. Without the variable (a plain harness session) every
 // command is allowed, as before.
 const ROLE = process.env.VIDEO_AGENT_ROLE || '';
@@ -379,7 +379,7 @@ async function ideasCommand(opts) {
   else { console.log(`\n${cards.length} new idea(s)${run.focus ? ` for “${run.focus}”` : ''}:`); cards.forEach(printIdea); }
   console.log('\nRun again for more. Mark one with: npm run video -- ideas --set <id> --status saved|rejected');
 }
-// ------------------------------------------------------------------ chat projects (T3 Code; docs/t3-orchestrator.md)
+// ------------------------------------------------------------------ chat projects (T3 Code; docs/orchestrator.md)
 async function projectCommand(command, opts) {
   const slug = opts.project;
   if (command === 'project-new') {
@@ -428,7 +428,7 @@ async function projectCommand(command, opts) {
     await new Promise(() => {});
   }
 }
-// A person's decision recorded from a chat carries their own words (project jobs only; the web UI records its own).
+// A person's decision recorded from a chat carries their own words.
 async function personDecision(job, command, opts) {
   const project = await projectOfJob(ROOT, job);
   if (!project) return null;
@@ -462,7 +462,7 @@ alignment-approve --note "..."       record review of a low script match
 setup-audio                          check ffmpeg, install librosa (beat analysis for music)
 capture-ingest --run <reshoot run folder> --task <id> [--feature ".." --claim ".." --build ".." --dir capture/<task>]   turn a reshoot run
                                      (headless Chrome, cursor composited) into recording.mp4, actions.jsonl, shots/ and manifest.json;
-                                     in a project this runs before the film job exists (docs/reshoot.md)
+                                     in a project this runs before the film job exists (docs/capture.md)
 capture-scene --capture <dir> --scene <id> [--fit 0.9]   cut the recording per capture/<task>/edits.json and compile
                                      shots/<id>.json: click rings and camera push-in/pull-out over the recorded cursor (build it afterwards)
 music --src <url|file> --name music/<x>.mp3 --source "<page>" --license "<licence>" [--title ..]  bring in a licensed track; finds its beats
@@ -495,16 +495,16 @@ library-info --item <id@version>     inspect one bundle, usage and provenance
 library-add --source <bundle-dir>   publish a new immutable artifact version
 library-use --item <id@version> --job jobs/<slug>  freeze files and record hashes
 
-Chat projects (T3 Code; docs/t3-orchestrator.md): the whole video from an agreed brief, one step at a time
+Chat projects (T3 Code; docs/orchestrator.md): the whole video from an agreed brief, one step at a time
 profiles | profile-route --prompt "<request>" [--profile <id>]   inspect personalities / infer routing (read-only)
 project-new --name <slug> [--profile explainer|rules-story|news-financial|news-political|app-review] [--brief-file f] [--format landscape|vertical --duration <s> --tts ming --audio f --script f --music f
             --review script,final,thumbnail|none --review-depth fast|standard|deep --thumbnails 1-6 --idea <id> --thread <t3 thread id>]   (brief: jobs/scripts/<slug>/BRIEF.md)
-next --project <slug>               the single next step of the whole video (T3 delegated tasks, your reviews on Tailscale)
+next --project <slug>               the single next step of the whole video (T3 delegated tasks, your review checkpoints)
 status --project <slug> [--json]    every stage, read-only        projects [--json]   every project and where it is
 stage-bar --project <slug>          the stage bar as one HTML page, for T3 html_render (read-only)
 delegated --project <slug>          the delegated tasks next started have finished (or were lost); next may go on
 script-review --project <slug> --decision approve|revise [--note "<their words>" ...] --quote "<their message>"
-watch --project <slug> [--stop true] read-only Tailscale review page + serving instructions (background server)
+watch --project <slug> [--stop true] read-only harness review page (background server)
 project-set --project <slug> [--review ..] [--review-depth fast|standard|deep] [--thumbnails N] [--tts ..] [--model role=provider:model ...]
 project-delete --project <slug> --confirm <slug>
 (human-review, thumbnail-choose --by you, thumbnail-feedback and review-waive on a project's job also need --quote "<their message>")
@@ -513,18 +513,18 @@ ideas [--focus "mac hardware" --count 6 --refresh true --json]   find new video 
                                      feeds and reference channels come from ideas.config.json; YOUTUBE_API_KEY is optional
 youtube-auth                         authorize the abdupdates YouTube channel (OAuth client JSON stays in .cache)
 youtube-upload --file <video.mp4> --title "Title" [--description "..."] [--privacy private|unlisted|public] [--tag "ai" ...]
-                                     upload with resumable transfer; privacy defaults to unlisted. See docs/youtube-upload.md
+                                     upload with resumable transfer; privacy defaults to unlisted. See docs/publishing.md
 frame-stats --video <a.mp4>[,<b.mp4>] [--every 2]   measure how much of the frame a film uses (ink, spread, near-blank), to compare films
 ideas --show new|saved|rejected|used|all [--json]   list ideas found so far
 ideas --set <id> --status new|saved|rejected|used [--reason ".."]   mark an idea
 
 The latest prepared job is used when --job is omitted.
-Creative design is performed by the agent; see docs/orchestrator.md and docs/agent-workflow.md.
+Creative design is performed by the agent; see docs/orchestrator.md.
 `;
 try {
   const [command = 'help', ...args] = process.argv.slice(2);
   if (command === 'tts') {
-    await (await import('../lib/tts.mjs')).ttsCommand(args);
+    await (await import('../lib/narration.mjs')).ttsCommand(args);
     process.exit(0);
   }
   const opts = options(args);
@@ -543,7 +543,7 @@ try {
     if (!opts.project && command !== 'project-new' && command !== 'projects') throw new Error(`${command} needs --project <slug> (see \`npm run video -- projects\`).`);
     await projectCommand(command, opts);
   }
-  else if (command === 'help') console.log(HELP + '\ntts <file> [--provider ming] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate local Ming narration (docs/tts.md)');
+  else if (command === 'help') console.log(HELP + '\ntts <file> [--provider ming] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate local Ming narration (docs/audio.md)');
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
   else if (command === 'start') { await assertNoDelegation(ROOT, opts.name, command); await start(opts); }
@@ -626,7 +626,7 @@ try {
     }
     else if (command === 'music') await musicImport(job, opts);
     else if (command === 'capture-ingest') {
-      if (!opts.run) throw new Error('capture-ingest needs --run <reshoot run folder>, such as reshoot/takes/runs/<id> (docs/reshoot.md).');
+      if (!opts.run) throw new Error('capture-ingest needs --run <reshoot run folder>, such as reshoot/takes/runs/<id> (docs/capture.md).');
       if (!opts.task) throw new Error('capture-ingest needs --task <id>: the feature/task id this recording evidences.');
       const runDir = path.resolve(ROOT, opts.run);
       const dir = opts.dir ? path.resolve(job, opts.dir) : path.join(job, 'capture', String(opts.task));
@@ -715,7 +715,7 @@ try {
         console.log(`Recorded: ${record.decision} on the ${record.stage}${record.notes.length ? ` with ${record.notes.length} note(s)` : ''}.${nextHint(job)}`);
       }
     } else if (command === 'play') {
-      const {startPlayer} = await import('../lib/player.mjs');
+      const {startPlayer} = await import('../lib/watch.mjs');
       const {url} = await startPlayer(job, {port: opts.port || 3004});
       console.log(`Playing the built film (nothing is rendered or changed): ${url}\nStop with Ctrl+C.`);
       await new Promise(() => {});

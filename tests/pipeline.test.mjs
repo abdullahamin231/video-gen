@@ -7,7 +7,7 @@ import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {reconcile} from '../lib/timing.mjs';
 import {buildFilm} from '../lib/film.mjs';
-import {useBundle} from '../lib/library.mjs';
+import {useBundle} from '../lib/assets.mjs';
 import {sourceFingerprint, fileHash, loadReviewPack, REVIEW_ROLES} from '../lib/review.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const testCache = path.join(ROOT, '.cache', 'cleanup-tests');
@@ -102,7 +102,7 @@ test('CLI qualifies real encoded media only after the independent final review r
     const dispatch=JSON.parse(packResult.stdout);
     assert.equal(dispatch.briefs.length,3);
     assert.equal(dispatch.packSha256,await fileHash(path.join(job,`review/${stage}/pack.json`)));
-    assert.match(await readFile(dispatch.briefs[0].path,'utf8'),/docs\/independent-review.md/);
+    assert.match(await readFile(dispatch.briefs[0].path,'utf8'),/docs\/review.md/);
     const context=await loadReviewPack(job,stage);
     for(const role of REVIEW_ROLES) {
       const report={version:1,stage,role,reviewer:{agentId:`/fixture/${role}`,independent:true},

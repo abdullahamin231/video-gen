@@ -2,7 +2,7 @@
 
 Use actual recordings for app reviews. `capture-ingest` reads a reshoot run, verifies its metadata and
 composited cursor, and retains recording.mp4, actions.jsonl, manifest.json and stills inside the project.
-A screenshot sequence is not evidence of an interaction. See [reshoot.md](reshoot.md) for recording.
+A screenshot sequence is not evidence of an interaction. Recording details are below.
 
 ```bash
 npm run video -- capture-ingest --job jobs/scripts/<slug> --run <repository run folder> --task <task-id>
@@ -66,3 +66,32 @@ For independent capture inspection, compare every paired source/render PNG in
 Decision is `acceptable` or `reject`; the observation describes what the paired images actually show.
 Missing, obscured or materially inconsistent app content requires rejection. This is visual judgment,
 not automated pixel verification.
+
+## Recording with reshoot
+
+Use the installed `reshoot --help` and its `run` help for the current capture syntax. Keep the recording
+project and run folders inside the repository. A storyboard describes real browser actions and result
+checks; use scoped selectors and verify the actual result rather than a loose text match. Trial runs can
+help locate controls; the ingested run must contain the claimed task, not just the final screenshot.
+
+`reshoot run` writes a run folder with a clean take, action log, checks and recording metadata. Use the
+specific run directory, not a moving `latest` pointer. The clean take contains the cursor and is the
+source used here; a caption-burned demo export is not the source recording.
+
+```bash
+npm run video -- capture-ingest --job jobs/scripts/<slug> --run <repository run folder> --task <id>
+```
+
+Ingest copies the supported evidence into the pipeline contract. Failed result checks remain evidence;
+report them rather than describing a successful flow. The source log may not include every typing or
+keypress event, so do not infer coverage beyond what the recorder actually retained.
+
+The cut and omission contracts above apply after recording.
+The agent owns any additional graphics and camera moves. No third-party reshoot skill installation is
+required by this repository.
+
+## Operational limits
+
+Headless capture works without a display server. Privacy scans require their configured local OCR tools;
+without those tools, do not claim a scan was performed. Ambiguous selectors and failed checks can require
+a new take. Keep source runs intact so the film's claims and derived cuts remain auditable.

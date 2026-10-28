@@ -14,7 +14,7 @@ import {updateOmissionEvidence, validateEdits, clusterClicks, clusterFocus, comp
 import {carryCaptures} from '../lib/project.mjs';
 import {buildFilm} from '../lib/film.mjs';
 import {reviewerBrief} from '../lib/briefs.mjs';
-import {chromePath} from '../lib/inspect.mjs';
+import {chromePath} from '../lib/native.mjs';
 import {loadPersonality, personalityMetadata, freezePersonality} from '../lib/personalities.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));

@@ -4,7 +4,7 @@ import {mkdtemp,mkdir,readFile,writeFile,rm,copyFile,rename} from 'node:fs/promi
 import path from 'node:path';
 import {fixture} from './helpers/news-fixture.mjs';
 import {transcribeNews,newsPlan,ingestNews,shiftedWords,captionCues,checkRights,requireNewsDelivery,verifyNews,command} from '../lib/news.mjs';
-import {compareNarration} from '../lib/audio-verification.mjs';
+import {compareNarration} from '../lib/audio.mjs';
 import {buildFilm,nextStep,filmAudit,writeProductionReport,renderFilm} from '../lib/film.mjs';
 process.env.VG_LIBRARY=path.resolve('.cache/tests/news-library');
 const {thumbnailDimensions,thumbnailStep,exportThumbnail,thumbnailStatus,recordVerdict,chooseThumbnail}=await import('../lib/thumbnails.mjs');

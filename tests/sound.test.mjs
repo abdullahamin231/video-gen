@@ -5,9 +5,9 @@ import {mkdtemp, mkdir, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {compileFilm} from '../lib/composition.mjs';
-import {decodeWav, soundInfo, placeSound} from '../lib/sfx.mjs';
-import {mixBuses, loudness, speechMask} from '../lib/mix.mjs';
-import {pickListening} from '../lib/sound-check.mjs';
+import {decodeWav, soundInfo, placeSound} from '../lib/audio.mjs';
+import {mixBuses, loudness, speechMask} from '../lib/audio.mjs';
+import {pickListening} from '../lib/audio.mjs';
 
 const SR = 48000;
 const THEME = {name: 'Test look', description: 'Chunky white outlines on a near-black stage, flat saturated fills, hard offset shadows and heavy display type for prices.', bg: '#101010', colors: {white: '#f0f0f0', grey: '#888888', dim: '#444444', faint: '#222222', blue: '#1488dd', yellow: '#ffd23f', red: '#e0342f', green: '#3fbf6f'}, meanings: {yellow: 'money'}};

@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { cacheDir } from '../lib/cache.mjs';
+import { cacheDir } from '../lib/media.mjs';
 export async function setupMing() {
   const cache = cacheDir(), home = path.join(cache, 'ming'), source = path.join(home, 'source');
   await mkdir(path.join(home, 'tmp'), { recursive: true });

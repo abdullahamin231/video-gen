@@ -7,7 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {nextStep, buildFilm, jobProgress, writeReviewerBriefs} from '../lib/film.mjs';
 import {sourceFingerprint, fileHash, loadReviewPack, submitReview, qualifyDelivery, REVIEW_ROLES} from '../lib/review.mjs';
-import {recordHumanReview, humanDecision, humanFindings, parseNote, parseStages} from '../lib/human.mjs';
+import {recordHumanReview, humanDecision, humanFindings, parseNote, parseStages} from '../lib/review.mjs';
 
 const put = (job, file, value) => writeFile(path.join(job, file), JSON.stringify(value));
 const read = async (job, file) => JSON.parse(await readFile(path.join(job, file), 'utf8'));
@@ -97,7 +97,7 @@ test('the person reviews after the reviewers pass; their notes become repairs wo
   const pack = await htmlPack(job);
   const waiting = await nextStep(job);
   assert.equal(waiting.state, 'human review final');
-  assert.match(waiting.text, /checkpoint \{kind: "final"/); assert.match(waiting.text, /Never decide for them/);
+  assert.match(waiting.text, /play --job/); assert.match(waiting.text, /Never decide for them/);
   assert.equal((await jobProgress(job)).current, 'final-human');
   // Not accepted until the person decides.
   assert.equal((await nextStep(job)).state, 'human review final');

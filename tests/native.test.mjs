@@ -38,7 +38,6 @@ test('native film builds without a world runtime and captures the actual second 
     await inspector.seek(1);
     const first=await inspector.page.evaluate(()=>getComputedStyle(document.elementFromPoint(280,150)).backgroundColor);
     await inspector.seek(3);
-    await writeFile(path.resolve('.cache/context-revamp/native-debug.html'),await inspector.page.content());
     const state=await inspector.page.evaluate(()=>({color:getComputedStyle(document.elementFromPoint(280,150)).backgroundColor,
       topColor:getComputedStyle(document.elementFromPoint(280,150)).backgroundColor}));
     assert.equal(first,'rgb(255, 0, 0)'); assert.equal(state.color,'rgb(0, 255, 255)'); assert.equal(state.topColor,'rgb(0, 255, 255)');

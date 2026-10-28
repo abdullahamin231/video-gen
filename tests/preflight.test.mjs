@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {preflightReviewPack} from '../lib/preflight.mjs';
+import {preflightReviewPack} from '../lib/review-pack.mjs';
 
 const base = (overrides = {}) => ({
   version: 1, stage: 'final', source: 'render', duration: 12, interval: {start: 0, end: 12},

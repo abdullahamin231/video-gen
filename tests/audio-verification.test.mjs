@@ -4,7 +4,7 @@ import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {compareNarration} from '../lib/audio-verification.mjs';
+import {compareNarration} from '../lib/audio.mjs';
 
 function ffmpeg(args) {
   const result = spawnSync('ffmpeg', ['-nostdin', '-v', 'error', '-threads', '1', '-y', ...args], {encoding: 'utf8'});

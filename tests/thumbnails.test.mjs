@@ -5,7 +5,7 @@ import {test, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, readFile, rm, readdir} from 'node:fs/promises';
 import path from 'node:path';
-import {FORMATS} from '../lib/format.mjs';
+import {FORMATS} from '../lib/media.mjs';
 import {PERSONALITIES, loadPersonality, freezePersonality} from '../lib/personalities.mjs';
 const cache = path.resolve('.cache/thumbnail-tests');
 await mkdir(cache, {recursive: true});
@@ -15,7 +15,7 @@ const library = await mkdtemp(path.join(cache, 'thumb-library-'));
 process.env.VG_LIBRARY = library;
 after(() => rm(library, {recursive: true, force: true}));
 const {thumbnailDimensions, thumbnailStep, thumbnailStatus, recordVerdict, recordRanking, addThumbnailFeedback, chooseThumbnail, exportThumbnail} = await import('../lib/thumbnails.mjs');
-const {chromePath} = await import('../lib/inspect.mjs');
+const {chromePath} = await import('../lib/native.mjs');
 
 async function fixture(t, manifest = {}) {
   const job = await mkdtemp(path.join(cache, 'thumbs-'));
@@ -43,7 +43,7 @@ test('variants are made from different angles, reviewed, and a blocked one goes 
   assert.match(first.text, /thumbnail-maker: "Read .*thumbnail-v1\.md/); assert.match(first.text, /thumbnail-v2\.md/);
   const brief1 = await readFile(path.join(job, 'briefs/thumbnail-v1.md'), 'utf8'), brief2 = await readFile(path.join(job, 'briefs/thumbnail-v2.md'), 'utf8');
   assert.match(brief1, /IT'S NOT THE CHIP/); assert.equal(assignment(brief1).variant,'v1'); assert.equal(assignment(brief2).variant,'v2');
-  assert.equal(assignment(brief1).contract,'docs/video-click-psychology.md');
+  assert.equal(assignment(brief1).contract,'docs/publishing.md');
   await make(job, 'v1'); await make(job, 'v2');
   const review = await thumbnailStep(job);
   assert.equal(review.state, 'thumbnail review'); assert.match(review.text, /thumbnail-reviewer: "Read .*thumbnail-review\.md/);

@@ -158,7 +158,7 @@ test('script-stage app capture provenance survives prepare and enforces the capt
   const omissionEvidence=finalPack.evidence.find(item=>item.kind==='capture-omissions');
   assert.ok(omissionEvidence,'the final pack freezes the omission ledger');
   assert.match(await readFile(path.join(job,omissionEvidence.path),'utf8'),/"sourceHash"/);
-  assert.match(await readFile(path.join(job,'briefs/review-final-narration-fidelity.md'),'utf8'),/docs\/independent-review.md/);
+  assert.match(await readFile(path.join(job,'briefs/review-final-narration-fidelity.md'),'utf8'),/docs\/review.md/);
   // Keep every provenance hash current: the final pack must reject the malformed action itself,
   // not merely notice that someone changed the evidence files.
   const actionFile=path.join(job,'capture/screen/actions.jsonl');

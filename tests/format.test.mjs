@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import {DEFAULT_CONFIG, loadConfig, resolveSettings, safeArea, frameGuide} from '../lib/format.mjs';
+import {DEFAULT_CONFIG, loadConfig, resolveSettings, safeArea, frameGuide} from '../lib/media.mjs';
 import {directorBrief, builderBrief} from '../lib/briefs.mjs';
 
 const config = {...DEFAULT_CONFIG};

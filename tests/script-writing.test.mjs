@@ -12,10 +12,6 @@ async function workspace(t) {
   const dir=await mkdtemp(path.join(os.tmpdir(),'script-writing-'));
   t.after(()=>rm(dir,{recursive:true,force:true}));return dir;
 }
-function lint(dir,...args) {
-  return spawnSync(process.execPath,[path.join(skill,'scripts/lint.mjs'),...args,'--json'],{cwd:dir,encoding:'utf8'});
-}
-
 test('source fetch accepts Reddit post and JSON URLs without duplicating the suffix',async t=>{
   const dir=await workspace(t);
   const payload=[{data:{children:[{data:{title:'A source',subreddit:'example',author:'writer',score:3,created_utc:0,selftext:'The original post.'}}]}},

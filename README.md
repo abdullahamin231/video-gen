@@ -1,211 +1,88 @@
-# Brief or recording → video
+# Video generation from a harness
 
-Agents research, write, design and author native HyperFrames compositions. The pipeline supplies measured
-narration timing, rendering, evidence-based review and verified delivery. Start with [AGENTS.md](AGENTS.md)
-and the three focused skills in `skills/`. Editorial profiles describe intent rather than a visual recipe.
-
-[Pipeline flowchart](docs/agent-workflow.md) · [Authoring contract](docs/composition.md) ·
-[Production commands](docs/orchestrator.md) · [Context audit](docs/context-audit.md)
+Use this repository from T3 Code or another agent harness. Agents research, write and freely author native
+HyperFrames scenes; the CLI handles measured timing, media operations, review evidence and delivery.
+There is no supported application UI. Start with [AGENTS.md](AGENTS.md) and the three skills in `skills/`.
 
 ## Setup
 
-This section is written so an agent can follow it top to bottom. Run every command from the repository root. Steps
-marked **(person)** need a human (a password, a browser sign-in or `sudo`): stop and ask for them, then continue.
-Skip any step whose check already passes. Keep every environment inside the repository's `.cache/` as shown, never
-in `~/.cache` or `/tmp`, and never edit `video.config.json` while setting up.
+Use Node.js 22+, npm, FFmpeg/FFprobe, Python 3.12 with venv support, git, uv and Chrome. Sign in to the
+agent provider through your harness. Keep generated assets and tool environments inside this checkout.
 
-### Requirements
-
-| Need | Version | Used for | Check |
-|---|---|---|---|
-| Linux x86-64 (Ubuntu/Debian commands below) | | The render browser is installed for linux-64 | `uname -m` |
-| 4+ CPU cores, 8 GB RAM, 20 GB free disk | recommended | rendering, Whisper, Chrome | `nproc; free -g; df -h .` |
-| Node.js + npm | 22 or newer | pipeline, UI, HyperFrames | `node -v` |
-| git, curl, bzip2 | any | clone and downloads | `git --version; curl --version; bzip2 --help` |
-| FFmpeg + FFprobe | any recent | audio, mixing, checks | `ffmpeg -version; ffprobe -version` |
-| Python 3 with `venv` | 3.11–3.13 | TTS voice and music beat analysis environments | `python3 -m venv --help` |
-| [uv](https://docs.astral.sh/uv/) | any | runs the pinned faster-whisper transcriber (`scripts/transcribe.py.lock`) | `uv --version` |
-| Chrome | any | frame checks and thumbnails (`CHROME_PATH`, `google-chrome`, `chromium`, or HyperFrames' cache) | `google-chrome --version` |
-| HyperFrames render browser | pinned by HyperFrames | rendering | `npx --no-install hyperframes doctor` shows `✓ Chrome` |
-| An agent CLI, signed in | current | does the creative work: [Claude Code](https://code.claude.com) (`claude`), Codex (`codex`), OpenCode (`opencode`) or Pi (`pi`) | `claude --version` (or the one you use) |
-| Network access | | npm, Whisper model, voice data, fonts, idea feeds, the agents' providers | |
-
-Video creation itself needs no API keys. Optional: `YOUTUBE_API_KEY` (ideas use the official API instead of public
-pages), `VG_ALLOW_WEB_IMAGES=1` (agents may download raster images). Put them in the ignored `.env` if wanted. Automatic
-YouTube uploads use OAuth, with a separate client and refresh token under `.cache/video-gen/youtube-oauth/`; see
-[YouTube upload setup](docs/youtube-upload.md).
-
-### Steps
-
-1. **System packages (person: needs `sudo`).**
-
-   ```bash
-   sudo apt update && sudo apt install -y git curl bzip2 ffmpeg python3-venv
-   # Node 22+, if `node -v` is older or missing:
-   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
-   # Chrome (also pulls in the system libraries headless Chrome needs):
-   mkdir -p .cache && curl -fsSLo .cache/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-     && sudo apt install -y ./.cache/chrome.deb && rm .cache/chrome.deb
-   ```
-
-2. **uv** (no sudo; installs to `~/.local/bin`, which must be on `PATH`):
-
-   ```bash
-   command -v uv || curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-3. **Node dependencies and the render browser.** `browser ensure` is the one setup-time exception to the rule
-   against running `npx hyperframes` directly.
-
-   ```bash
-   npm ci
-   npx --no-install hyperframes browser ensure
-   ```
-
-4. **Local tool environments** (all inside `.cache/video-gen/`):
-
-   ```bash
-   # Music beat analysis (librosa):
-   npm run video -- setup-audio
-   # Ming, the default narrator for UI and T3 Code jobs (docs/tts.md):
-   npm run video -- tts --setup-ming
-   ```
-
-   The faster-whisper transcriber needs no step: `uv` installs its pinned packages and downloads the model on the
-   first transcription.
-
-5. **The shared library (person, if this is a new machine).** `library/` (sound effects, drawings, components, about
-   140 MB) is not in git. Copy it from the machine that has it, for example from that machine:
-
-   ```bash
-   rsync -a library/ <server>:<path-to-repo>/library/
-   ```
-
-   Without it, films still build, but have no ready-made sound effects or reusable parts. Check: `ls library | wc -l`
-   shows far more than one entry.
-
-6. **Agent CLI login (person).** Install at least one agent CLI and sign in on this machine, as the user that will
-   run the workspace: for example `npm install -g @anthropic-ai/claude-code` then run `claude` once and sign in, or
-   `codex login`. The workspace uses these existing logins; it never asks for keys.
-
-7. **Verify.**
-
-   ```bash
-   npm test && npm run test:ui
-   npx --no-install hyperframes doctor   # Node, FFmpeg, FFprobe and Chrome must show ✓; unused optional services may show ✗
-   npm run video -- help
-   ```
-
-8. **Make videos from T3 Code (recommended).** Open this repository as a project in [T3 Code](https://t3.codes),
-   start a chat, brainstorm, then say "make the video". The chat agent follows
-   [docs/t3-orchestrator.md](docs/t3-orchestrator.md): T3 delegated tasks do the research, writing, building and
-   reviews; you read the script, watch the film and pick the thumbnail on the Tailscale review page and answer in T3 chat.
-   Optional provider-specific role defaults are in [chat.config.json](chat.config.json): Codex uses Sol/Luna,
-   Claude uses Opus/Haiku, and OpenCode selects available free models. The orchestrator resolves exact IDs from
-   T3’s live catalog. The read-only review server is started by `watch` and served through Tailscale on port 8443;
-   the agent verifies the route before sharing it. After delivery and thumbnail selection, the orchestrator uploads the
-   MP4 to YouTube as unlisted and returns its link. Configure OAuth once before the first video using
-   [docs/youtube-upload.md](docs/youtube-upload.md). The existing web UI can keep running alongside T3, with its own route.
-
-9. **Keep the web UI as an alternative.** On a desktop: `npm run ui` and open http://127.0.0.1:4310. On a server, to use it from
-   a phone or laptop: install [Tailscale](https://tailscale.com/download/linux) and sign in **(person)**
-   (`sudo tailscale up`, and once `sudo tailscale set --operator=$USER`), then run `scripts/server-setup.sh tailscale`
-   (or `scripts/server-setup.sh lan` on a trusted network without Tailscale). It installs a systemd user service and
-   prints the address and a generated password; give both to the person. Details:
-   [ui/README.md](ui/README.md#running-on-a-server-phone-or-laptop-access).
-
-Without T3 or the UI, give an agent a job directly (below).
-
-Ming narration uses a fixed acoustic reference across all text fragments and performance
-segments, preventing the previous unconditioned voice resets. Generate the full narration in one TTS command.
-Existing WAVs require explicit regeneration; model reinstallation is unnecessary. See
-[voice continuity, regeneration and listening checks](docs/tts.md).
-
-## Give the agent a job
-
-> Create a video given the audio `inputs/audio/source.mp3` and script `inputs/scripts/<your-script>.md`.
-
-After review, delivery and thumbnail selection, the orchestrator uploads the finished MP4 to the configured YouTube
-channel as unlisted. The OAuth client and refresh token stay under `.cache/video-gen/youtube-oauth/` and are never
-committed; setup and server authorization are documented in [docs/youtube-upload.md](docs/youtube-upload.md).
-
-Works in any harness that reads `AGENTS.md` (Codex, OpenCode) or `CLAUDE.md` (Claude Code). That short file sends the
-orchestrator to [docs/orchestrator.md](docs/orchestrator.md) and keeps sub-agents on their briefs. The orchestrator runs
-`npm run video -- start ...` and then repeats `npm run video -- next` until it prints `STATE: done`. `next` derives the
-job state from files and prints exactly one step: a command to run, or briefs to hand to fresh sub-agents (director,
-one builder per scene, three independent reviewers, repair builders).
-
-Directors author HTML/CSS/JavaScript scenes, with their own assets and choreography. A small film.json
-manifest connects them to measured word timing. The pipeline assembles and inspects the actual HyperFrames
-player, including native HTML scenes, before independent review and final render. There is no required
-world model, composite vocabulary or visual library. Optional capture tooling can compile recorded browser
-cuts and overlays; actual-media news uses its dedicated edit adapter.
-
-Creative and review roles use the strong model tier by default; explicit role selections still win.
-The researcher uses the lightweight tier. Assignments contain task data and artifact paths. Shared contracts live in AGENTS.md and the short runbook;
-there is no separate role-coaching catalog or injected creative rulebook.
-
-There is one canonical `skills/` folder. Point harness discovery to it, or follow its entry points from
-AGENTS.md. No copied or linked per-harness skill catalogs are maintained.
-
-## Configuration
-
-### Video settings: `video.config.json`
-
-Defaults for new jobs. Flags on `start` override them per job.
-
-| Setting | Default | Flag | Effect |
-|---|---|---|---|
-| `format` | `"landscape"` | `--format landscape\|vertical` | `landscape` is 1920×1080 long-form; `vertical` is 1080×1920 for reels and shorts (briefs, checks and review add phone guidance and a safe area). |
-| `length` | `null` | `--length <s>` (alias `--duration`) | With a supplied recording, keep only the first N seconds (`--start` moves the window). A config length trims only longer recordings; a flag must fit the recording. When a script is written from sources, this is the target duration if the request names none; left at `null`, the script writer chooses a length that fits the material. |
-| `verticalMaxSeconds` | `90` | | A vertical job longer than this gets a warning (it still runs). |
-| `fps` | `30` | `--fps` | 24, 30 or 60. |
-| `channelTheme` | `null` (the repository sets `"channel/theme.json"`) | | The design theme every film starts from, copied into each new job (`inputs/channel-theme.json`). A film that changes it says why in `theme.channelDepartures`. `null` lets each film choose its own look. |
-
-Ask the agent for a "reel", "short" or "vertical video" and it adds `--format vertical`; "the first 30 seconds"
-becomes `--length 30`. Keys starting with `_` are comments; unknown keys are rejected so typos do not pass silently.
-
-### Environment variables
-
-| Variable | Default | Effect |
-|---|---|---|
-| `VG_ALLOW_WEB_IMAGES` | unset | Unset: `asset --src <url>` accepts only `.svg` files from the web. Set to `1` (or `true`/`yes`) to also let agents download `.png`, `.jpg`, `.jpeg`, `.webp` and `.gif` images from URLs. Local files and fonts are unaffected. |
-| `VG_LIBRARY` | `library/` | Shared library location. |
-| `VG_CACHE` | `.cache/video-gen` (in the repository) | Where the TTS and audio environments live. Overrides must stay inside the repository `.cache/`. TTS uses `npm run video -- tts` to keep model downloads there too. |
-
-Agents run in the same shell as you, so setting the variable in your environment is what enables raster downloads for
-their `asset` calls. Leave it unset to keep web imports to SVG.
-
-## Job artifacts
-
-```text
-jobs/<name>/
-  inputs/                 original script and extracted narration (local)
-  job.json                input provenance, hashes, duration, format and frame size, canvas
-  transcript.json         measured ASR words
-  alignment.json          script reconciliation and discrepancies
-  SCRIPT.md               actual recorded excerpt
-  BRIEF.md                scope and creative authority
-  film.json               small native scene manifest
-  STORYBOARD.md           generated from film.json
-  briefs/                 role briefs written by the pipeline
-  timing.json             resolved absolute and scene-local times
-  assets/                 frozen media, generated cues, local helpers
-  compositions/*.html     agent-authored native compositions
-  index.html              assembled root with original narration
-  review/                 audit, frozen evidence, independent reports, verification
-  renders/video.mp4       rendered draft; qualified by deliver (local)
+```bash
+npm ci
+# Setup-time exception: install the browser pinned by HyperFrames.
+npx --no-install hyperframes browser ensure
+npm run video -- tts --setup-ming
+# Optional music analysis environment:
+npm run video -- setup-audio
+npm test
+npm run video -- help
 ```
 
-ASR timings are estimates, not guaranteed forced alignment. Important reveals
-need listening/visual spot checks. Pacing findings are advisory and can be
-overridden by a documented creative decision. Source inputs and the entire
-`jobs/` directory are ignored by Git; job artifacts stay local. Freeze extra media
-locally and record its origin for reproducibility.
+The pinned transcription environment is installed by uv on first use. Ming downloads its model at setup
+and then generates locally. No narration API key is needed. Optional existing library assets can be copied
+into `library/`; they are not required. [Library reuse](library/README.md) describes versioned assets.
 
-Production uses isolated per-job HyperFrames projects.
+Open the repository in your harness, describe the audience/material and ask it to make a video. To create
+an explicit project, save the agreed brief under `jobs/scripts/<slug>/BRIEF.md`, then use:
 
-Reusable animation mechanisms and media live in the tracked [shared library](library/README.md).
-Agents search metadata, freeze explicit versions into each job, and contribute
-useful new components and short sequences after production review. Job audits
-check installed files against their recorded hashes.
+```bash
+npm run video -- project-new --name <slug> --profile explainer --tts ming
+npm run video -- next --project <slug>
+```
+
+Use `status --project <slug> --json` for saved state. `next` prints command or delegation tasks. The harness
+handles agent work and requested decisions. `watch --project <slug>` provides a read-only browser review
+surface, not another production UI. Only share the actual printed/configured review URL.
+
+## References
+
+Read the relevant contract, not the whole folder.
+
+| Document | Needed for |
+|---|---|
+| [orchestrator](docs/orchestrator.md) | Harness handoffs, checkpoints, completion and the pipeline flowchart |
+| [composition](docs/composition.md) | Native HyperFrames integration and build failures |
+| [audio](docs/audio.md) | Ming generation, continuity, effects and verified mixing |
+| [review](docs/review.md) | Evidence-bound independent/user review and concrete findings |
+| [capture](docs/capture.md) | Actual browser recordings, native cuts and omission evidence |
+| [news](docs/news.md) | Cleared real media, source speech and subtitle schemas |
+| [publishing](docs/publishing.md) | Thumbnail contract and authorised unlisted YouTube upload |
+
+Editorial intent lives in one [PROFILE.md per treatment](personalities/README.md). Profiles set purpose
+and evidence boundaries, not a fixed visual recipe. Assignments contain paths and task data; there is no
+prompt-file catalog or injected role-coaching package.
+
+## Code responsibilities
+
+The remaining modules own concrete operational contracts; their source is not required agent context.
+
+| Modules | Responsibility |
+|---|---|
+| `project`, `film`, `briefs` | Project state, production lifecycle and data-only assignments |
+| `personalities` | Treatment selection and retained project intent |
+| `composition`, `timing` | Small scene manifest and measured narration cues |
+| `native` | Actual HyperFrames assembly, browser inspection and lint attribution |
+| `media`, `assets` | Media settings/probing, local caches, provenance and optional reuse |
+| `narration`, `audio` | Ming worker safeguards, soundtrack mixing and encoded audio verification |
+| `reshoot`, `capture-scene` | Browser evidence ingestion and authenticated native cuts |
+| `news` | Actual-media edit, source speech and subtitles |
+| `pixels` | Encoded frame and capture/source checks |
+| `review`, `review-pack` | Independent/user decisions and frozen inspection evidence |
+| `watch` | Read-only review overview, playback and media serving |
+| `thumbnails`, `youtube-upload` | Packaging/selection and resumable authorised upload |
+| `ideas` | Optional topic discovery from configured feeds |
+
+## Local configuration and artifacts
+
+`video.config.json` sets canvas/frame-rate defaults; `chat.config.json` holds harness/provider model choices.
+Explicit user settings win. Generated jobs live in `jobs/<slug>/`; scripts/sources in `jobs/scripts/<slug>/`;
+local tools and models in `.cache/`. These artifacts are ignored by Git. Never put credentials in briefs.
+
+`VG_CACHE` may choose a cache under repository `.cache/`. `CHROME_PATH` selects an installed browser.
+`VG_ALLOW_WEB_IMAGES=1` permits raster downloads. YouTube uses OAuth credentials under `.cache/`, described
+in publishing.md. Generated narration is Ming only; a supplied recording always takes priority.
+
+Tests exercise actual native/news rendering, media integrity, capture evidence, review and harness state.
+They do not establish the creative quality of a finished film. Judge that through actual viewer evidence.

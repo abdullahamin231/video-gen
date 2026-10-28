@@ -7,7 +7,7 @@ import {mkdtemp, mkdir, writeFile, readFile, rm, symlink} from 'node:fs/promises
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createReviewPack, generateCaptureInspection, assertIndependentCaptureReviewer} from '../lib/review-pack.mjs';
-import {verifyCaptureVisibility} from '../lib/capture-visibility.mjs';
+import {verifyCaptureVisibility} from '../lib/pixels.mjs';
 import {sourceFingerprint, loadReviewPack} from '../lib/review.mjs';
 import {loadPersonality, personalityMetadata, freezePersonality} from '../lib/personalities.mjs';
 

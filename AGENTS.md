@@ -23,5 +23,5 @@ The user's explicit direction takes precedence over a default personality.
 
 Video and thumbnail dimensions match the saved canvas. After delivery and thumbnail selection,
 the orchestrator uploads to abdupdates as unlisted unless the user opts out; use approved publishing
-copy and `docs/youtube-upload.md`. Send Discord notifications only when requested, through
+copy and `docs/publishing.md`. Send Discord notifications only when requested, through
 `scripts/discord-notify.mjs` with one stable request ID per pending checkpoint. A ping is not approval.

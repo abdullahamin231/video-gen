@@ -27,19 +27,18 @@ with `delegated --project <slug>` after they finish. Agents assigned briefs do n
 Research retains evidence; the writer produces narration and concise visual intent. The director chooses
 and authors the actual picture. `VISUALS.md` is free-form intent, not a scene schema or binding design recipe.
 A supplied script can go directly to direction. `docs/composition.md` defines the native HTML interface.
-Use `docs/tts.md` only when narration is needed. Generate one complete narration invocation, keeping Ming's
+Use `docs/audio.md` only when narration is needed. Generate one complete narration invocation, keeping Ming's
 shared reference through the continuity adapter. Supplied recordings remain unchanged.
 
 ## Review and completion
 
 Build and inspect the real composition. `review-pack` freezes evidence of the full film before final render.
-Use `docs/independent-review.md` for report schemas. Review findings describe demonstrated defects and viewer
+Use `docs/review.md` for report schemas. Review findings describe demonstrated defects and viewer
 impact; aesthetic preferences are advisory. Missing evidence or failed technical checks is not a creative pass.
 The configured review budget may end with disclosed findings; never call that an independently passed film.
 
 At requested human checkpoints, show the actual artifact and record the person's decision faithfully.
-The UI runner provides `checkpoint`; chat projects use the printed review/selection command and the user's
-verbatim quote. Requested Discord notifications use `scripts/discord-notify.mjs` and a stable request ID.
+Use the printed review/selection command with the user's verbatim quote. Requested Discord notifications use `scripts/discord-notify.mjs` and a stable request ID.
 Do not turn a notification or elapsed time into approval.
 
 After review and requested film approval, follow `next` through render and delivery. Report the qualified
@@ -47,19 +46,19 @@ MP4 and limitations from `review/delivery.json`. Describe audio measurements as 
 only when performed. A successful agent reply or draft render alone is not delivery.
 
 Run `thumbnails --job <job>` through generation, independent review and selection. Dimensions match the
-video. `docs/video-click-psychology.md` covers packaging and the format contract. If the person requested
+video. `docs/publishing.md` covers packaging and the format contract. If the person requested
 selection, show variants and preserve their choice. Obtain approved title/description for publishing.
 After selection, upload the qualified MP4 to abdupdates as unlisted unless the user opted out;
-`docs/youtube-upload.md` owns authentication and upload commands. Report the actual link or precise failure.
+`docs/publishing.md` owns authentication and upload commands. Report the actual link or precise failure.
 
 ## Useful references
 
 - Script outputs: `skills/script-writing/SKILL.md`.
 - Native authoring: `docs/composition.md`.
 - News edits/source speech: `docs/news.md`.
-- Browser recording: `docs/reshoot.md`, `docs/capture.md`.
-- Audio generation/mix: `docs/tts.md`, `docs/sound.md`.
-- Pipeline architecture and flowchart: `docs/agent-workflow.md`.
+- Browser recording and cut evidence: `docs/capture.md`.
+- Ming narration and soundtrack: `docs/audio.md`.
+
 
 There is one canonical `skills/` folder. Configure harness skill discovery to use it; no per-harness
 skill copies or catalogs are required. Harness role files are transport/model adapters, not another
@@ -78,11 +77,47 @@ separate prompt-file catalog or embedded creative instruction package.
 | Script review | review.md with disposition; script-writing review reference |
 | Direction | film.json and native scene files; composition.md |
 | Scene build/repair | assigned native HTML and assets; composition.md |
-| Film review | actual evidence inspection and submitted report; independent-review.md |
-| Thumbnail maker/reviewer | images, packaging copy, verdict/ranking; video-click-psychology.md |
+| Film review | actual evidence inspection and submitted report; review.md |
+| Thumbnail maker/reviewer | images, packaging copy, verdict/ranking; publishing.md |
 
 Assignments with ownsPlan can revise film.json; scene authors coordinate shared changes. Role agents do
-not advance host-only lifecycle commands. In the local UI use video_runner delegate/delegate_parallel for
-tracked work, feedback for new direction, checkpoint for requested human decisions and complete after
-qualified delivery. A supplied recording bypasses generated narration. New UI tasks are production-authorized;
-read their task metadata for paths, format, duration and requested checkpoints.
+not advance host-only lifecycle commands. Use the harness's available delegation tool and live capability
+catalog for tracked tasks. After a tracked batch finishes, run `delegated --project <slug>`.
+
+`watch --project <slug>` serves read-only review artifacts and prints the actual URL. Share that address
+(or its configured remote route) in the harness chat and record the person's reply faithfully.
+`stage-bar --project <slug>` is an optional progress view. There is no application UI or separate runner.
+
+## Pipeline
+
+```mermaid
+flowchart TD
+    A[User brief or supplied material] --> B[Project and editorial profile]
+    B --> C{Inputs needed?}
+    C -->|Factual script| D[Research and retained sources]
+    C -->|App review| E[Record actual browser tasks]
+    E --> D
+    D --> F[Write narration and concise visual intent]
+    F --> G[Independent script review]
+    G -->|Revise or missing evidence| D
+    G --> H{Requested script checkpoint}
+    C -->|Supplied script or recording| H
+    H --> I[Use recording or generate whole narration]
+    I --> J[Measure word timing and prepare job]
+    J --> K[Director authors native HyperFrames scenes]
+    J --> N[News adapter: cleared media and source speech]
+    K --> L[Build: assemble, lint, inspect, test seeking]
+    N --> L
+    L -->|Technical failure| K
+    L --> M[Freeze full-film review evidence]
+    M --> O[Independent review]
+    O -->|Concrete repairs| K
+    O --> P{Requested film checkpoint}
+    P --> Q[Render and verified soundtrack]
+    Q -->|Verification failure| K
+    Q --> R[Qualify local delivery]
+    R --> S[Thumbnail variants and independent review]
+    S --> T[User selection if requested; archive]
+    T --> U[Approved publishing copy]
+    U --> V[Unlisted upload unless opted out]
+```
