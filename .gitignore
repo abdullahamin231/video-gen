@@ -15,3 +15,4 @@ jobs/
 library/*
 !library/README.md
 .cache/
+archive/
