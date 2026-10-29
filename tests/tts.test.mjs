@@ -82,3 +82,19 @@ test('removed narration providers are rejected before generation',async t=>{
   const files=await fixture(t);
   for(const provider of ['kokoro','gemini']) await assert.rejects(generateSpeech({...files,text:'Words.',provider}),/only narration provider/);
 });
+
+test('a short take fails its duration target without replacing existing narration', async t => {
+  const files = await fixture(t);
+  await writeFile(files.output, 'preserve prior take');
+  const options = {...files, text: 'Complete reviewed narration.', targetSeconds: 60};
+  const ming = async (text, output) => writeFile(output, wav());
+  await assert.rejects(generateSpeech(options, {ming}), /Narration is 0.10s; target is 60s/);
+  assert.equal(await readFile(files.output, 'utf8'), 'preserve prior take');
+  const status = await readTtsStatus(files.statusFile);
+  assert.equal(status.status, 'failed');
+  assert.equal(status.durationSeconds, 0.1);
+  assert.equal(status.targetSeconds, 60);
+  assert.equal((await readFile(status.rejectedOutput)).toString('ascii', 0, 4), 'RIFF');
+  await generateSpeech({...options, targetSeconds: 0.1, durationTolerance: 0.01}, {ming});
+  assert.equal((await readTtsStatus(files.statusFile)).status, 'complete');
+});

@@ -28,6 +28,8 @@ and authors the actual picture. `VISUALS.md` is free-form intent, not a scene sc
 A supplied script can go directly to direction. `docs/composition.md` defines the native HTML interface.
 Use `docs/audio.md` only when narration is needed. Generate one complete narration invocation, keeping Ming's
 shared reference through the continuity adapter. Supplied recordings remain unchanged.
+For generated narration, pass the requested `--target-seconds` to TTS and `--full-script true` to start;
+duration and full-script coverage are separate checks. A matching excerpt is not a complete take.
 
 ## Review and completion
 

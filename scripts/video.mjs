@@ -196,7 +196,7 @@ async function prepare(opts) {
     audio: {path: 'assets/narration.wav', source: path.relative(ROOT, audio), sourceStart: start,
       sha256: await digest(path.join(job, 'assets/narration.wav'))},
     ...(hasBrief ? {brief:{path:'inputs/brief.md',source:path.relative(ROOT,sourceBrief)}} : {}),
-    script: {path: 'inputs/source-script.md', source: path.relative(ROOT, script), sha256: await digest(script)},
+    script: {path: 'inputs/source-script.md', source: path.relative(ROOT, script), sha256: await digest(script), fullScript: opts['full-script'] === 'true'},
     ...(visuals ? {visuals: {path: VISUALS_FILE, source: path.relative(ROOT, visuals), sha256: await digest(visuals)}} : {}),
     ...(channel ? {channelTheme: {path: CHANNEL_THEME_FILE, source: path.relative(ROOT, channel.file), sha256: await digest(channel.file)}} : {}),
     transcription: {language, model, engine, suppliedWords: !!opts.words},
@@ -219,7 +219,7 @@ async function transcribe(job, manifest) {
 async function finishPreparation(job, manifest, narration, {updateLatest = true} = {}) {
   const actualDuration = manifest.duration;
   const words = normalizeWords(await json(path.join(job, 'transcript.json')), actualDuration);
-  const alignment = reconcile(words, narration);
+  const alignment = reconcile(words, narration, {fullScript: manifest.script.fullScript});
   await save(path.join(job, 'alignment.json'), alignment);
   await writeFile(path.join(job, 'SCRIPT.md'), `# Recorded excerpt\n\n${words.map(w => w.text).join(' ')}\n`);
   await writeFile(path.join(job, 'review/REPORT.md'), '# Production review\n\nPending creative build and validation.\n');
@@ -229,7 +229,7 @@ async function finishPreparation(job, manifest, narration, {updateLatest = true}
     await mkdir(path.join(ROOT, '.video'), {recursive: true});
     await save(path.join(ROOT, '.video/latest.json'), {job: path.relative(ROOT, job)});
   }
-  console.log(`Prepared ${path.relative(ROOT, job)}: ${words.length} words, ${(alignment.matchRatio * 100).toFixed(1)}% exact script matches.`);
+  console.log(`Prepared ${path.relative(ROOT, job)}: ${words.length} words, ${(alignment.matchRatio * 100).toFixed(1)}% exact ${alignment.fullScript ? 'full-script' : 'excerpt'} matches; ${(alignment.scriptCoverage * 100).toFixed(1)}% script coverage.`);
   console.log(`\nNext: npm run video -- next --job ${path.relative(ROOT, job)}`);
 }
 // Agents often mangle unusual filenames (quotes, full-width punctuation). Resolve a near miss to the real file.
@@ -415,6 +415,7 @@ Agents: run \`next\` and do exactly what it prints, until it says done.
 start --audio <file> --script <file> --profile <id> [--format landscape|vertical --length 30 --start 0 --name slug --music <track> --visuals <VISUALS.md> --human-review final --review-depth fast|standard|deep]   create a job (a VISUALS.md beside the script is picked up automatically)
                                      defaults come from video.config.json; --length trims to the first N seconds (--duration is the same)
                                      supply --name <slug>; existing jobs are never silently renamed
+                                     --full-script true checks the entire script for generated narration; supplied recordings may be excerpts
 next [--job jobs/<slug>]             print the single next step (state machine)
 status [--job jobs/<slug>] [--json]  read-only progress of every step, scene and review (writes nothing)
 plan-check                          validate film.json (director output)
@@ -501,7 +502,7 @@ try {
     if (!opts.project && command !== 'project-new' && command !== 'projects') throw new Error(`${command} needs --project <slug> (see \`npm run video -- projects\`).`);
     await projectCommand(command, opts);
   }
-  else if (command === 'help') console.log(HELP + '\ntts <file> [--provider ming] [--narration] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate local Ming narration (docs/audio.md)');
+  else if (command === 'help') console.log(HELP + '\ntts <file> [--provider ming] [--narration] [--target-seconds <s> --duration-tolerance <s>] [-s <speed>] [-o <file.wav>] [--status <file.json>] [--performance <file.json>]  generate local Ming narration (docs/audio.md)');
   else if (command === 'setup-audio') await setupAudio();
   else if (command === 'prepare') await prepare(opts);
   else if (command === 'start') { await assertNoDelegation(ROOT, opts.name, command); await start(opts); }

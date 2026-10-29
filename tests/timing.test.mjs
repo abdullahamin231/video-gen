@@ -22,6 +22,16 @@ test('reconciles middle excerpt and preserves differences', () => {
   assert.ok(a.discrepancies.some(d=>d.kind==='changed' && d.observed==='cards'));
   assert.ok(a.discrepancies.some(d=>d.kind==='omitted' && d.expected==='much'));
 });
+test('a matching middle excerpt cannot pass as complete generated narration', () => {
+  const script = 'Opening words. These words match. Closing words.';
+  const words = wordsFor('These words match');
+  assert.equal(reconcile(words, script).matchRatio, 1, 'supplied excerpts remain supported');
+  const full = reconcile(words, script, {fullScript: true});
+  assert.equal(full.matchRatio, 3 / 7);
+  assert.equal(full.scriptCoverage, 3 / 7);
+  assert.deepEqual(full.discrepancies.map(d => d.expected), ['Opening', 'words', 'Closing', 'words']);
+  assert.equal(reconcile(wordsFor(script), script, {fullScript: true}).matchRatio, 1);
+});
 test('numeric prices retain one script token', () => {
   const a = reconcile(wordsFor('costs $6,950 today'), 'costs $6,950 today');
   assert.equal(a.matchRatio, 1);

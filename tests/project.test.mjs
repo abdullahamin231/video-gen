@@ -114,11 +114,13 @@ test('the script stage: sources, writer, review rounds, the person approves, nar
 
   s = await step(r);
   assert.equal(s.state, 'narration');
+  assert.match(s.text, /--target-seconds 90/);
+  assert.match(s.text, /sidecar is optional/);
   assert.match(s.text, /tts jobs\/scripts\/demo\/SCRIPT\.md --narration --provider ming .* -o jobs\/scripts\/demo\/narration\.wav/);
   await put(r, 'narration.wav', 'RIFF');
   s = await step(r);
   assert.equal(s.state, 'start');
-  assert.match(s.text, /start --name demo --audio "jobs\/scripts\/demo\/narration\.wav" --script jobs\/scripts\/demo\/SCRIPT\.md --human-review final --review-depth standard --pick-thumbnail true/);
+  assert.match(s.text, /start --name demo --audio "jobs\/scripts\/demo\/narration\.wav" --script jobs\/scripts\/demo\/SCRIPT\.md --full-script true --human-review final --review-depth standard --pick-thumbnail true/);
   const log = (await readFile(S(r, 'human/decisions.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
   assert.deepEqual(log.map(d => [d.decision, d.quote]), [['revise', 'open with the benchmark'], ['approve', 'yes, go']]);
 });

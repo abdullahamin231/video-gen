@@ -16,12 +16,24 @@ interpreter. All caches stay under the repository `.cache/`.
 Generate the entire recording in one invocation:
 
 ```bash
-npm run video -- tts jobs/scripts/<slug>/SCRIPT.md --narration -s 1.0 -o jobs/scripts/<slug>/narration.wav
+npm run video -- tts jobs/scripts/<slug>/SCRIPT.md --narration --target-seconds 60 -s 1.0 -o jobs/scripts/<slug>/narration.wav
 ```
 
 The adapter holds one neutral acoustic reference across every internal fragment and performance segment
 through `scripts/ming_continuity.py`. Separate invocations would lose that shared reference. Output is
 24 kHz mono WAV with 1.5 seconds of trailing silence. Measure the resulting duration before preparation.
+Use the brief's target for `--target-seconds`, or omit it when length is open. The command measures the WAV
+before replacing the prior take; the default tolerance is 10% or 2 seconds, whichever is larger.
+An out-of-range take is kept as `narration.rejected.wav` for diagnosis and marked failed in the status file.
+`--duration-tolerance <seconds>` sets the accepted range explicitly. Generation completion establishes
+neither speech fidelity nor natural delivery. A short take may have missing words; check that before
+adjusting speed, pauses or script length. Do not stretch incomplete speech to meet a target.
+
+Prepare generated speech with `start --full-script true` (the project handoff supplies this flag).
+That compares the entire approved narration, including its opening and ending. The default excerpt
+alignment is for supplied recordings: a 100% excerpt match can still omit most of a script.
+ASR differences require checking the disputed passage against the audio or a second transcription;
+they do not establish that Ming spoke different words. Keep the original script as the authority.
 
 ## Delivery sidecar
 
