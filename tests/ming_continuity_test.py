@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from ming_continuity import MingNarrator, REFERENCE_TEXT
+from ming_continuity import MingNarrator, REFERENCE_TEXT, speech_fragments
 
 
 class Waveform:
@@ -38,8 +38,7 @@ class Model:
         self.prompts = []
 
     def prepare_text(self, text, task, language, length):
-        # Simulate upstream boundaries even within one performance segment.
-        return text.split('|')
+        raise AssertionError('Do not use the lossy upstream punctuation splitter')
 
     def synthesize(self, **kwargs):
         self.calls.append(kwargs)
@@ -56,8 +55,10 @@ class ContinuityTests(unittest.TestCase):
     def test_all_fragments_and_segments_share_one_reference(self):
         model = Model()
         narrator = MingNarrator(model, '.cache/test-reference.wav')
-        self.assertEqual([w.text for w in narrator.synthesize('Opening.|Next thought.')],
-                         ['Opening.', 'Next thought.'])
+        opening = ' '.join(f'word{i}' for i in range(30)) + '. Next thought.'
+        chunks = [w.text for w in narrator.synthesize(opening)]
+        self.assertEqual(' '.join(chunks), opening)
+        self.assertEqual(len(chunks), 2)
         self.assertEqual([w.text for w in narrator.synthesize('[Sigh] Last thought.')],
                          ['[Sigh] Last thought.'])
         anchor, *speech = model.calls
@@ -83,6 +84,16 @@ class ContinuityTests(unittest.TestCase):
         self.assertEqual(' '.join(chunks), text)
         self.assertTrue(all(len(chunk.split()) <= 24 for chunk in chunks))
         self.assertEqual(len(chunks), 7)
+
+    def test_story_quotes_and_clock_survive_fragmentation_without_empty_requests(self):
+        text = ('At 1:13 every night, someone knocks on my apartment door. '
+                'I ran for the stairwell. Behind me, my bedroom door creaked open. '
+                'In the dark, my voice called from inside the closet: “That was only three.” '
+                'And one from the other side of it.')
+        chunks = list(speech_fragments(text))
+        self.assertEqual(' '.join(chunks), text)
+        self.assertTrue(all(any(c.isalnum() for c in chunk) for chunk in chunks))
+        self.assertTrue(all(len(chunk.split()) <= 24 for chunk in chunks))
 
     def test_reference_failure_stops_instead_of_resetting_voice(self):
         model = Model()

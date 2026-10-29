@@ -98,3 +98,15 @@ test('a short take fails its duration target without replacing existing narratio
   await generateSpeech({...options, targetSeconds: 0.1, durationTolerance: 0.01}, {ming});
   assert.equal((await readTtsStatus(files.statusFile)).status, 'complete');
 });
+
+test('a model failure keeps partial audio for diagnosis without approving or replacing a take', async t => {
+  const files = await fixture(t);
+  await writeFile(files.output, 'prior take');
+  await assert.rejects(generateSpeech({...files, text: 'Opening and ending.'}, {
+    ming: async (text, output) => {await writeFile(output, wav()); throw new Error('Silent ending fragment');},
+  }), /Silent ending fragment/);
+  const status = await readTtsStatus(files.statusFile);
+  assert.equal(status.status, 'failed');
+  assert.deepEqual(await readFile(status.rejectedOutput), wav());
+  assert.equal(await readFile(files.output, 'utf8'), 'prior take');
+});

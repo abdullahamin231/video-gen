@@ -38,6 +38,8 @@ they do not establish that Ming spoke different words. Keep the original script 
 The adapter selects US_James for the reference, then uses that recording to condition ordinary TTS
 fragments. Reapplying the IP instruction alongside the acoustic prompt can produce silent fragments;
 the adapter avoids that combination and rejects effectively silent output.
+Its bounded English fragments preserve punctuation; quotation marks stay with the spoken words rather
+than becoming separate synthesis requests.
 
 ## Delivery sidecar
 
@@ -68,7 +70,8 @@ checkout share a FIFO queue; a queued command is healthy. Wait for that invocati
 retries or changing voices. Stopping it cancels the worker; OS locks recover automatically after a crash.
 The output file is replaced only after complete successful generation.
 
-On failure, retain the script, sidecar, status and error for diagnosis. On regeneration, rebuild alignment
+On failure, retain the script, sidecar, status and error for diagnosis. The adapter saves any available
+partial audio as `narration.rejected.wav`; it is not an accepted take. On regeneration, rebuild alignment
 and the film from the new WAV. Check pronunciation and joins by listening when available; measurements
 alone do not establish that a voice sounds natural. Never regenerate a supplied recording.
 
