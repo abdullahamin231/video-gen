@@ -35,6 +35,10 @@ alignment is for supplied recordings: a 100% excerpt match can still omit most o
 ASR differences require checking the disputed passage against the audio or a second transcription;
 they do not establish that Ming spoke different words. Keep the original script as the authority.
 
+The adapter selects US_James for the reference, then uses that recording to condition ordinary TTS
+fragments. Reapplying the IP instruction alongside the acoustic prompt can produce silent fragments;
+the adapter avoids that combination and rejects effectively silent output.
+
 ## Delivery sidecar
 
 For controlled pacing, place `ming-performance.json` beside the script; it is loaded automatically.

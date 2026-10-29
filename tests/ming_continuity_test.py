@@ -20,6 +20,15 @@ class Waveform:
     def all(self):
         return True
 
+    def abs(self):
+        return self
+
+    def max(self):
+        return self
+
+    def item(self):
+        return 0.1
+
 
 class Model:
     sample_rate = 24000
@@ -53,16 +62,19 @@ class ContinuityTests(unittest.TestCase):
                          ['[Sigh] Last thought.'])
         anchor, *speech = model.calls
         self.assertEqual(anchor['text'], REFERENCE_TEXT)
+        self.assertEqual(anchor['task'], 'IP')
+        self.assertEqual(anchor['controls'], {'ip': 'US_James'})
         self.assertTrue(anchor['use_zero_spk_emb'])
         self.assertTrue(anchor['raw_text'])
         self.assertEqual(len(model.prompts), 1)
         for call in speech:
             self.assertEqual(call['prompt_wav_path'], anchor['output_path'])
-            self.assertEqual(call['prompt_text'], REFERENCE_TEXT)
+            self.assertEqual(call['prompt_text'], REFERENCE_TEXT + ' ')
             self.assertTrue(call['use_spk_emb'])
             self.assertFalse(call['use_zero_spk_emb'])
             self.assertTrue(call['raw_text'])
-            self.assertEqual(call['controls'], {'ip': 'US_James'})
+            self.assertEqual(call['task'], 'TTS')
+            self.assertNotIn('controls', call)
 
     def test_long_unpunctuated_fragment_is_bounded_without_losing_words(self):
         text = ' '.join(f'word{i}' for i in range(150))
@@ -99,6 +111,15 @@ class ContinuityTests(unittest.TestCase):
         model.synthesize = lambda **kwargs: Waveform() if 'output_path' in kwargs else Invalid()
         with self.assertRaisesRegex(ValueError, 'invalid audio'):
             list(MingNarrator(model, '.cache/test-reference.wav').synthesize('Speech.'))
+
+    def test_silent_fragment_is_failure_not_successful_narration(self):
+        model = Model()
+        class Silent(Waveform):
+            def item(self):
+                return 1e-6
+        model.synthesize = lambda **kwargs: Waveform() if 'output_path' in kwargs else Silent()
+        with self.assertRaisesRegex(ValueError, 'silent audio'):
+            list(MingNarrator(model, '.cache/test-reference.wav').synthesize('Opening words.'))
 
 
 if __name__ == '__main__':

@@ -70,7 +70,7 @@ test('Ming receives the complete plan once, records continuity and preserves exi
   assert.deepEqual(calls[0].opts.performance, performance);
   const status = await readTtsStatus(files.statusFile);
   assert.equal(status.voice, 'US_James');
-  assert.equal(status.continuityMode, 'fixed-acoustic-reference-v1');
+  assert.equal(status.continuityMode, 'fixed-acoustic-reference-v2');
   const previous = await readFile(files.output);
   await assert.rejects(generateSpeech(options, { ...engines, ming: async () => { throw new Error('reference encoding failed'); } }), /reference encoding failed/);
   assert.deepEqual(await readFile(files.output), previous);

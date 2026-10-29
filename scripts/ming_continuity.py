@@ -1,11 +1,11 @@
-"""One acoustic identity for a complete Ming narration (including benchmarks)."""
+"""One acoustic identity for a complete Ming narration."""
 from pathlib import Path
 
 # Neutral, cue-free and bounded: performance directions must not choose the voice.
 REFERENCE_TEXT = (
     'Your browser asks a server for information and receives a response.'
 )
-CONTINUITY_MODE = 'fixed-acoustic-reference-v1'
+CONTINUITY_MODE = 'fixed-acoustic-reference-v2'
 
 
 class MingNarrator:
@@ -39,11 +39,16 @@ class MingNarrator:
             words = fragment.split()
             for start in range(0, len(words), 24):
                 waveform = self.model.synthesize(
-                    task='IP', text=' '.join(words[start:start + 24]),
-                    controls={'ip': 'US_James'}, language_id='English',
-                    prompt_wav_path=self.reference_path, prompt_text=REFERENCE_TEXT,
+                    # IP selects the reference voice once. Continuations use
+                    # acoustic cloning without a competing IP instruction:
+                    # combining both can make Ming stop before speaking.
+                    task='TTS', text=' '.join(words[start:start + 24]),
+                    language_id='English',
+                    prompt_wav_path=self.reference_path, prompt_text=REFERENCE_TEXT + ' ',
                     use_spk_emb=True, use_zero_spk_emb=False, raw_text=True,
                 )
                 if not waveform.numel() or not waveform.isfinite().all():
                     raise ValueError('Ming returned empty or invalid audio')
+                if waveform.abs().max().item() < 1e-4:
+                    raise ValueError('Ming returned silent audio for a spoken fragment')
                 yield waveform
