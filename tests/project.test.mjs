@@ -134,6 +134,24 @@ test('an approval belongs to the script the person read', async t => {
   assert.match((await step(r)).state, /independent script review/);
 });
 
+test('failed or running narration does not advance using a retained older take', async t => {
+  const r = await root(t);
+  const input = path.join(r, 'approved.md');
+  await writeFile(input, 'Approved narration.');
+  await createProject(r, {profile: 'explainer', name: 'demo', script: input, duration: '60', review: 'none'});
+  await put(r, 'narration.wav', 'retained old take');
+  await put(r, 'tts-status.json', JSON.stringify({status: 'failed', error: 'Narration is 18.7s; target is 60s.'}));
+  let s = await step(r);
+  assert.equal(s.state, 'narration');
+  assert.match(s.text, /Previous attempt: Narration is 18.7s/);
+  await put(r, 'tts-status.json', JSON.stringify({status: 'generating'}));
+  s = await step(r);
+  assert.match(s.text, /Wait for the existing invocation/);
+  assert.doesNotMatch(s.text, /DO: run/);
+  await put(r, 'tts-status.json', JSON.stringify({status: 'complete'}));
+  assert.equal((await step(r)).state, 'start');
+});
+
 test('three failed reviews go to the person; without a script checkpoint a pass goes straight on', async t => {
   const r = await root(t);
   await createProject(r, {profile: 'explainer', name: 'demo', brief: 'b', review: 'none'});
