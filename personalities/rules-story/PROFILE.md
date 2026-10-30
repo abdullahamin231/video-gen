@@ -18,3 +18,15 @@ motion. Review playback to judge animation and pacing; individual frames and suc
 checks alone cannot establish film quality.
 
 Create new projects with `--profile rules-story`. The shared transport contract is `docs/orchestrator.md`.
+
+Titles follow one shape: a concrete trigger in sentence case ("If your [object, device, app, person, place or
+event] ever [specific anomaly]…"), an ellipsis, then a short instruction in capitals that tells the viewer to
+do the opposite of what seems sensible. The trigger can be anything a viewer could plausibly meet in ordinary
+life, online or in the story's world; it need not be domestic. Make the anomaly specific enough to picture,
+and let the instruction imply the rule and its consequence without naming them.
+
+This shape governs the title only. It may suggest a premise, but it does not constrain the story: you keep
+full creative authority over the premise, structure, imagery, tone and ending, and should invent the most
+effective original scary story you can. Examples: "If Your Kettle Ever Boils At 4:00… DON'T POUR IT"; "If
+Your Phone Ever Types A Message You Didn't Write… DON'T SEND IT"; "If The Bus Driver Ever Skips Your Stop
+And Says Your Name… STAY ON BOARD". Do not reuse a premise, object or instruction from an existing video.
