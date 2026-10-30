@@ -1,0 +1,1274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>video-gen — the production pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #efe8d9;
+    --paper-2: #faf6ec;
+    --ink: #1b1711;
+    --ink-soft: #443d32;
+    --muted: #5f5749;
+    --line: #c9bfab;
+    --line-soft: #ded5c3;
+    --accent: #c2401d;
+    --accent-soft: #f2d8cd;
+    --green: #1e5945;
+    --green-soft: #dbe7de;
+    --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --body: "Newsreader", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1100px 620px at 82% -8%, #fdf9ef 0%, rgba(253, 249, 239, 0) 62%),
+      repeating-linear-gradient(0deg, transparent 0 31px, rgba(27, 23, 17, 0.032) 31px 32px),
+      var(--paper);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0.28;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E");
+  }
+
+  ::selection { background: var(--accent); color: var(--paper-2); }
+
+  .sheet {
+    position: relative;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 64px 32px 80px;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 22px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.19em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    background: var(--accent);
+    flex: none;
+  }
+
+  h1 {
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(46px, 8.4vw, 76px);
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: -0.028em;
+    font-variation-settings: "opsz" 90;
+  }
+
+  h1 em {
+    color: var(--accent);
+    font-weight: 300;
+  }
+
+  .lede {
+    max-width: 600px;
+    margin: 24px 0 0;
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 30px 0 0;
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .meta div {
+    padding: 11px 20px 10px 0;
+    margin-right: 20px;
+    border-right: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .meta div:last-child { border-right: 0; margin-right: 0; }
+
+  .meta b {
+    margin-right: 6px;
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    text-transform: none;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin: 18px 0 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .legend span { display: flex; align-items: center; gap: 7px; }
+
+  .swatch {
+    width: 12px;
+    height: 12px;
+    border: 1.5px solid var(--ink);
+    background: var(--paper-2);
+    flex: none;
+  }
+
+  .swatch.diamond { width: 9px; height: 9px; margin: 0 1.5px; transform: rotate(45deg); }
+  .swatch.green { border-color: var(--green); background: var(--green-soft); }
+  .swatch.dash { border-style: dashed; background: transparent; }
+
+  /* ---------- toolbar ---------- */
+
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 28px -10px 0;
+    padding: 10px;
+    background: rgba(239, 232, 217, 0.95);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(8px);
+  }
+
+  .search {
+    position: relative;
+    flex: 1 1 260px;
+    display: flex;
+    align-items: center;
+  }
+
+  .search input {
+    width: 100%;
+    padding: 8px 34px 8px 10px;
+    border: 1px solid var(--ink);
+    border-radius: 0;
+    background: var(--paper-2);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 11px;
+    outline: none;
+  }
+
+  .search input::placeholder { color: #8a8171; }
+  .search input:focus { border-color: var(--accent); box-shadow: 3px 3px 0 var(--accent-soft); }
+  .search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+  .search kbd {
+    position: absolute;
+    right: 8px;
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 9px;
+    pointer-events: none;
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+  .chip,
+  .tool {
+    padding: 7px 8px;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .chip:hover,
+  .tool:hover { border-color: var(--ink); color: var(--ink); }
+
+  .chip[aria-pressed="true"],
+  .tool[aria-pressed="true"] {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper-2);
+  }
+
+  .tool { margin-left: auto; }
+
+  .filter-status {
+    min-height: 15px;
+    margin: 7px 0 0;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  /* ---------- phases ---------- */
+
+  .phase { margin-top: 50px; scroll-margin-top: 76px; }
+  .phase[hidden] { display: none; }
+
+  .phase-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 22px;
+    padding-bottom: 11px;
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .phase-no {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+
+  .phase-head h2 {
+    margin: 0;
+    font-family: var(--display);
+    font-size: 29px;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    line-height: 1;
+  }
+
+  .phase-sub {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  /* ---------- flow ---------- */
+
+  .track {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .track::before {
+    content: "";
+    position: absolute;
+    left: 24px;
+    top: 8px;
+    bottom: 26px;
+    width: 1.5px;
+    background: var(--line);
+  }
+
+  .step {
+    position: relative;
+    padding: 0 0 22px 70px;
+    animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+  }
+
+  .step[hidden] { display: none; }
+  .step.is-flash .card { animation: flash 1.3s ease; }
+
+  .step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 20.5px;
+    bottom: 8px;
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid var(--line);
+    border-bottom: 1.5px solid var(--line);
+    transform: rotate(45deg);
+    background: var(--paper);
+  }
+
+  .node {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border: 1.5px solid var(--ink);
+    background: var(--paper-2);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    box-shadow: 2px 2px 0 rgba(27, 23, 17, 0.08);
+  }
+
+  .card {
+    position: relative;
+    max-width: 720px;
+    padding: 16px 19px 15px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    background: rgba(250, 246, 236, 0.72);
+    box-shadow: 3px 3px 0 rgba(27, 23, 17, 0.055);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+
+  .card:hover {
+    transform: translate(-1px, -1px);
+    border-color: var(--ink-soft);
+    box-shadow: 5px 5px 0 rgba(27, 23, 17, 0.08);
+  }
+
+  .card-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .card h3 {
+    margin: 0;
+    font-family: var(--display);
+    font-size: 21px;
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -0.012em;
+  }
+
+  .kind {
+    flex: none;
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .kind::before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    margin-right: 6px;
+    vertical-align: 2px;
+    background: currentColor;
+  }
+
+  .card p {
+    margin: 8px 0 0;
+    font-size: 15.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  .card p strong { font-weight: 600; color: var(--ink); }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 11px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: #3a342a;
+    background: #e8e0cf;
+    border: 1px solid #d7ccb7;
+    border-radius: 2px;
+    padding: 1px 6px;
+    white-space: nowrap;
+  }
+
+  /* exact artifacts */
+
+  .files {
+    margin-top: 13px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  body.files-hidden .files { display: none; }
+
+  .files-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 7px;
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+
+  .files-head span:last-child { flex: none; color: var(--accent); }
+
+  .files ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px 22px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .files li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 6px;
+    min-width: 0;
+    line-height: 1.5;
+  }
+
+  .files code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink-soft);
+    font-size: 9.5px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .files .note {
+    font-family: var(--mono);
+    font-size: 8.5px;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+  }
+
+  /* decisions */
+
+  .step.decision .node {
+    left: 7px;
+    top: 7px;
+    width: 34px;
+    height: 34px;
+    transform: rotate(45deg);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: none;
+  }
+
+  .step.decision .node span {
+    display: block;
+    transform: rotate(-45deg);
+    font-size: 10px;
+    color: var(--accent);
+  }
+
+  .step.decision .card { border-left: 3px solid var(--accent); }
+  .step.decision .kind { color: var(--accent); }
+
+  .branches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 12px;
+  }
+
+  .branch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px 5px 6px;
+    border: 1px solid var(--line);
+    background: var(--paper-2);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-soft);
+    text-decoration: none;
+  }
+
+  a.branch:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
+
+  .yn {
+    padding: 2px 5px;
+    font-size: 8.5px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+  }
+
+  .yn.yes { background: var(--accent); color: #fff; }
+  .yn.no { border: 1px solid var(--line); color: var(--muted); }
+
+  /* checkpoints */
+
+  .step.checkpoint .card {
+    border-left: 3px solid var(--green);
+    background: linear-gradient(90deg, var(--green-soft) 0%, rgba(250, 246, 236, 0.72) 38%);
+  }
+
+  .step.checkpoint .node { border-color: var(--green); color: var(--green); }
+  .step.checkpoint .kind { color: var(--green); }
+
+  /* loops */
+
+  .loop {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    margin-top: 12px;
+    padding-top: 9px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  .loop i {
+    font-style: normal;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  .loop b { font-weight: 500; color: var(--accent); }
+
+  /* end */
+
+  .step.end .card {
+    background: var(--ink);
+    border-color: var(--ink);
+    box-shadow: 4px 4px 0 var(--accent);
+  }
+
+  .step.end .card h3 { color: #fbf7ed; }
+  .step.end .card p { color: #d6cdbd; }
+  .step.end .kind { color: #eda48e; }
+  .step.end code {
+    color: #f0e9db;
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .step.end .files { border-top-color: rgba(255, 255, 255, 0.18); }
+  .step.end .files-head { color: #b9b0a1; }
+  .step.end .files-head span:last-child { color: #eda48e; }
+  .step.end .files code { color: #f0e9db; }
+  .step.end .files .note { color: #a89f90; }
+
+  .step.end .node {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: none;
+  }
+
+  /* ---------- footer ---------- */
+
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 56px;
+    padding-top: 16px;
+    border-top: 1px solid var(--ink);
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.7;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+
+  .foot b { font-weight: 500; color: var(--ink); }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(9px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes flash {
+    0%, 100% { box-shadow: 3px 3px 0 rgba(27, 23, 17, 0.055); }
+    20%, 70% { box-shadow: 0 0 0 3px var(--accent); }
+  }
+
+  @media (max-width: 620px) {
+    .sheet { padding: 44px 20px 60px; }
+    .lede { font-size: 17.5px; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; }
+    .meta div {
+      margin: 0;
+      padding: 10px 0;
+      border-right: 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .meta div:nth-child(odd) {
+      padding-right: 12px;
+      border-right: 1px solid var(--line-soft);
+    }
+    .meta div:nth-last-child(-n + 2) { border-bottom: 0; }
+    .phase { margin-top: 38px; }
+    .toolbar { margin: 20px -6px 0; padding: 8px 6px; }
+    .search { flex-basis: 100%; }
+    .tool { margin-left: 0; }
+    .files ul { grid-template-columns: 1fr; }
+    .phase-head { flex-wrap: wrap; gap: 6px 12px; }
+    .phase-head h2 { font-size: 25px; }
+    .phase-sub { width: 100%; margin-left: 25px; text-align: left; }
+    .step { padding-left: 54px; }
+    .track::before { left: 18px; }
+    .node { width: 36px; height: 36px; font-size: 10px; }
+    .step.decision .node { left: 3px; top: 5px; width: 30px; height: 30px; }
+    .step:not(:last-child)::after { left: 14.5px; }
+    .card { padding: 14px 15px 13px; }
+    .card-top { display: block; }
+    .kind { display: inline-block; margin-top: 6px; }
+    .card h3 { font-size: 19px; }
+    .card p { font-size: 15px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .step { animation: none; }
+    .card { transition: none; }
+  }
+
+  @media print {
+    body { background: #fff; }
+    body::before { display: none; }
+    .sheet { max-width: none; padding: 0; }
+    .card { box-shadow: none; break-inside: avoid; }
+    .step { animation: none; break-inside: avoid; }
+    .toolbar, .filter-status { display: none; }
+    .files { display: block !important; }
+    .files ul { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<main class="sheet">
+
+  <header>
+    <p class="eyebrow">video-gen / production transport</p>
+    <h1>One brief,<br><em>all the way to upload.</em></h1>
+    <p class="lede">The whole production pipeline at a glance. Agents research, write, design and build; the CLI measures timing, freezes evidence and holds the gates.</p>
+
+    <div class="meta" aria-label="Pipeline summary">
+      <div><b>16</b> steps</div>
+      <div><b>5</b> phases</div>
+      <div><b>3</b> independent reviews</div>
+      <div><b>3</b> human checkpoints</div>
+    </div>
+
+    <div class="legend" aria-label="Legend">
+      <span><i class="swatch"></i> Step</span>
+      <span><i class="swatch diamond"></i> Decision</span>
+      <span><i class="swatch green"></i> Human checkpoint</span>
+      <span><i class="swatch dash"></i> Repair loop</span>
+    </div>
+  </header>
+
+  <div class="toolbar" role="search" aria-label="Filter the pipeline">
+      <label class="search">
+        <span class="visually-hidden">Filter steps, files or commands</span>
+        <input id="filter" type="search" placeholder="Filter steps, files or commands…" autocomplete="off" spellcheck="false">
+        <kbd>/</kbd>
+      </label>
+      <div class="chips" role="group" aria-label="Filter by phase">
+        <button class="chip" type="button" data-phase="all" aria-pressed="true" title="All phases">All</button>
+        <button class="chip" type="button" data-phase="1" aria-pressed="false" title="Set up">01</button>
+        <button class="chip" type="button" data-phase="2" aria-pressed="false" title="Script">02</button>
+        <button class="chip" type="button" data-phase="3" aria-pressed="false" title="Picture">03</button>
+        <button class="chip" type="button" data-phase="4" aria-pressed="false" title="Review">04</button>
+        <button class="chip" type="button" data-phase="5" aria-pressed="false" title="Deliver">05</button>
+      </div>
+      <button id="toggle-files" class="tool" type="button" aria-pressed="true">Hide files</button>
+    </div>
+    <p class="filter-status" id="filter-status" aria-live="polite"></p>
+
+  <!-- 01 -->
+  <section class="phase" aria-labelledby="phase-1">
+    <div class="phase-head">
+      <span class="phase-no">01</span>
+      <h2 id="phase-1">Set up</h2>
+      <span class="phase-sub">intent · project · profile</span>
+    </div>
+
+    <ol class="track">
+      <li class="step" id="step-01" data-phase="1" style="--i:1">
+        <div class="node"><span>01</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Start with the brief</h3>
+            <span class="kind">input</span>
+          </div>
+          <p>Agree the audience, the material and the constraints. Save the brief to <strong>jobs/scripts/&lt;slug&gt;/BRIEF.md</strong> so production has one authority to work from.</p>
+          <div class="tags"><code>BRIEF.md</code></div>
+          <div class="files" data-base="jobs/scripts/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/scripts/&lt;slug&gt;/</span><span>1</span></div>
+            <ul>
+              <li><code>BRIEF.md</code><span class="note">agreed brief</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+
+      <li class="step" id="step-02" data-phase="1" style="--i:2">
+        <div class="node"><span>02</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Create the project</h3>
+            <span class="kind">cli</span>
+          </div>
+          <p>Choose a treatment profile. The CLI saves the canvas, narration choice and lifecycle state; <strong>next</strong> derives the next task from the files on disk.</p>
+          <div class="tags"><code>project-new --profile</code><code>next --project</code></div>
+          <div class="files" data-base="jobs/scripts/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/scripts/&lt;slug&gt;/</span><span>3</span></div>
+            <ul>
+              <li><code>project.json</code><span class="note">project state</span></li>
+              <li><code>production-profile.json</code><span class="note">frozen treatment</span></li>
+              <li><code>BRIEF.md</code><span class="note">agreed brief</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 02 -->
+  <section class="phase" aria-labelledby="phase-2">
+    <div class="phase-head">
+      <span class="phase-no">02</span>
+      <h2 id="phase-2">Script</h2>
+      <span class="phase-sub">evidence · narration · visual intent</span>
+    </div>
+
+    <ol class="track">
+      <li class="step decision" id="step-03" data-phase="2" style="--i:3">
+        <div class="node"><span>03</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Is a script needed?</h3>
+            <span class="kind">decision</span>
+          </div>
+          <p>A supplied script or recording can go straight to narration. Otherwise the work starts with research, writing and independent review.</p>
+          <div class="branches">
+            <a class="branch" href="#step-04" data-jump><span class="yn yes">Yes</span> write and review → 04</a>
+            <a class="branch" href="#step-06" data-jump><span class="yn no">No</span> narrate → 06</a>
+          </div>
+          <div class="files" data-base="jobs/scripts/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/scripts/&lt;slug&gt;/</span><span>3</span></div>
+            <ul>
+              <li><code>SCRIPT.md</code><span class="note">supplied script</span></li>
+              <li><code>VISUALS.md</code><span class="note">supplied intent</span></li>
+              <li><code>project.json</code><span class="note">records input paths</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+
+      <li class="step" id="step-04" data-phase="2" style="--i:4">
+        <div class="node"><span>04</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Research, write, review</h3>
+            <span class="kind">agent work</span>
+          </div>
+          <p>Research keeps sources and evidence. The writer produces <strong>SCRIPT.md</strong> and concise <strong>VISUALS.md</strong>; a reviewer who did not write it checks the result.</p>
+          <div class="tags"><code>sources/</code><code>SOURCES.md</code><code>SCRIPT.md</code><code>VISUALS.md</code></div>
+          <div class="files" data-base="jobs/scripts/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/scripts/&lt;slug&gt;/</span><span>7</span></div>
+            <ul>
+              <li><code>SOURCES.md</code><span class="note">source ledger</span></li>
+              <li><code>sources/*</code><span class="note">retained evidence</span></li>
+              <li><code>research.md</code><span class="note">research notes</span></li>
+              <li><code>SCRIPT.md</code><span class="note">narration</span></li>
+              <li><code>VISUALS.md</code><span class="note">visual intent</span></li>
+              <li><code>review.md</code><span class="note">script review</span></li>
+              <li><code>briefs/*.md</code><span class="note">host assignments</span></li>
+            </ul>
+          </div>
+          <div class="loop"><i>↺</i> Revisions return here until the review disposition is clean.</div>
+        </article>
+      </li>
+
+      <li class="step checkpoint" id="step-05" data-phase="2" style="--i:5">
+        <div class="node"><span>05</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Script checkpoint</h3>
+            <span class="kind">human · if requested</span>
+          </div>
+          <p>Show the actual script and record the person's decision verbatim. A notification, a ping or elapsed time is not approval.</p>
+          <div class="files" data-base="jobs/scripts/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/scripts/&lt;slug&gt;/</span><span>2</span></div>
+            <ul>
+              <li><code>human/script.json</code><span class="note">script decision</span></li>
+              <li><code>human/decisions.jsonl</code><span class="note">verbatim log</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 03 -->
+  <section class="phase" aria-labelledby="phase-3">
+    <div class="phase-head">
+      <span class="phase-no">03</span>
+      <h2 id="phase-3">Picture</h2>
+      <span class="phase-sub">voice · timing · scenes</span>
+    </div>
+
+    <ol class="track">
+      <li class="step" id="step-06" data-phase="3" style="--i:6">
+        <div class="node"><span>06</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Narrate</h3>
+            <span class="kind">audio</span>
+          </div>
+          <p>Keep a supplied recording unchanged, or generate one complete Ming take with the shared continuity reference. Check target duration and full-script coverage separately.</p>
+          <div class="tags"><code>tts --setup-ming</code><code>ming_continuity.py</code></div>
+          <div class="files" data-base="jobs/scripts/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/scripts/&lt;slug&gt;/</span><span>4</span></div>
+            <ul>
+              <li><code>narration.wav</code><span class="note">Ming take only</span></li>
+              <li><code>tts-status.json</code><span class="note">Ming status</span></li>
+              <li><code>ming-performance.json</code><span class="note">optional pacing</span></li>
+              <li><code>project.json</code><span class="note">audio path</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+
+      <li class="step" id="step-07" data-phase="3" style="--i:7">
+        <div class="node"><span>07</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Measure and prepare</h3>
+            <span class="kind">cli</span>
+          </div>
+          <p>Word timing becomes measured narration cues. The job is prepared and assignments are issued with paths, scope, the saved profile and relevant findings.</p>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>11</span></div>
+            <ul>
+              <li><code>job.json</code><span class="note">job manifest</span></li>
+              <li><code>transcript.json</code><span class="note">ASR words</span></li>
+              <li><code>alignment.json</code><span class="note">measured cues</span></li>
+              <li><code>SCRIPT.md</code><span class="note">recorded excerpt</span></li>
+              <li><code>inputs/brief.md</code><span class="note">brief copy</span></li>
+              <li><code>inputs/source-script.md</code><span class="note">script copy</span></li>
+              <li><code>inputs/visuals.md</code><span class="note">intent copy</span></li>
+              <li><code>inputs/narration.txt</code><span class="note">spoken text</span></li>
+              <li><code>assets/narration.wav</code><span class="note">prepared audio</span></li>
+              <li><code>production-profile.json</code><span class="note">frozen profile</span></li>
+              <li><code>hyperframes.json</code><span class="note">runtime config</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+
+      <li class="step" id="step-08" data-phase="3" style="--i:8">
+        <div class="node"><span>08</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Author the picture</h3>
+            <span class="kind">agent work</span>
+          </div>
+          <p>Write native HyperFrames scenes, or cut an actual-media news edit. Visual intent guides the director; it is not a template or a fixed design recipe.</p>
+          <div class="tags"><code>film.json</code><code>*.html</code><code>news.md</code></div>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>9</span></div>
+            <ul>
+              <li><code>film.json</code><span class="note">scene manifest</span></li>
+              <li><code>compositions/&lt;scene&gt;.html</code><span class="note">native scenes</span></li>
+              <li><code>shots/&lt;scene&gt;.json</code><span class="note">shot notes</span></li>
+              <li><code>components/*</code><span class="note">shared parts</span></li>
+              <li><code>assets/*</code><span class="note">media and fonts</span></li>
+              <li><code>news.json</code><span class="note">news edit</span></li>
+              <li><code>news-sources.json</code><span class="note">rights ledger</span></li>
+              <li><code>assets/news/*</code><span class="note">cleared media</span></li>
+              <li><code>capture/*</code><span class="note">recorded cuts</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+
+      <li class="step" id="step-09" data-phase="3" style="--i:9">
+        <div class="node"><span>09</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Build, lint, inspect</h3>
+            <span class="kind">verification</span>
+          </div>
+          <p>Build the real composition, inspect frames and playback, and fix what the evidence shows. Automated checks establish facts, not audience engagement.</p>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>14</span></div>
+            <ul>
+              <li><code>timing.json</code><span class="note">scene timing</span></li>
+              <li><code>assets/cues.js</code><span class="note">browser cues</span></li>
+              <li><code>assets/media-plan.json</code><span class="note">compiled media</span></li>
+              <li><code>index.html</code><span class="note">assembled film</span></li>
+              <li><code>STORYBOARD.md</code><span class="note">scene map</span></li>
+              <li><code>review/build.json</code><span class="note">build result</span></li>
+              <li><code>review/inspect.json</code><span class="note">frame checks</span></li>
+              <li><code>review/motion.md</code><span class="note">motion transcript</span></li>
+              <li><code>review/sounds.md</code><span class="note">sound plan</span></li>
+              <li><code>review/snapshots/*.png</code><span class="note">inspection frames</span></li>
+              <li><code>assets/news-captions.json</code><span class="note">caption cues</span></li>
+              <li><code>assets/subtitles.srt</code><span class="note">sidecar subtitles</span></li>
+              <li><code>assets/news-mix.wav</code><span class="note">news mix</span></li>
+              <li><code>review/news-verification.json</code><span class="note">news checks</span></li>
+            </ul>
+          </div>
+          <div class="loop"><i>↺</i> Repairs return to <b>08 · Author the picture</b>.</div>
+        </article>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 04 -->
+  <section class="phase" aria-labelledby="phase-4">
+    <div class="phase-head">
+      <span class="phase-no">04</span>
+      <h2 id="phase-4">Review</h2>
+      <span class="phase-sub">evidence · independence · decisions</span>
+    </div>
+
+    <ol class="track">
+      <li class="step decision" id="step-10" data-phase="4" style="--i:10">
+        <div class="node"><span>10</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>App review requested?</h3>
+            <span class="kind">decision</span>
+          </div>
+          <p>When requested, render the film and verify actual playback before freezing evidence. Otherwise freeze the inspected build directly.</p>
+          <div class="branches">
+            <a class="branch" href="#step-11" data-jump><span class="yn yes">Yes</span> render + verify → 11</a>
+            <a class="branch" href="#step-11" data-jump><span class="yn no">No</span> freeze build → 11</a>
+          </div>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>5</span></div>
+            <ul>
+              <li><code>renders/video.mp4</code><span class="note">playback proof</span></li>
+              <li><code>review/render-verification.json</code><span class="note">media check</span></li>
+              <li><code>review/pixels.json</code><span class="note">frame check</span></li>
+              <li><code>review/capture-visibility-dispositions.json</code><span class="note">app review</span></li>
+              <li><code>review/independent-verdict.json</code><span class="note">app review</span></li>
+            </ul>
+          </div>
+          <div class="loop"><i>↺</i> Playback defects return to <b>08 · Author the picture</b>.</div>
+        </article>
+      </li>
+
+      <li class="step" id="step-11" data-phase="4" style="--i:11">
+        <div class="node"><span>11</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Freeze the evidence</h3>
+            <span class="kind">cli</span>
+          </div>
+          <p><strong>review-pack</strong> freezes the full film before the final render, so review is bound to what was actually inspected.</p>
+          <div class="tags"><code>review-pack</code></div>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>4</span></div>
+            <ul>
+              <li><code>review/final/pack.json</code><span class="note">frozen manifest</span></li>
+              <li><code>review/final/evidence-&lt;uuid&gt;/frames/</code><span class="note">PNG frames</span></li>
+              <li><code>review/final/evidence-&lt;uuid&gt;/clip-*.mp4</code><span class="note">encoded clips</span></li>
+              <li><code>review/final/evidence-&lt;uuid&gt;/sheet-*.png</code><span class="note">contact sheets</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+
+      <li class="step" id="step-12" data-phase="4" style="--i:12">
+        <div class="node"><span>12</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Independent film review</h3>
+            <span class="kind">independent review</span>
+          </div>
+          <p>A reviewer who did not make the film reports demonstrated defects and their viewer impact. A spent review budget can end in disclosed findings — never a claimed pass.</p>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>3</span></div>
+            <ul>
+              <li><code>review/final/reviews/visual-mechanism.json</code><span class="note">picture</span></li>
+              <li><code>review/final/reviews/narration-fidelity.json</code><span class="note">voice</span></li>
+              <li><code>review/final/reviews/continuity-legibility.json</code><span class="note">continuity</span></li>
+            </ul>
+          </div>
+          <div class="loop"><i>↺</i> Concrete repairs return to <b>08 · Author the picture</b>.</div>
+        </article>
+      </li>
+
+      <li class="step checkpoint" id="step-13" data-phase="4" style="--i:13">
+        <div class="node"><span>13</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Film checkpoint</h3>
+            <span class="kind">human · if requested</span>
+          </div>
+          <p>Show the actual film and record the person's decision faithfully. Report unresolved findings; do not turn a draft render or a successful agent reply into delivery.</p>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>3</span></div>
+            <ul>
+              <li><code>review/human/final.json</code><span class="note">film decision</span></li>
+              <li><code>job.json</code><span class="note">humanReview flag</span></li>
+              <li><code>jobs/scripts/&lt;slug&gt;/human/decisions.jsonl</code><span class="note">verbatim log</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 05 -->
+  <section class="phase" aria-labelledby="phase-5">
+    <div class="phase-head">
+      <span class="phase-no">05</span>
+      <h2 id="phase-5">Deliver</h2>
+      <span class="phase-sub">qualify · package · publish</span>
+    </div>
+
+    <ol class="track">
+      <li class="step" id="step-14" data-phase="5" style="--i:14">
+        <div class="node"><span>14</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Verify and qualify</h3>
+            <span class="kind">verification</span>
+          </div>
+          <p>Confirm the current render, verify the soundtrack and pixels, then qualify local delivery from <strong>review/delivery.json</strong>. Report audio as measurements unless listening actually happened.</p>
+          <div class="tags"><code>review/delivery.json</code><code>render</code></div>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>6</span></div>
+            <ul>
+              <li><code>renders/video.mp4</code><span class="note">qualified MP4</span></li>
+              <li><code>review/delivery.json</code><span class="note">delivery receipt</span></li>
+              <li><code>review/render-verification.json</code><span class="note">media check</span></li>
+              <li><code>review/pixels.json</code><span class="note">pixel check</span></li>
+              <li><code>review/mix.json</code><span class="note">mix measurements</span></li>
+              <li><code>review/REPORT.md</code><span class="note">report and limits</span></li>
+            </ul>
+          </div>
+          <div class="loop"><i>↺</i> Failed checks return to <b>08 · Author the picture</b>.</div>
+        </article>
+      </li>
+
+      <li class="step checkpoint" id="step-15" data-phase="5" style="--i:15">
+        <div class="node"><span>15</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Thumbnails</h3>
+            <span class="kind">packaging · human if requested</span>
+          </div>
+          <p>Generate at the canvas dimensions, run independent review, and preserve the person's selection when one was requested. Dimensions always match the video.</p>
+          <div class="tags"><code>thumbnails</code></div>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>13</span></div>
+            <ul>
+              <li><code>thumbnail/variants/v1/BRIEF.md</code><span class="note">copy angle</span></li>
+              <li><code>thumbnail/variants/v1/thumbnail.svg</code><span class="note">editable art</span></li>
+              <li><code>thumbnail/variants/v1/thumbnail.png</code><span class="note">video size</span></li>
+              <li><code>thumbnail/variants/v1/preview-&lt;w&gt;x&lt;h&gt;.png</code><span class="note">feed size</span></li>
+              <li><code>thumbnail/variants/v1/feedback.json</code><span class="note">revision notes</span></li>
+              <li><code>thumbnail/variants/REVIEW.json</code><span class="note">verdicts + rank</span></li>
+              <li><code>thumbnail/CHOSEN.json</code><span class="note">pick record</span></li>
+              <li><code>thumbnail/BRIEF.md</code><span class="note">picked copy</span></li>
+              <li><code>thumbnail/thumbnail.svg</code><span class="note">picked art</span></li>
+              <li><code>thumbnail/thumbnail.png</code><span class="note">picked PNG</span></li>
+              <li><code>thumbnail/preview-&lt;w&gt;x&lt;h&gt;.png</code><span class="note">picked preview</span></li>
+              <li><code>thumbnail/REVIEW.json</code><span class="note">picked review</span></li>
+              <li><code>library/thumbnails/&lt;slug&gt;/</code><span class="note">archive</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+
+      <li class="step end" id="step-16" data-phase="5" style="--i:16">
+        <div class="node"><span>16</span></div>
+        <article class="card">
+          <div class="card-top">
+            <h3>Publish</h3>
+            <span class="kind">delivery</span>
+          </div>
+          <p>Use the approved title and description. Upload the qualified MP4 to abdupdates as unlisted unless the person opted out, then report the actual link — or the precise failure.</p>
+          <div class="tags"><code>publishing.md</code><code>youtube-upload</code></div>
+          <div class="files" data-base="jobs/&lt;slug&gt;/">
+            <div class="files-head"><span>Files · jobs/&lt;slug&gt;/</span><span>7</span></div>
+            <ul>
+              <li><code>renders/video.mp4</code><span class="note">upload source</span></li>
+              <li><code>thumbnail/thumbnail.png</code><span class="note">upload thumbnail</span></li>
+              <li><code>thumbnail/BRIEF.md</code><span class="note">approved copy</span></li>
+              <li><code>review/delivery.json</code><span class="note">qualified receipt</span></li>
+              <li><code>.cache/video-gen/youtube-oauth/credentials.json</code><span class="note">OAuth client</span></li>
+              <li><code>.cache/video-gen/youtube-oauth/token.json</code><span class="note">refresh token</span></li>
+              <li><code>https://youtu.be/&lt;id&gt;</code><span class="note">printed link</span></li>
+            </ul>
+          </div>
+        </article>
+      </li>
+    </ol>
+  </section>
+
+  <footer class="foot">
+    <span>Canonical contract: <b>docs/orchestrator.md</b> · state is authoritative, this page is a map.</span>
+    <span>Next task: <b>npm run video -- next --project &lt;slug&gt;</b></span>
+  </footer>
+
+</main>
+
+<script>
+(() => {
+  const steps = [...document.querySelectorAll('.step')];
+  const phases = [...document.querySelectorAll('.phase')];
+  const search = document.getElementById('filter');
+  const status = document.getElementById('filter-status');
+  const chips = [...document.querySelectorAll('.chip')];
+  const filesButton = document.getElementById('toggle-files');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let phase = 'all';
+
+  const apply = () => {
+    const query = search.value.trim().toLowerCase();
+    let shown = 0;
+    for (const step of steps) {
+      const inPhase = phase === 'all' || step.dataset.phase === phase;
+      const matches = inPhase && (!query || step.textContent.toLowerCase().includes(query));
+      step.hidden = !matches;
+      if (matches) shown++;
+    }
+    for (const section of phases) {
+      section.hidden = ![...section.querySelectorAll('.step')].some(step => !step.hidden);
+    }
+    status.textContent = query || phase !== 'all'
+      ? `${shown} of ${steps.length} steps shown${query ? ` for “${search.value.trim()}”` : ''}`
+      : '';
+  };
+
+  search.addEventListener('input', apply);
+
+  for (const chip of chips) {
+    chip.addEventListener('click', () => {
+      phase = chip.dataset.phase;
+      for (const other of chips) other.setAttribute('aria-pressed', String(other === chip));
+      apply();
+      const first = phases.find(section => !section.hidden);
+      if (first) first.scrollIntoView({behavior: reduced.matches ? 'auto' : 'smooth', block: 'start'});
+    });
+  }
+
+  filesButton.addEventListener('click', () => {
+    const hidden = document.body.classList.toggle('files-hidden');
+    filesButton.setAttribute('aria-pressed', String(!hidden));
+    filesButton.textContent = hidden ? 'Show files' : 'Hide files';
+  });
+
+  const flash = target => {
+    target.classList.remove('is-flash');
+    void target.offsetWidth;
+    target.classList.add('is-flash');
+    setTimeout(() => target.classList.remove('is-flash'), 1400);
+  };
+
+  for (const link of document.querySelectorAll('[data-jump]')) {
+    link.addEventListener('click', event => {
+      const target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      event.preventDefault();
+      if (target.hidden) {
+        phase = 'all';
+        search.value = '';
+        for (const chip of chips) chip.setAttribute('aria-pressed', String(chip.dataset.phase === 'all'));
+        apply();
+      }
+      target.scrollIntoView({behavior: reduced.matches ? 'auto' : 'smooth', block: 'center'});
+      flash(target);
+      history.replaceState(null, '', link.getAttribute('href'));
+    });
+  }
+
+  document.addEventListener('keydown', event => {
+    if (event.key === '/' && document.activeElement !== search) {
+      event.preventDefault();
+      search.focus();
+      search.select();
+    }
+    if (event.key === 'Escape' && document.activeElement === search) {
+      search.value = '';
+      apply();
+      search.blur();
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -43,6 +43,7 @@ Read the relevant contract, not the whole folder.
 | Document | Needed for |
 |---|---|
 | [orchestrator](docs/orchestrator.md) | Harness handoffs, checkpoints, completion and the pipeline flowchart |
+| [pipeline](docs/pipeline.html) | Standalone visual map of the whole production pipeline |
 | [composition](docs/composition.md) | Native HyperFrames integration and build failures |
 | [audio](docs/audio.md) | Ming generation, continuity, effects and verified mixing |
 | [review](docs/review.md) | Evidence-bound independent/user review and concrete findings |
