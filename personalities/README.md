@@ -13,3 +13,6 @@ Choose by treatment, not just topic. The user's explicit direction wins.
 Load only the selected profile. Ask a routing question only when the treatment is genuinely ambiguous.
 `project-new --profile <id>` saves its instructions with the project. Provider/model settings are separate.
 Profiles establish purpose and evidentiary boundaries; agents choose the storytelling and implementation.
+
+All profiles use the full [Motion Explainer reference](../docs/motion-explainer.md) during visual planning.
+Techniques are shared across profiles and film lengths; editorial purpose determines their application.

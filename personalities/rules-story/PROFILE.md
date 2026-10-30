@@ -31,5 +31,6 @@ effective original scary story you can. Examples: "If Your Kettle Ever Boils At 
 Your Phone Ever Types A Message You Didn't Write… DON'T SEND IT"; "If The Bus Driver Ever Skips Your Stop
 And Says Your Name… STAY ON BOARD". Do not reuse a premise, object or instruction from an existing video.
 
-Use [Motion Explainer](../../docs/motion-explainer.md) as an optional camera and motion reference
-for staged action, reveals and transitions. Adapt pacing to tension and preserve visual continuity.
+Apply the full [Motion Explainer reference](../../docs/motion-explainer.md) during visual planning,
+including camera, editing and motion graphics techniques across the whole film. Choose and combine
+techniques for this treatment; the profile does not restrict the available vocabulary.

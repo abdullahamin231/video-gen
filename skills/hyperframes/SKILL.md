@@ -21,5 +21,8 @@ frames, signal measurements and playback as different evidence. Check that the p
 spoken meaning and remains readable on the target canvas. Clear technical failures; use judgment on
 creative choices. Avoid adding motion merely to satisfy activity metrics.
 
-For Motion Explainer camera/motion references or Canvas frame drawing, read
-`docs/motion-explainer.md`. Its optional library bundle includes a seekable GSAP bridge.
+For explainer and rules-story personalities, read `docs/motion-explainer.md` and both referenced technique catalogs before
+visual planning. Consider the full camera, editing and motion graphics vocabulary across the whole film;
+inspect relevant example code and adapt or combine techniques to serve each narrative beat. No profile
+is limited to a technique subset, short loops or card layouts. The bundle also includes a Canvas timeline
+bridge; use the implementation that fits the scene.

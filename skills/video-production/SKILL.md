@@ -21,6 +21,10 @@ Keep research, narration and production in the project folders. `skills/script-w
 script outputs. Use `docs/audio.md` only when generating narration; supplied recordings remain intact.
 Ming narration uses one invocation and a shared acoustic reference through `scripts/ming_continuity.py`.
 
+Explainer and rules-story personalities use the full Motion Explainer reference during visual planning, following
+`docs/motion-explainer.md`; apply its camera, editing and motion graphics vocabulary across the film
+while preserving the selected profile's purpose and evidence boundaries.
+
 Author the picture directly in HyperFrames using `skills/hyperframes/SKILL.md`. Bring in local assets
 with recorded sources. Reuse library assets when they fit; creating a better asset is equally valid.
 Music and effects are optional. `docs/audio.md` covers the pipeline mix when needed.

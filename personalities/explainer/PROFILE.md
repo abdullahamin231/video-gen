@@ -21,5 +21,6 @@ If playback inspection is unavailable, disclose that limitation rather than clai
 
 Create new projects with `--profile explainer`. The shared transport contract is `docs/orchestrator.md`.
 
-Use [Motion Explainer](../../docs/motion-explainer.md) as an optional vocabulary and code reference
-for diagram motion, comparisons and camera techniques. Adapt selected moves to the explanation.
+Apply the full [Motion Explainer reference](../../docs/motion-explainer.md) during visual planning,
+including camera, editing and motion graphics techniques across the whole film. Choose and combine
+techniques for this treatment; the profile does not restrict the available vocabulary.
