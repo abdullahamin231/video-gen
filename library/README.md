@@ -24,3 +24,8 @@ publishes a version; existing versions cannot be overwritten. Sources/licences s
 Finished thumbnail sets are archived by `thumbnail-choose` under `library/thumbnails/<slug>/`, preserving
 the video's dimensions, variants and recorded selection. The renderer's own generated files are not
 reusable creative assets and should not be published as such.
+
+## Motion Explainer
+
+`motion-explainer@1.0.0` bundles pinned MIT camera/motion examples, prompts and a native Canvas
+timeline bridge. See [usage and profile guidance](../docs/motion-explainer.md).

@@ -20,3 +20,6 @@ Inspect actual frames and transitions after build, and use playback when judging
 frames, signal measurements and playback as different evidence. Check that the picture supports the
 spoken meaning and remains readable on the target canvas. Clear technical failures; use judgment on
 creative choices. Avoid adding motion merely to satisfy activity metrics.
+
+For Motion Explainer camera/motion references or Canvas frame drawing, read
+`docs/motion-explainer.md`. Its optional library bundle includes a seekable GSAP bridge.

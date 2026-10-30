@@ -20,3 +20,6 @@ automated checks alone do not establish that the animation is engaging or commun
 If playback inspection is unavailable, disclose that limitation rather than claiming it was completed.
 
 Create new projects with `--profile explainer`. The shared transport contract is `docs/orchestrator.md`.
+
+Use [Motion Explainer](../../docs/motion-explainer.md) as an optional vocabulary and code reference
+for diagram motion, comparisons and camera techniques. Adapt selected moves to the explanation.

@@ -14,5 +14,6 @@ outputs/
 jobs/
 library/*
 !library/README.md
+!library/motion-explainer/
 .cache/
 archive/

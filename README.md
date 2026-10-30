@@ -45,6 +45,7 @@ Read the relevant contract, not the whole folder.
 | [orchestrator](docs/orchestrator.md) | Harness handoffs, checkpoints, completion and the pipeline flowchart |
 | [pipeline](docs/pipeline.html) | Standalone visual map of the whole production pipeline |
 | [composition](docs/composition.md) | Native HyperFrames integration and build failures |
+| [Motion Explainer](docs/motion-explainer.md) | Camera/motion references and Canvas animation for explainers, horror and other scenes |
 | [audio](docs/audio.md) | Ming generation, continuity, effects and verified mixing |
 | [review](docs/review.md) | Evidence-bound independent/user review and concrete findings |
 | [capture](docs/capture.md) | Actual browser recordings, native cuts and omission evidence |

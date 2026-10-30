@@ -30,3 +30,6 @@ full creative authority over the premise, structure, imagery, tone and ending, a
 effective original scary story you can. Examples: "If Your Kettle Ever Boils At 4:00… DON'T POUR IT"; "If
 Your Phone Ever Types A Message You Didn't Write… DON'T SEND IT"; "If The Bus Driver Ever Skips Your Stop
 And Says Your Name… STAY ON BOARD". Do not reuse a premise, object or instruction from an existing video.
+
+Use [Motion Explainer](../../docs/motion-explainer.md) as an optional camera and motion reference
+for staged action, reveals and transitions. Adapt pacing to tension and preserve visual continuity.

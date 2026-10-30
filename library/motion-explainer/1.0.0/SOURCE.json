@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/showheyohtaki/motion-explainer",
+  "commit": "b2925ba8856e2e7aea1151b05bc3e7f12e283bd8",
+  "license": "MIT",
+  "retrieved": "2026-10-30",
+  "files": {
+    "LICENSE": "b687b1f10c8ea46937216c0e2b999b706572e0430d7a8d2934fc10cb96af4f46",
+    "README.md": "643f4f6631c17ec74c46813b28512793486b2dc271e6b81e83b38f4cf50087ed",
+    "PROMPT.md": "9e5aa9b1b78b63a703bf61fe293a5b769432ef7188a45e1ddbcad3d22ce6e158",
+    "template/index.html": "b65ada255302249fb1fd57f04780aac9c9fd8109c2955b34d8635846f8bf1fd4",
+    "examples/camera-moves/NAMES.md": "fbdedf2ab3cfbf19aef883ae03327694018a34cbc97af4b5ac5d1e42c3ce7896",
+    "examples/camera-moves/en/index.html": "dc7a7d2948b404ba6a00590ff7ec22b0867f110c6545bd5aafd3d8217e2d5773",
+    "examples/motion-graphics/NAMES.md": "5f01e856994cecb567e04ca190dc4d88f38b9ac5e237cff83eae372710242459",
+    "examples/motion-graphics/ja/index.html": "a7c3026ccd4a88e79309130e6a18171180309a1dd54851c04bf1150fafca6514",
+    "prompts/post.md": "a1fb03ff1c03979d07430ed40d98383bb1f7f690af54dae6d83b3f043d6365e7",
+    "prompts/translate.md": "0c13f81ead01c8a7c843e152fc5b514f9457cbbe5071fbd5e56d8099a85e2678",
+    "prompts/review.md": "6f8d9ff665ea594b737d040fb3a88539ac1b18dc5ced1af52e7f29a0a60ce02b",
+    "prompts/cheatsheet-image.md": "4ddf456c94786266ecffe668746cc51bda4f6d777b7fdb08a1908729f7a70596"
+  }
+}

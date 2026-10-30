@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "motion-explainer",
+  "version": "1.0.0",
+  "kind": "component",
+  "title": "Motion Explainer animation references and Canvas timeline bridge",
+  "description": "Pinned MIT prompts, camera/motion drawing examples and a seekable GSAP bridge for explainer, rules-story horror and other native scenes.",
+  "tags": [
+    "motion",
+    "explainer",
+    "rules-story",
+    "horror",
+    "camera",
+    "canvas",
+    "gsap",
+    "reference"
+  ],
+  "entry": "timeline.js",
+  "files": [
+    "SOURCE.json",
+    "timeline.js",
+    "upstream/LICENSE",
+    "upstream/PROMPT.md",
+    "upstream/README.md",
+    "upstream/examples/camera-moves/NAMES.md",
+    "upstream/examples/camera-moves/en/index.html",
+    "upstream/examples/motion-graphics/NAMES.md",
+    "upstream/examples/motion-graphics/ja/index.html",
+    "upstream/prompts/cheatsheet-image.md",
+    "upstream/prompts/post.md",
+    "upstream/prompts/review.md",
+    "upstream/prompts/translate.md",
+    "upstream/template/index.html"
+  ],
+  "usage": "Read docs/motion-explainer.md. Copy with library-use; keep upstream files frozen and adapt drawing code into native scenes. Load timeline.js inside the scene template; register MotionExplainer.createTimeline(drawFrame, {duration, fps}) under the scene ID. Existing production and review contracts apply.",
+  "origin": {
+    "source": "https://github.com/showheyohtaki/motion-explainer",
+    "license": "MIT (upstream); project-owned timeline.js",
+    "commit": "b2925ba8856e2e7aea1151b05bc3e7f12e283bd8"
+  },
+  "review": {
+    "status": "draft",
+    "evidence": []
+  }
+}
