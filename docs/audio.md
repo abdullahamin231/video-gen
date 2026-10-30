@@ -23,8 +23,9 @@ The adapter holds one neutral acoustic reference across every internal fragment 
 through `scripts/ming_continuity.py`. Separate invocations would lose that shared reference. Output is
 24 kHz mono WAV with 1.5 seconds of trailing silence. Measure the resulting duration before preparation.
 Use the brief's target for `--target-seconds`, or omit it when length is open. The command measures the WAV
-before replacing the prior take; the default tolerance is 10% or 2 seconds, whichever is larger.
-An out-of-range take is kept as `narration.rejected.wav` for diagnosis and marked failed in the status file.
+before replacing the prior take; the approved tolerance is 20% of the requested duration or 2 seconds, whichever
+is larger, so a take at 48–72 seconds satisfies a 60-second request. An out-of-range take is kept as
+`narration.rejected.wav` for diagnosis and marked failed in the status file.
 `--duration-tolerance <seconds>` sets the accepted range explicitly. Generation completion establishes
 neither speech fidelity nor natural delivery. A short take may have missing words; check that before
 adjusting speed, pauses or script length. Do not stretch incomplete speech to meet a target.

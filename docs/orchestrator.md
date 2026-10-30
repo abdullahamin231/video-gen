@@ -29,7 +29,9 @@ A supplied script can go directly to direction. `docs/composition.md` defines th
 Use `docs/audio.md` only when narration is needed. Generate one complete narration invocation, keeping Ming's
 shared reference through the continuity adapter. Supplied recordings remain unchanged.
 For generated narration, pass the requested `--target-seconds` to TTS and `--full-script true` to start;
-duration and full-script coverage are separate checks. A matching excerpt is not a complete take.
+duration and full-script coverage are separate checks. A take within ±20% of the requested duration (or 2
+seconds, whichever is larger) is approved; the coverage check still decides whether the entire script was
+spoken. A matching excerpt is not a complete take.
 
 ## Review and completion
 

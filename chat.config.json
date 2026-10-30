@@ -7,7 +7,7 @@
         "model": "gpt-6.1-sol"
       },
       "weak": {
-        "model": "gpt-6-luna"
+        "model": "gpt-6.1-terra"
       }
     },
     "claudeAgent": {

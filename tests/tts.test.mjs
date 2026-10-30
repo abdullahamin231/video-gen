@@ -88,7 +88,7 @@ test('a short take fails its duration target without replacing existing narratio
   await writeFile(files.output, 'preserve prior take');
   const options = {...files, text: 'Complete reviewed narration.', targetSeconds: 60};
   const ming = async (text, output) => writeFile(output, wav());
-  await assert.rejects(generateSpeech(options, {ming}), /Narration is 0.10s; target is 60s/);
+  await assert.rejects(generateSpeech(options, {ming}), /Narration is 0.10s; target is 60s ±12s/);
   assert.equal(await readFile(files.output, 'utf8'), 'preserve prior take');
   const status = await readTtsStatus(files.statusFile);
   assert.equal(status.status, 'failed');
