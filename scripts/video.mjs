@@ -17,7 +17,6 @@ import {installRuntime} from '../lib/composition.mjs';
 import {importAsset, webImagesAllowed} from '../lib/assets.mjs';
 import {SpecError} from '../lib/composition.mjs';
 import {findVisualPlan, VISUALS_FILE} from '../lib/timing.mjs';
-import {loadChannelTheme, CHANNEL_THEME_FILE} from '../lib/media.mjs';
 import {loadConfig, resolveSettings} from '../lib/media.mjs';
 import {PERSONALITIES, loadPersonality, preparationPersonality, freezePersonality, assertRenderReady} from '../lib/personalities.mjs';
 import {transcribeNews, ingestNews, newsPlan, isNews, verifyNews} from '../lib/news.mjs';
@@ -154,7 +153,6 @@ async function prepare(opts) {
   const personality = preparationPersonality(path.dirname(script), sourceScript, opts.profile);
   assertRenderReady(personality);
   const config = await loadConfig(ROOT), settings = resolveSettings(opts, config, Number(metadata.format.duration));
-  const channel = personality.profile.id === 'explainer' ? await loadChannelTheme(ROOT, config) : null;
   const {start, duration, format, fps} = settings;
   for (const w of settings.warnings) console.warn(`Warning: ${w}`);
   const language = opts.language || 'en', model = opts.model || (language === 'en' ? 'small.en' : 'small');
@@ -183,8 +181,6 @@ async function prepare(opts) {
   // The writer's visual plan travels with the script; without one, `next` asks a writer for it before planning.
   const visuals = opts.visuals ? path.resolve(ROOT, opts.visuals) : await findVisualPlan(script);
   if (visuals) await copyFile(visuals, path.join(job, VISUALS_FILE));
-  // The channel's theme travels with the job, so the plan is made in it and later checks compare against the same file.
-  if (channel) await copyFile(channel.file, path.join(job, CHANNEL_THEME_FILE));
   const narration = extractNarration(sourceScript);
   await writeFile(path.join(job, 'inputs/narration.txt'), narration);
   await run('ffmpeg', ['-v', 'error', '-i', audio, '-ss', String(start), '-t', String(duration),
@@ -198,7 +194,6 @@ async function prepare(opts) {
     ...(hasBrief ? {brief:{path:'inputs/brief.md',source:path.relative(ROOT,sourceBrief)}} : {}),
     script: {path: 'inputs/source-script.md', source: path.relative(ROOT, script), sha256: await digest(script), fullScript: opts['full-script'] === 'true'},
     ...(visuals ? {visuals: {path: VISUALS_FILE, source: path.relative(ROOT, visuals), sha256: await digest(visuals)}} : {}),
-    ...(channel ? {channelTheme: {path: CHANNEL_THEME_FILE, source: path.relative(ROOT, channel.file), sha256: await digest(channel.file)}} : {}),
     transcription: {language, model, engine, suppliedWords: !!opts.words},
     productionProfile, reviewDepth, creativeMode: 'agent-discretion', workflow: personality.profile.workflow, status: 'awaiting-transcription',
     review: {producerAgentIds: [...new Set(producerHistory.map(r=>r.agentId))], producerAgentRecords: producerHistory, producerIdentityStatus: producerHistory.length ? 'recorded' : 'unrecorded',
